@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #----------------------------------------------------------------------------
 # Created By  : Rene HJ Heim and Nathan Okole
 # Created Date: 2023/02/07
-# version ='1.0'
+# version ='1.2'
 # ---------------------------------------------------------------------------
-"""Using the full pixel data to filter only sample locations"""
+"""Using the full pixel data (01) to filter only sample locations"""
 
 # Import libs
 import pandas as pd
