@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #----------------------------------------------------------------------------
 # Created By  : Nathan Okole and Rene HJ Heim
 # Created Date: 2023/02/07
-# version ='1.0'
+# version ='1.2'
 # ---------------------------------------------------------------------------
 
 ''' This script puts together results produced in the last script in a single database which will
-then be used as input fosr machine learning modelling'''
+then be used as input for subsequent modelling'''
 
 # Import libs
 import glob
