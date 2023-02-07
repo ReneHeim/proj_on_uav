@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #----------------------------------------------------------------------------
-# Created By  : Rene HJ Heim
-# Created Date: 2022/06/22
-# version ='1.0'
+# Created By  : Rene HJ Heim and Nathan Okole
+# Created Date: 2023/02/07
+# version ='1.2'
 # ---------------------------------------------------------------------------
 """
 This script retrieves pixel-wise reflectance values from Metashape orthophotos. For each pixel, the
