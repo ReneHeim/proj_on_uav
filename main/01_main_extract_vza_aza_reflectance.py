@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #----------------------------------------------------------------------------
 # Created By  : Rene HJ Heim and Nathan Okole
 # Created Date: 2023/02/07
 # version ='1.2'
 # ---------------------------------------------------------------------------
+
 """
-This script retrieves pixel-wise reflectance values from Metashape orthophotos. For each pixel, the
-observation/illumination angles will be calculated based on Roosjen, 2017. Orthophotos are used instead of
-ortho mosaics as the camera positions are available for each ortho photo but not for the mosaic. The pixel resolution
-is determined by the orthophotos and dem.
+This script unlocks pixel-wise reflectance values from Metashape orthophotos. For each pixel, the
+view zenith and azimuth angles will be calculated. Orthophotos are used instead of
+orthomosaics as the camera positions are available for each ortho photo but not for the mosaic. The pixel resolution
+is determined by the orthophotos and the digital elevation model (dem).
 
 The following input variables are required to build a oblique-reflectance data frame:
 
