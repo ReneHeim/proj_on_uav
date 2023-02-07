@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 #----------------------------------------------------------------------------
 # Created By  : Rene HJ Heim
-# Created Date: 2022/07/08
-# version ='1.0'
+# Created Date: 2023/02/07
+# version ='1.2'
 # ---------------------------------------------------------------------------
 
 """
-This Script does with the orthomosaic what has been previously done for orthophotos. It breaks the orthomosaic into pixels
-which are put in a tabulr form. Then a KD Tree is used to search for pixels that fall in a given radius around points 
+This script does with the orthomosaic what has been previously done for orthophotos. It breaks the orthomosaic into pixels
+which are put in a tabular form. Then a KD Tree is used to search for pixels that fall in a given radius around points 
 sampled on the ground. 
 """
 
