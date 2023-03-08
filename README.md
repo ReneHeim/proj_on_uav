@@ -1,3 +1,5 @@
+![alt text](https://github.com/ReneHeim/proj_on_uav/blob/main/graphical_abstract.png)
+
 ## What does this repository contain?
 
 - The [ref](https://github.com/ReneHeim/proj_on_uav/tree/main/ref) directory containing the code that was used to clean and structure the data that was collected for the study XYZ, published here (LINK TBA).
