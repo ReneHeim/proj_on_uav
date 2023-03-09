@@ -1,0 +1,20 @@
+inputs: 
+    paths: 
+        cam_path: r"D:\on_uav_data\raw\20200906_Bot\agisoft\20200906_bot_corn_comb_20cm\All_flight\20200906_bot_corn_comb_cameras.txt" # Indicate where you stored your omega phi kappa textfile containing your camera position 
+        dem_path: r"D:\on_uav_data\raw\20200906_Bot\agisoft\20200906_bot_corn_comb_20cm\All_flight\20200906_bot_corn_comb_20cm_dem.tif" # Indicate where you stored your digital elevation model obtained from Metashape 
+        orthophoto_path: r"D:\on_uav_data\raw\20200906_Bot\agisoft\20200906_bot_corn_comb_20cm\All_flight\20200906_bot_corn_comb_20cm_orthophotos\*.tif" # Indicate the folder containing your orthorectified photos obtained from Metashape (don't forget the * mask before .tif) 
+        ori: [r"D:\on_uav_data\raw\20200906_Bot\multi\fl2_nad", r"D:\on_uav_data\raw\20200906_Bot\multi\fl3_oblique", r"D:\on_uav_data\raw\20200906_Bot\multi\fl4_nad"] # Indicate folders containing your original images used to create orthophotos. as these folders can be multiple, you are given the option to put them in a list
+        mosaic_path: r"D:\on_uav_data\raw\20200906_Bot\agisoft\20200906_bot_corn_comb_20cm\All_flight\20200906_bot_corn_comb_20cm_mosaic.tif" # Indicate the path to the orthomosaic obtaied from metashape
+        ground_truth_coordinates: r"D:\on_uav_data\raw\ground truth\gpscoords_plots_bottelare_raw.csv" # Indicate the file containing the ID and coordinates of your ground truth in the format ['id', 'x', 'y']
+        ground_truth_value: r"D:\on_uav_data\raw\ground truth\ref_data.csv" # Indicate the file containing the ID (column named "plot") of sampling points and values of measured parameters 
+
+    settings: 
+        number_of_processor: -1 # here you can set the number of processors you want to assign to this task 
+        filter_radius: 1 # Indicate in meters the filtering radius around your sampling points on the ground 
+        names_of_parameter: ["lai", "chl"] # Indicate the parameters you measured on the ground 
+        number_of_classes: 3 # Incase you want to have your parameters splitted into classes for further processing (classification) 
+        file_name: "my_project" # Indicate the name your files should carry as a prefix
+
+outputs: 
+    paths: 
+        main_out: r"D:\on_uav_data\proc" # Indicate the folder that will contain all your outputs
