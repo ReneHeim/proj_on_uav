@@ -13,7 +13,6 @@ then be used as input fosr machine learning modelling'''
 import glob
 import pandas as pd
 import numpy as np
-import itertools
 import os
 from config_object import config
 
@@ -21,12 +20,8 @@ from config_object import config
 # Define input and output
 out = config.merging_out
 input_dir = config.merging_input_dir
-ground_truth_value = config.merging_groung_truth_value
+ground_truth_coordinates = config.merging_groung_truth_coordinates
 file_name = config.main_extract_name
-
-# Define measured parameters
-parameters = config.merging_param
-n = config.number_of_classes
 
 # List files to merge         
 path_list = glob.glob(input_dir + '\*.feather')
@@ -37,11 +32,9 @@ for each in path_list:
 df_pix = pd.concat(dfs)
 df_pix=df_pix.rename(columns = {'plot':'plot_pix'})
 
-# Cut target (ground truth) variable according to different levels (3 or 5 levels) for LAI and Chl
+# open coordinate file
 
-df_main = pd.read_csv(ground_truth_value)
-for param in parameters:
-    df_main[param+"_class"] = pd.qcut(df_main['param'], n)
+df_main = pd.read_csv(ground_truth_coordinates, names=['plot', 'x', 'y'])
 
 # Attribute each pixel the value of the point whose radius it falls in (delete plots with no reference value)
 main = pd.unique(df_main["plot"])

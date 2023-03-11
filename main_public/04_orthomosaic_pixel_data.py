@@ -27,14 +27,11 @@ output = config.merging_out
 
 # Define input directories
 ground_truth_coordinates = config.filter_groung_truth_coordinates
-ground_truth_value = config.filter_groung_truth_value
+
 
 # Define the radius
 radii = config.orthomosaic_radius
 
-#Define parameters
-parameters = config.merging_param
-n = config.number_of_classes
 
 # Define all necessary input directories in a list of dictionnaries
 # Each Dictionnary is comprised of 3 elements: 
@@ -128,6 +125,7 @@ def process_orthomosaic(source):
     for radius_id,radius in tqdm({'2m_radius':radii}.items()):
         path_to_save = output
         df = df_merged
+        df_cleaned = df
         
         plotlist = list(zip(plots_round['x'], plots_round['y']))
         coordlist = list(zip(df_cleaned['Xw'], df_cleaned['Yw']))
@@ -145,9 +143,8 @@ def process_orthomosaic(source):
         df_pix = result.rename(columns = {'plot':'plot_pix'})
         
         # Add target data (classified)
-        df_main = pd.read_csv(ground_truth_value)
-        for param in parameters:
-            df_main[param+"_class"] = pd.qcut(df_main['param'], n)
+        df_main = pd.read_csv(ground_truth_coordinates, names=['plot', 'x', 'y'])
+        
         main = pd.unique(df_main["plot"])
         pix = pd.unique(df_pix["plot_pix"])
         
@@ -166,7 +163,7 @@ def process_orthomosaic(source):
             newdf.columns = i.columns
             res.append(pd.concat([newdf.reset_index(), j.reset_index()], sort=False, axis=1))
         df_fin = pd.concat(res)
-        df = df_fin.drop(columns=['index']) #no column named level_0
+        df = df_fin.drop(columns=['index', 'x', 'y']) #no column named level_0
         df.to_csv(os.path.join(path_to_save,out+".csv"))
 
 # Loop trough dictionnaries using the above-defined function

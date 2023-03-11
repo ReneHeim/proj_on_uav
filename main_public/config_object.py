@@ -32,9 +32,7 @@ class config_object():
         
         self.merging_input_dir = self.filter_out
         self.merging_out = os.path.join(input_config.outputs.paths.main_out, "merge")
-        self.merging_param = input_config.inputs.settings.names_of_parameter
-        self.merging_number_of_classes = input_config.inputs.settings.number_of_classes
-        self.merging_groung_truth_value = input_config.inputs.paths.ground_truth_value
+        self.merging_groung_truth_coordinates = self.filter_groung_truth_coordinates
         
         self.orthomosaic_ortho_path = input_config.inputs.paths.mosaic_path
         self.orthomosaic_dem_path = self.main_extract_dem_path
