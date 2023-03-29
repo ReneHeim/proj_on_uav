@@ -19,6 +19,10 @@
 
 **Exiftool (by Phil Harvey):** Please follow the [instructions](https://exiftool.org/install.html) to install Exiftool on your operating system and associate the programm with your Python environment.
 
+**PyExifTool and other Python libraries:** Please use THIS requirements file to install all necessary Python libraries in you preferred conda environment:
+
+`conda env create --name my-env-name --file environment.yml`
+
 ADD STEP BY STEP GUIDE HERE TO GET FROM MULTISPEC IMAGES TO DATAFRAME THAT IS READY FOR MODELLING
 
 1. STEP 1
