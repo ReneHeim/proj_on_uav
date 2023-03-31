@@ -59,4 +59,6 @@ Please save the following files in a single directory:
 2. Open the [config_file.yaml](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/config_file.yaml)
 3. Change the paths, settings, and output according to your specific setup
 4. Execute the [01_main_extract_vza_aza_reflectance.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/01_main_extract_vza_aza_reflectance.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-5. 
+5. Execute the [02_filter_sample_location.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/02_filter_sample_location.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+6. Execute the [03_merging_sample_locations.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/03_merging_sample_locations.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+7. Execute the [04_orthomosaic_pixel_data.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/04_orthomosaic_pixel_data.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
