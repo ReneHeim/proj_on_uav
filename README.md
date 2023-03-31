@@ -23,7 +23,40 @@
 
 `conda env create --name my-env-name --file environment.yml`
 
-ADD STEP BY STEP GUIDE HERE TO GET FROM MULTISPEC IMAGES TO DATAFRAME THAT IS READY FOR MODELLING
+### Sample Coordinates
 
-1. STEP 1
-2. STEP 2
+For each ground sampling that was performed in the field, you will need an associated coordinate and provide a csv file containing these coordinates.
+
+NO HEADER
+"id_1","lon_1","lat_1"
+"id_2","lon_2","lat_2"
+"id_i","lon_i","lat_i"
+
+### Metashape
+
+1. Align image dataset
+2. Build dense cloud
+3. Build DEM 
+4. Build orthomosaic 
+5. Export DEM (make sure the DEM matches the extent of the Orthomosaic)
+6. Export orthomosaic (make sure the Orthomosaic matches the extent of the DEM)
+7. Export orthophotos
+8. Export camera positions as omega_phi_kappa.txt
+
+### Combine required files into a single directory
+
+Please save the following files in a single directory:
+
+- DEM (as .tiff)
+- Orthophotos (as directory)
+- Camera positions (as .txt)
+- Sample coordinates (as. csv)
+- Original images (as directory)
+
+### Python
+
+1. Please download the complete [repository](https://github.com/ReneHeim/proj_on_uav) and keep the directory structure as it is
+2. Open the [config_file.yaml](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/config_file.yaml)
+3. Change the paths, settings, and output according to your specific setup
+4. Execute the [01_main_extract_vza_aza_reflectance.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/01_main_extract_vza_aza_reflectance.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+5. 
