@@ -29,23 +29,22 @@ library(stargazer)
 
 
 
-ref_path <- file.path("C:",
-                      "Users",
-                      "heim",
-                      "OneDrive - Institut für Zuckerrübenforschung", 
-                      "projects", 
+ref_path <- file.path("D:",
+                      "OneDrive - Institut für Zuckerrübenforschung",
+                      "03_projects", 
                       "proj_on_uav", 
-                      "data", 
-                      "proc", 
+                      "code_copied", 
+                      "on_uav_r_stats",
+                      "proc",
                       "ref_data.csv")
 
-class_path <- file.path("C:",
-                      "Users",
-                      "heim", 
-                      "OneDrive - Institut für Zuckerrübenforschung", 
-                      "projects", 
+
+class_path <- file.path("D:",
+                      "OneDrive - Institut für Zuckerrübenforschung",
+                      "03_projects", 
                       "proj_on_uav", 
-                      "data", 
+                      "code_copied", 
+                      "on_uav_r_stats",
                       "proc", 
                       "20230127_classif_data.csv")
 
@@ -73,13 +72,13 @@ class_df$dataset[class_df$dataset == 'All_flight'] <- 'NOO'
 class_df$dataset[class_df$dataset == 'Nadir_flight'] <- 'N'
 
 class_df$vza_group[class_df$vza_group == 'mosaic'] <- 'orthomosaic'
-class_df$vza_group[class_df$vza_group == 'all'] <- 'all_vza'
+class_df$vza_group[class_df$vza_group == 'all'] <- 'all vza'
 
 class_df$vaa_group[class_df$vaa_group == 'mosaic'] <- 'orthomosaic'
-class_df$vaa_group[class_df$vaa_group == 'all'] <- 'all_vaa'
-class_df$vaa_group[class_df$vaa_group == 'back scattering'] <- 'bs'
-class_df$vaa_group[class_df$vaa_group == 'side scattering'] <- 'ss'
-class_df$vaa_group[class_df$vaa_group == 'forward scattering'] <- 'fs'
+class_df$vaa_group[class_df$vaa_group == 'all'] <- 'all vaa'
+#class_df$vaa_group[class_df$vaa_group == 'back scattering'] <- 'bs'
+#class_df$vaa_group[class_df$vaa_group == 'side scattering'] <- 'ss'
+#class_df$vaa_group[class_df$vaa_group == 'forward scattering'] <- 'fs'
 
 class_df$dates <- as.factor(class_df$dates)
 class_df$resolution <- as.factor(class_df$resolution)
@@ -198,23 +197,95 @@ The ET model performs slightly better.
 ggplot(df_1m, aes(dates, mean_f1)) + 
   geom_boxplot()
 ```
+
+```{r}
+kruskal.test(df_1m$mean_f1~df_1m$dates)
+
+pairwise.wilcox.test(class_df$mean_f1, class_df$dates, p.adjust="bonferroni")
+```
+```{r}
+aov_model <- aov(mean_f1 ~ dates, data = df_1m)
+anova(aov_model)
+print(LSD.test(aov_model,"dates"))
+```
+
+
 The second day performs clearly better.
 
-## 3.3 Which dataset performs best?
+## 3.3 Which VZA group is best (Day1)?
+
+```{r}
+
+df_1m_d1 <- subset(df_1m, dates == "20200906")
+
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_d1)
+anova(aov_model)
+print(LSD.test(aov_model,"vza_group"))
+```
+
+## 3.4 Which VZA group is best (Day2)?
+
+```{r}
+
+df_1m_d2 <- subset(df_1m, dates == "20200907")
+
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_d2)
+anova(aov_model)
+print(LSD.test(aov_model,"vza_group"))
+```
+
+## 3.5 Which VAA group is best (Day1)?
+
+```{r}
+
+df_1m_d1 <- subset(df_1m, dates == "20200906")
+
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_d1)
+anova(aov_model)
+print(LSD.test(aov_model,"vaa_group"))
+```
+
+
+## 3.6 Which VAA group is best (Day2)?
+
+```{r}
+
+df_1m_d2 <- subset(df_1m, dates == "20200907")
+
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_d2)
+anova(aov_model)
+print(LSD.test(aov_model,"vaa_group"))
+```
+
+
+
+## 3.7 Which dataset performs best?
 
 ```{r}
 ggplot(df_1m, aes(dataset, mean_f1)) + 
   geom_boxplot(aes(colour = vza_group))
 ```
+```{r}
+aov_model <- aov(mean_f1 ~ dataset, data = df_1m)
+anova(aov_model)
+print(LSD.test(aov_model,"dataset"))
+```
 
 ```{r}
 aov_model <- aov(mean_f1 ~ dataset*vza_group, data = df_1m)
 anova(aov_model)
+print(LSD.test(aov_model,"vza_group"))
 ```
 
 At a significance level of 0.05, there is no clear difference between the datasets.
 
-## 3.4 Do the leaf parameter accuracies differ between datasets?
+## 3.8 Do the leaf parameter accuracies differ between datasets?
+
+### LAI
 
 ```{r}
 aov_model <- aov(mean_f1 ~ dataset, data = df_1m_lai)
@@ -225,11 +296,91 @@ anova(aov_model)
 ```
 
 ```{r}
+
+df_1m_lai_d1 <- subset(df_1m_lai, dates == "20200906")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_lai_d1)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
+
+```
+```{r}
+
+df_1m_lai_d2 <- subset(df_1m_lai, dates == "20200907")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_lai_d2)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
+
+```
+### GLAI
+
+```{r}
+aov_model <- aov(mean_f1 ~ parameter, data = df_1m)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"parameter")) 
+```
+
+```{r}
 aov_model <- aov(mean_f1 ~ dataset, data = df_1m_glai)
 
 anova(aov_model)
 
 #print(LSD.test(aov_model,"dataset")) 
+```
+### LCC
+
+```{r}
+df_1m_lcc_d1 <- subset(df_1m_lcc, dates == "20200906")
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_lcc_d1)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vza_group"))
+```
+
+```{r}
+df_1m_lcc_d2 <- subset(df_1m_lcc, dates == "20200907")
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_lcc_d2)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vza_group"))
+```
+
+```{r}
+aov_model <- aov(mean_f1 ~ dates, data = df_1m_lcc)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"dates")) 
+```
+
+```{r}
+df_1m_lcc_d1 <- subset(df_1m_lcc, dates == "20200906")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_lcc_d1)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
+```
+```{r}
+df_1m_lcc_d2 <- subset(df_1m_lcc, dates == "20200907")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_lcc_d2)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
 ```
 
 ```{r}
@@ -240,15 +391,66 @@ anova(aov_model)
 #print(LSD.test(aov_model,"dataset")) 
 ```
 
+### NBI
+```{r}
+df_1m_nbi_d1 <- subset(df_1m_nbi, dates == "20200906")
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_nbi_d1)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vza_group"))
+```
+
+```{r}
+df_1m_nbi_d2 <- subset(df_1m_nbi, dates == "20200907")
+
+aov_model <- aov(mean_f1 ~ vza_group, data = df_1m_nbi_d2)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vza_group"))
+```
+
+```{r}
+df_1m_nbi_d1 <- subset(df_1m_nbi, dates == "20200906")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_nbi_d1)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
+```
+
+```{r}
+df_1m_nbi_d2 <- subset(df_1m_nbi, dates == "20200907")
+
+aov_model <- aov(mean_f1 ~ vaa_group, data = df_1m_nbi_d2)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"vaa_group"))
+```
+
+
+
+```{r}
+aov_model <- aov(mean_f1 ~ dates, data = df_1m_nbi)
+
+anova(aov_model)
+
+print(LSD.test(aov_model,"dates")) 
+```
+
 ```{r}
 aov_model <- aov(mean_f1 ~ dataset, data = df_1m_nbi)
 
 anova(aov_model)
 
-#print(LSD.test(aov_model,"dataset")) 
+print(LSD.test(aov_model,"dataset")) 
 ```
 
-# 3 Figure 3 - VZA and VAA Distribution
+# 4 Figure 3 - VZA and VAA Distribution
 
 ```{r feather}
 
@@ -257,9 +459,7 @@ convert_deg <- function(deg) {
    return (deg %% 360)
 }
 
-#feather_path <- "D:\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\data\\proc\\"
-
-feather_path <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\data\\proc\\"
+feather_path <- "D:\\OneDrive - Institut für Zuckerrübenforschung\\03_projects\\proj_on_uav\\code_copied\\on_uav_r_stats\\proc\\python\\main_03\\"
 
 ## Load feather and remove 65535 values
 df_nadir_d1 <- arrow::read_feather(paste0(feather_path, "on_uav_for_classification_20200906_nadir_flight.feather"))
@@ -306,26 +506,26 @@ df_nadir$vaa_grp <- bin_data(df_nadir$vaa_deg, bins=c(0, 60, 120, 240, 300, 360)
 
 df_nadir$vaa_grp <- as.character(df_nadir$vaa_grp)
 
-df_nadir$vaa_grp[df_nadir$vaa_grp == '[240, 300)'] <- 'ss'
-df_nadir$vaa_grp[df_nadir$vaa_grp == '[60, 120)'] <- 'ss'
+df_nadir$vaa_grp[df_nadir$vaa_grp == '[240, 300)'] <- 'side scattering'
+df_nadir$vaa_grp[df_nadir$vaa_grp == '[60, 120)'] <- 'side scattering'
 
-df_nadir$vaa_grp[df_nadir$vaa_grp == '[120, 240)'] <- 'fs'
+df_nadir$vaa_grp[df_nadir$vaa_grp == '[120, 240)'] <- 'forward scattering'
 
-df_nadir$vaa_grp[df_nadir$vaa_grp == '[300, 360]'] <- 'bs'
-df_nadir$vaa_grp[df_nadir$vaa_grp == '[0, 60)'] <- 'bs'
+df_nadir$vaa_grp[df_nadir$vaa_grp == '[300, 360]'] <- 'back scattering'
+df_nadir$vaa_grp[df_nadir$vaa_grp == '[0, 60)'] <- 'back scattering'
 
 
 df_all$vaa_grp <- bin_data(df_all$vaa_deg, bins=c(0, 60, 120, 240, 300, 360), binType = "explicit")
 
 df_all$vaa_grp <- as.character(df_all$vaa_grp)
 
-df_all$vaa_grp[df_all$vaa_grp == '[240, 300)'] <- 'ss'
-df_all$vaa_grp[df_all$vaa_grp == '[60, 120)'] <- 'ss'
+df_all$vaa_grp[df_all$vaa_grp == '[240, 300)'] <- 'side scattering'
+df_all$vaa_grp[df_all$vaa_grp == '[60, 120)'] <- 'side scattering'
 
-df_all$vaa_grp[df_all$vaa_grp == '[120, 240)'] <- 'fs'
+df_all$vaa_grp[df_all$vaa_grp == '[120, 240)'] <- 'forward scattering'
 
-df_all$vaa_grp[df_all$vaa_grp == '[300, 360]'] <- 'bs'
-df_all$vaa_grp[df_all$vaa_grp == '[0, 60)'] <- 'bs'
+df_all$vaa_grp[df_all$vaa_grp == '[300, 360]'] <- 'back scattering'
+df_all$vaa_grp[df_all$vaa_grp == '[0, 60)'] <- 'back scattering'
 
 # backscattering (0-60, 300-360), 1 other for forward scattering (120-240), and a third one for side scattering (60-120, 240-300).
 
@@ -345,48 +545,73 @@ write.csv(campos_d2, "campos_d2.csv", row.names=FALSE)
 
 
 ```{r plotdist}
+cbPalette <- c("#d8b365", "#5ab4ac", "#D55E00", "#0072B2", "#CC79A7")
+
 p1 <- ggplot(df_nadir, aes(x=vza, fill=date)) + 
-  geom_histogram(alpha=.5) +
+  geom_histogram(binwidth = 1) +
   facet_wrap(vaa_grp ~. ) +
   ggtitle("Nadir Flight (N)")+
   xlab("VZA [°]") + ylab("Number of Pixels")+
-  theme(legend.position = "none",legend.title=element_blank())
+  #ylim(0, 2000)+
+  #annotate("text", x = c(2), y=1800, label = c("a"))+
+  #scale_fill_grey()+
+  theme_classic()+
+  scale_fill_manual(values=cbPalette)+
+  theme(legend.position = "none",legend.title=element_blank(), text=element_text(size=16))
+
+  
 
 p2 <- ggplot(df_all, aes(x=vza, fill=date)) + 
-  geom_histogram(alpha=.5) +
+  geom_histogram(binwidth = 1) +
   facet_wrap(vaa_grp ~. ) +
   xlab("VZA [°]") + ylab("")+
-  ggtitle("All Flights (NOO)")
+  ggtitle("All Flights (NOO)")+
+  #ylim(0, 3500)+
+  #scale_fill_grey()+
+  theme_classic()+
+  scale_fill_manual(values=cbPalette)+
+  theme(text=element_text(size=16))
 
 df_nadir %>%
   filter(!is.na(vza_grp)) %>%
   
 ggplot(aes(x=vaa_deg, fill=date)) + 
-  geom_histogram(alpha=.5) +
+  geom_histogram(binwidth = 5) +
   facet_wrap(vza_grp ~. ) +
   xlab("VAA [°]") + ylab("Number of Pixels")+
-  theme(legend.position = "none",legend.title=element_blank()) -> p3
+  #ylim(0, 200)+
+  #scale_fill_grey()+
+  theme_classic()+
+  scale_fill_manual(values=cbPalette)+
+  theme(legend.position = "none",legend.title=element_blank(), text=element_text(size=16)) -> p3
 
 df_all %>%
   filter(!is.na(vza_grp)) %>%
 
 ggplot(aes(x=vaa_deg, fill=date)) + 
-  geom_histogram(alpha=.5) +
+  geom_histogram(binwidth = 5) +
   xlab("VAA [°]") + ylab("")+
-  facet_wrap(vza_grp ~. ) -> p4
+  facet_wrap(vza_grp ~. )+
+  #ylim(0, 400)+
+  #scale_fill_grey()+
+  theme_classic()+
+  scale_fill_manual(values=cbPalette)+
+  theme(text=element_text(size=16)) -> p4
 
-p1 + p2 + p3 + p4 + plot_layout(ncol = 2, guides = "collect")
+p1 + p2 + p3 + p4 + 
+  plot_layout(ncol = 2, guides = "collect") + 
+  plot_annotation(tag_levels = 'a')
 
-out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig3_vza_vaa_distribution\\"
+out <- "D:\\OneDrive - Institut für Zuckerrübenforschung\\03_projects\\proj_on_uav\\docs_copied\\manuscript\\final\\prag\\majorrev\\fig3_vzavaa_dist\\"
 
-ggsave(paste0(out, "fig3_vza_vaa.png"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig3_vza_vaa_dist_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 
 ```
 
-# 4 Figure 4 - Pairplot
+# 5 Figure 4 - Pairplot
 
 
-## 4.1 Reshaping and cleaning reference data for boxplots
+## 5.1 Reshaping and cleaning reference data for boxplots
 
 ```{r}
 colnames(ref_df) <- c('plot','LAI','GLAI', "LCC", "NBI")
@@ -403,7 +628,7 @@ ref_melt_nbi$plot <- as.factor(ref_melt_nbi$plot)
 
 stargazer(data.frame(ref_df)[c("LAI", "GLAI", "LCC", "NBI")],type="text",title="Summary Statistics", out="plant_params.txt")
 ```
-## 4.2 Plotting pairplot 
+## 5.2 Plotting pairplot 
 ```{r}
 
 library(GGally)
@@ -415,9 +640,9 @@ out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\project
 ggsave(paste0(out, "fig4_pairplot.png"), width = 30, height = 20, unit = "cm", dpi = 300)
 ```
 
-# 5 Classification Results
+# 6 Classification Results
 
-## 5.1 LAI
+## 6.1 LAI
 
 ```{r}
 df_1m_lai_et <- subset(df_1m_lai, model == "extra_trees")
@@ -427,31 +652,43 @@ df_1m_lai_et_noo <- subset(df_1m_lai_et, dataset == "NOO")
 ```
 
 ```{r}
-df_1m_lai_et_nadir$vaa_group2 = factor(df_1m_lai_et_nadir$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
-df_1m_lai_et_noo$vaa_group2 = factor(df_1m_lai_et_noo$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
+df_1m_lai_et_nadir$vaa_group2 = factor(df_1m_lai_et_nadir$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
+df_1m_lai_et_noo$vaa_group2 = factor(df_1m_lai_et_noo$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
 
 plai_nadir <- ggplot(df_1m_lai_et_nadir, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
+  geom_point(aes(color = dates, shape = dates), size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
   scale_y_continuous(breaks=seq(from = 0.6, to = 1, by = 0.1), limits=c(0.6,1))+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="LAI | ET | NADIR")
+  labs(title="a - LAI | ET | NADIR")+
+  #scale_fill_grey()+
+  theme_classic()+
+  #scale_fill_manual(values=cbPalette)+
+  scale_color_manual(values = cbPalette)+
+  theme(text=element_text(size=16))
 
 plai_all <- ggplot(df_1m_lai_et_noo, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
+  geom_point(aes(color = dates, shape = dates), size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
   scale_y_continuous(breaks=seq(from = 0.6, to = 1, by = 0.1), limits=c(0.6,1))+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="LAI | ET | NOO")
+  labs(title="b - LAI | ET | NOO")+
+  #scale_fill_grey()+
+  theme_classic()+
+  #scale_fill_manual(values=cbPalette)+
+  scale_color_manual(values = cbPalette)+
+  theme(text=element_text(size=16))
 
-plai_nadir + plai_all + plot_layout(ncol = 1, guides = "collect")
+plai_nadir + plai_all + plot_layout(ncol = 1, guides = "collect") & theme(legend.position = 'bottom')
 
-out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig5_lai_glai_classification\\"
+out <- "D:\\OneDrive - Institut für Zuckerrübenforschung\\03_projects\\proj_on_uav\\docs_copied\\manuscript\\final\\prag\\majorrev\\fig4_classif\\"
 
-ggsave(paste0(out, "fig5_lai_classif.pdf"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig5_lai_classif_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 ```
 
-## 5.2 GLAI
+## 6.2 GLAI
 
 ```{r}
 df_1m_glai_et <- subset(df_1m_glai, model == "extra_trees")
@@ -462,29 +699,43 @@ df_1m_glai_et_noo <- subset(df_1m_glai_et, dataset == "NOO")
 ```
 
 ```{r}
-df_1m_glai_et_nadir$vaa_group2 = factor(df_1m_glai_et_nadir$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
-df_1m_glai_et_noo$vaa_group2 = factor(df_1m_glai_et_noo$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
+df_1m_glai_et_nadir$vaa_group2 = factor(df_1m_glai_et_nadir$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
+df_1m_glai_et_noo$vaa_group2 = factor(df_1m_glai_et_noo$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
 
 pglai_nadir <- ggplot(df_1m_glai_et_nadir, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
+  geom_point(aes(color = dates, shape = dates), size = 2.5)+
+  #geom_jitter(aes(shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
   scale_y_continuous(breaks=seq(from = 0.6, to = 1, by = 0.1), limits=c(0.6,1))+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="GLAI | ET | NADIR")
+  labs(title=" c - GLAI | ET | NADIR")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
 pglai_all <- ggplot(df_1m_glai_et_noo, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
+  geom_point(aes(color = dates, shape = dates), size = 2.5)+
+  #geom_jitter(aes(shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
   scale_y_continuous(breaks=seq(from = 0.6, to = 1, by = 0.1), limits=c(0.6,1))+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="GLAI | ET | NOO")
+  labs(title="d - GLAI | ET | NOO")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
-pglai_nadir + pglai_all + plot_layout(ncol = 1, guides = "collect")
+pglai_nadir + pglai_all + plot_layout(ncol = 1, guides = "collect") & theme(legend.position = 'bottom')
 
-ggsave(paste0(out, "fig5_glai_classif.pdf"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig5_glai_classif_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 ```
 
-## 5.3 LCC
+
+
+## 6.3 LCC
 
 ```{r}
 df_1m_lcc_et <- subset(df_1m_lcc, model == "extra_trees")
@@ -495,29 +746,39 @@ df_1m_lcc_et_noo <- subset(df_1m_lcc_et, dataset == "NOO")
 ```
 
 ```{r}
-df_1m_lcc_et_nadir$vaa_group2 = factor(df_1m_lcc_et_nadir$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
-df_1m_lcc_et_noo$vaa_group2 = factor(df_1m_lcc_et_noo$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
+df_1m_lcc_et_nadir$vaa_group2 = factor(df_1m_lcc_et_nadir$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
+df_1m_lcc_et_noo$vaa_group2 = factor(df_1m_lcc_et_noo$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
 
 plcc_nadir <-ggplot(df_1m_lcc_et_nadir, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_point(aes(color = dates, shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="LCC | ET | NADIR")
+  labs(title="a - LCC | ET | NADIR")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
 plcc_all <-ggplot(df_1m_lcc_et_noo, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_point(aes(color = dates, shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = TRUE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="LCC | ET | NOO")
+  labs(title="b - LCC | ET | NOO")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
-plcc_nadir + plcc_all + plot_layout(ncol = 1, guides = "collect")
+plcc_nadir + plcc_all + plot_layout(ncol = 1, guides = "collect") & theme(legend.position = 'bottom')
 
-out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig6_lcc_nbi_classification\\"
+#out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig6_lcc_nbi_classification\\"
 
-ggsave(paste0(out, "fig6_lcc_classif.pdf"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig6_lcc_classif_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 ```
 
-## 5.4 NBI
+## 6.4 NBI
 
 ```{r}
 df_1m_nbi_et <- subset(df_1m_nbi, model == "extra_trees")
@@ -528,27 +789,37 @@ df_1m_nbi_et_noo <- subset(df_1m_nbi_et, dataset == "NOO")
 ```
 
 ```{r}
-df_1m_nbi_et_nadir$vaa_group2 = factor(df_1m_nbi_et_nadir$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
-df_1m_nbi_et_noo$vaa_group2 = factor(df_1m_nbi_et_noo$vaa_group, levels=c('orthomosaic','all_vaa','fs','bs', 'ss'))
+df_1m_nbi_et_nadir$vaa_group2 = factor(df_1m_nbi_et_nadir$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
+df_1m_nbi_et_noo$vaa_group2 = factor(df_1m_nbi_et_noo$vaa_group, levels=c('orthomosaic','all vaa','forward scattering','back scattering', 'side scattering'))
 
 pnbi_nadir <- ggplot(df_1m_nbi_et_nadir, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_point(aes(color = dates, shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = FALSE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="NBI | ET | NADIR")
+  labs(title="a - NBI | ET | NADIR")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
 pnbi_all <- ggplot(df_1m_nbi_et_noo, aes(vza_group, mean_f1, label=mean_f1)) + 
-  geom_point(aes(shape = dates, colour = dates), alpha = 0.5, size = 2.5)+
-  geom_text(hjust=-0.4, vjust=0.5, size=3.5, check_overlap = TRUE)+
+  geom_point(aes(color = dates, shape = dates), alpha = 0.5, size = 2.5)+
+  xlab("VZA Group [°]") + ylab("Accuracy [f1]")+
+  geom_text(hjust=-0.4, vjust=0.5, size=5, check_overlap = FALSE)+
   facet_grid(. ~ vaa_group2 , scales = "free", space = "free")+
-  labs(title="NBI | ET | NOO")
+  labs(title="b - NBI | ET | NOO")+
+  #scale_fill_grey()+
+  scale_color_manual(values = cbPalette)+
+  theme_classic()+
+  theme(text=element_text(size=16))
 
-pnbi_nadir + pnbi_all + plot_layout(ncol = 1, guides = "collect")
+pnbi_nadir + pnbi_all + plot_layout(ncol = 1, guides = "collect") & theme(legend.position = 'bottom')
 
-ggsave(paste0(out, "fig6_nbi_classif.pdf"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig6_nbi_classif_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 ```
 
-## 5.5 Listing f1-scores
+## 6.5 Listing f1-scores
 
 
 ```{r}
@@ -559,19 +830,18 @@ by_vza %>% summarise(
 )
 ```
 
-#6 Feature importance
+#7 Feature importance
 
 
 ```{r}
-fi_path <- file.path("C:",
-                      "Users",
-                      "heim",
-                     "OneDrive - Institut für Zuckerrübenforschung", 
-                     "projects", 
-                     "proj_on_uav", 
-                    "data", 
-                    "proc", 
-                    "20230224_on_uav_feature_importance.csv")
+fi_path <- file.path("D:",
+                      "OneDrive - Institut für Zuckerrübenforschung",
+                      "03_projects", 
+                      "proj_on_uav", 
+                      "code_copied", 
+                      "on_uav_r_stats",
+                      "proc", 
+                      "20230224_on_uav_feature_importance.csv")
 
 fi_df <- read_csv(fi_path)
 
@@ -592,13 +862,13 @@ fi_df$dataset[fi_df$dataset == 'All_flight'] <- 'NOO'
 fi_df$dataset[fi_df$dataset == 'Nadir_flight'] <- 'N'
 
 fi_df$vza_group[fi_df$vza_group == 'mosaic'] <- 'orthomosaic'
-fi_df$vza_group[fi_df$vza_group == 'all'] <- 'all_vza'
+fi_df$vza_group[fi_df$vza_group == 'all'] <- 'all vza'
 
 fi_df$vaa_group[fi_df$vaa_group == 'mosaic'] <- 'orthomosaic'
-fi_df$vaa_group[fi_df$vaa_group == 'all'] <- 'all_vaa'
-fi_df$vaa_group[fi_df$vaa_group == 'back scattering'] <- 'bs'
-fi_df$vaa_group[fi_df$vaa_group == 'side scattering'] <- 'ss'
-fi_df$vaa_group[fi_df$vaa_group == 'forward scattering'] <- 'fs'
+fi_df$vaa_group[fi_df$vaa_group == 'all'] <- 'all vaa'
+#fi_df$vaa_group[fi_df$vaa_group == 'back scattering'] <- 'bs'
+#fi_df$vaa_group[fi_df$vaa_group == 'side scattering'] <- 'ss'
+#fi_df$vaa_group[fi_df$vaa_group == 'forward scattering'] <- 'fs'
 ```
 
 ```{r}
@@ -637,56 +907,62 @@ df_fi_noo_2 <- subset(df_melt_fi, dataset == "NOO" & dates == "20200907")
 df_fi_n_2 <- subset(df_melt_fi, dataset == "N" & dates == "20200907")
 
 ggplot(df_fi_noo, aes(x = bands, y = rel_importance, fill = parameter, width = 0.5)) +
-  geom_col(position="dodge", alpha=0.7)+
-  scale_fill_manual(values=c("#22b036", "#94B76B", "#c031ad", "#c682bd"))+
-  theme_bw()+
-  theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  labs(y="Rel. Imp.", x="", title = "NOO | ET | 20200906")+
+  geom_col(position="dodge")+
+  scale_fill_manual(values = cbPalette)+
+  labs(y="Relative Importance", x="", title = "NOO | ET | 20200906")+
   facet_wrap(vza_group ~ vaa_group)+
-  theme(legend.title=element_blank())
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text=element_text(size=16), legend.title=element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig7_rel_feature_n_day1\\"
+out <- "D:\\OneDrive - Institut für Zuckerrübenforschung\\03_projects\\proj_on_uav\\docs_copied\\manuscript\\final\\prag\\majorrev\\fig6_importance\\"
 
-ggsave(paste0(out, "s16_feature_noo_et_d1.png"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "s16_feature_noo_et_d1_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 
 ggplot(df_fi_n, aes(x = bands, y = rel_importance, fill = parameter, width = 0.5)) +
-  geom_col(position="dodge", alpha=0.7)+
-  scale_fill_manual(values=c("#22b036", "#94B76B", "#c031ad", "#c682bd"))+
-  theme_bw()+
-  theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  labs(y="Rel. Imp.", x="", title = "N | ET | 20200906")+
+  geom_col(position="dodge")+
+  scale_fill_manual(values= cbPalette)+
+  #theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(y="Relative Importance", x="", title = "N | ET | 20200906")+
   facet_wrap(vza_group ~ vaa_group)+
-  theme(legend.title=element_blank())
+  #theme(legend.title=element_blank())+
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text=element_text(size=16), legend.title=element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-ggsave(paste0(out, "fig7_feature_n_et_d1.png"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig7_feature_n_et_d1_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 
 
 ggplot(df_fi_noo_2, aes(x = bands, y = rel_importance, fill = parameter, width = 0.5)) +
-  geom_col(position="dodge", alpha=0.7)+
-  scale_fill_manual(values=c("#22b036", "#94B76B", "#c031ad", "#c682bd"))+
-  theme_bw()+
-  theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  labs(y="Rel. Imp.", x="", title = "NOO | ET | 20200907")+
+  geom_col(position="dodge")+
+  scale_fill_manual(values = cbPalette)+
+  #theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(y="Relative Importance", x="", title = "NOO | ET | 20200907")+
   facet_wrap(vza_group ~ vaa_group)+
-  theme(legend.title=element_blank())
+  #theme(legend.title=element_blank())+
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text=element_text(size=16), legend.title=element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig8_rel_feature_n_day2\\"
+#out <- "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\fig8_rel_feature_n_day2\\"
 
-ggsave(paste0(out, "s17_feature_noo_et_d2.png"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "s17_feature_noo_et_d2_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 
 ggplot(df_fi_n_2, aes(x = bands, y = rel_importance, fill = parameter, width = 0.5)) +
-  geom_col(position="dodge", alpha=0.7)+
-  scale_fill_manual(values=c("#22b036", "#94B76B", "#c031ad", "#c682bd"))+
-  theme_bw()+
-  theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  labs(y="Rel. Imp.", x="", title = "N | ET | 20200907")+
+  geom_col(position="dodge")+
+  scale_fill_manual(values = cbPalette)+
+  #theme( axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  labs(y="Relative Importance", x="", title = "N | ET | 20200907")+
   facet_wrap(vza_group ~ vaa_group)+
-  theme(legend.title=element_blank())
+  #theme(legend.title=element_blank())+
+  #scale_fill_grey()+
+  theme_classic()+
+  theme(text=element_text(size=16), legend.title=element_blank(), axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-ggsave(paste0(out, "fig8_feature_n_et_d2.png"), width = 30, height = 20, unit = "cm", dpi = 300)
+ggsave(paste0(out, "fig8_feature_n_et_d2_color.png"), width = 40, height = 20, unit = "cm", dpi = 600)
 ```
 
-# 7 Plotting spectra
+# 8 Plotting spectra
 
 
 ```{r}
@@ -745,33 +1021,33 @@ by_vzag %>% summarise(
 
 ```{r}
 
-out = "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\s3_6_spectra\\"
+#out = "C:\\Users\\heim\\OneDrive - Institut für Zuckerrübenforschung\\projects\\proj_on_uav\\docs\\manuscript\\final\\figures\\s3_6_spectra\\"
 
 df_reflec_nadir %>%
   filter(!is.na(vza_grp)) %>%
   
 ggplot( aes(wavelength, reflectance, colour = vza_grp)) +
-  geom_line(aes(colour=vza_grp), size = 0.1)+
+  geom_line(aes(colour=vza_grp), linewidth = 0.1)+
   geom_point(size = 0.5)+
   scale_x_continuous(breaks = seq(400, 900, 100))+
   facet_wrap(plot ~ date)+
   ggtitle("spectra_nadir_vza")
 
 ggsave(filename = paste0(out, "spectra_nadir_vza.png"), width = 
-         30, height = 20, dpi = 300, units = "cm", device='png')
+         30, height = 20, dpi = 600, units = "cm", device='png')
 
 df_reflec_all %>%
   filter(!is.na(vza_grp)) %>%
   
 ggplot( aes(wavelength, reflectance, colour = vza_grp)) +
-  geom_line(aes(colour=vza_grp), size = 0.1)+
+  geom_line(aes(colour=vza_grp), linewidth = 0.1)+
   geom_point(size = 0.5)+
   scale_x_continuous(breaks = seq(400, 900, 100))+
   facet_wrap(plot ~ date)+
   ggtitle("spectra_all_vza")
 
 ggsave(filename = paste0(out, "spectra_all_vza.png"), width = 
-         30, height = 20, dpi = 300, units = "cm", device='png')
+         30, height = 20, dpi = 600, units = "cm", device='png')
 
 ```
 
@@ -793,33 +1069,31 @@ df_reflec_nadir %>%
   filter(!is.na(vaa_grp)) %>%
   
 ggplot( aes(wavelength, reflectance, colour = vaa_grp)) +
-  geom_line(aes(colour=vaa_grp), size = 0.1)+
+  geom_line(aes(colour=vaa_grp), linewidth = 0.1)+
   geom_point(size = 0.5)+
   scale_x_continuous(breaks = seq(400, 900, 100))+
   facet_wrap(plot ~ date)+
   ggtitle("spectra_nadir_vaa")
 
 ggsave(filename = paste0(out, "spectra_nadir_vaa.png"), width = 
-         30, height = 20, dpi = 300, units = "cm", device='png')
+         30, height = 20, dpi = 600, units = "cm", device='png')
 
 df_reflec_all %>%
   filter(!is.na(vaa_grp)) %>%
   
 ggplot( aes(wavelength, reflectance, colour = vaa_grp)) +
-  geom_line(aes(colour=vaa_grp), size = 0.1)+
+  geom_line(aes(colour=vaa_grp), linewidth = 0.1)+
   geom_point(size = 0.5)+
   scale_x_continuous(breaks = seq(400, 900, 100))+
   facet_wrap(plot ~ date)+
   ggtitle("spectra_all_vaa")
 
 ggsave(filename = paste0(out, "spectra_all_vaa.png"), width = 
-         30, height = 20, dpi = 300, units = "cm", device='png')
+         30, height = 20, dpi = 600, units = "cm", device='png')
 ```
 
 
-
-
-# 8 Analyse camera tilt
+# 9 Analyse camera tilt
 
 ```{r}
 fl1_d1 <- read_delim("20200906_bot_corn_comb_cameras_fl1.csv", delim=";")
