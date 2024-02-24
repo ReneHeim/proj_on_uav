@@ -66,3 +66,7 @@ Please save the following files in a single directory:
 5. Execute the [02_filter_sample_location.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/02_filter_sample_location.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
 6. Execute the [03_merging_sample_locations.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/03_merging_sample_locations.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
 7. Execute the [04_orthomosaic_pixel_data.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/04_orthomosaic_pixel_data.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+
+### Contact
+
+If you have any questions how to use the code, please commit an issue for others to benefit from it. If this is not an option for you, please contact either Nathan Okole (okole@ifz-goettingen.de) or Rene Heim (rheim@uni-bonn.de)
