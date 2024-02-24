@@ -1,5 +1,9 @@
 ## Why is this repository important to you?
 
+This repository contains code, written in [R](https://www.r-project.org/) and [Python](https://www.python.org/), to reproduce [LINK TO ARTCLE HERE]. If you are using any of the contained code or data, please use the following reference:
+
+Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024). An applied framework to unlocking multi‑angular UAV reflectance data: A case study for classification of plant parameters in maize (*Zea mays*). *Precision Agriculture*. (accepted)
+
 ![alt text](https://github.com/ReneHeim/proj_on_uav/blob/main/graphical_abstract.png)
 
 ## What does this repository contain?
