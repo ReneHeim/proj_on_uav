@@ -9,7 +9,7 @@ import yaml
 from metadict import MetaDict
 import os
 
-input_config_file = r"D:\Github_repository\config_file.yaml"
+input_config_file = r"config_file.yaml"
 
 with open(input_config_file, "r") as file:
     input_config = yaml.load(file,  yaml.Loader)

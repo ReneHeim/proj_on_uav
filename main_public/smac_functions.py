@@ -12,7 +12,7 @@ these functions are defined in this separated piece of code.
 '''
 
 
-
+import numpy as np
 
 def pixelToWorldCoords(pX, pY, geoTransform):
     ''' Input image pixel coordinates and get world coordinates according to geotransform using gdal
@@ -47,3 +47,41 @@ def xyval(A):
     import numpy as np
     x, y = np.indices(A.shape)
     return x.ravel(), y.ravel(), A.ravel()
+
+
+
+
+def to_numpy2(transform):
+    return np.array([transform.a,
+                     transform.b,
+                     transform.c,
+                     transform.d,
+                     transform.e,
+                     transform.f, 0, 0, 1], dtype='float64').reshape((3,3))
+
+def xy_np(transform, rows, cols, offset='center'):
+    if isinstance(rows, int) and isinstance(cols, int):
+        pts = np.array([[rows, cols, 1]]).T
+    else:
+        assert len(rows) == len(cols)
+        pts = np.ones((3, len(rows)), dtype=int)
+        pts[0] = rows
+        pts[1] = cols
+
+    if offset == 'center':
+        coff, roff = (0.5, 0.5)
+    elif offset == 'ul':
+        coff, roff = (0, 0)
+    elif offset == 'ur':
+        coff, roff = (1, 0)
+    elif offset == 'll':
+        coff, roff = (0, 1)
+    elif offset == 'lr':
+        coff, roff = (1, 1)
+    else:
+        raise ValueError("Invalid offset")
+
+    _transnp = to_numpy2(transform)
+    _translt = to_numpy2(transform.translation(coff, roff))
+    locs = _transnp @ _translt @ pts
+    return locs[0].tolist(), locs[1].tolist()

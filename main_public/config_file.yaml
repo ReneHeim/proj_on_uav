@@ -1,17 +1,17 @@
-inputs: 
-    paths: 
-        cam_path: "D:\\Github_repository\\Example_data\\Small_dataset\\Cameras_position.txt" # Indicate where you stored your omega phi kappa textfile containing your camera position 
-        dem_path: "D:\\Github_repository\\Example_data\\Small_dataset\\DEM.tif" # Indicate where you stored your digital elevation model obtained from Metashape 
-        orthophoto_path: "D:\\Github_repository\\Example_data\\Small_dataset\\Orthophotos\\*.tif" # Indicate the folder containing your orthorectified photos obtained from Metashape (don't forget the * mask before .tif) 
-        ori: ["D:\\Github_repository\\Example_data\\Small_dataset\\Original_images"] # Indicate folders containing your original images used to create orthophotos. as these folders can be multiple, you are given the option to put them in a list
-        mosaic_path: "D:\\Github_repository\\Example_data\\Small_dataset\\Orthomosaic.tif" # Indicate the path to the orthomosaic obtaied from metashape
-        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv" # Indicate the file containing the ID and coordinates of your ground truth in the format ['id', 'x', 'y']
+inputs:
+    paths:
+        cam_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_cameras.txt" # Path to the camera position text file
+        dem_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_dem.tif" # Path to the DEM file
+        orthophoto_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos\\*.tif" # Path to the folder containing orthorectified photos
+        ori: ["D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos"] # Folder containing original images for orthophotos
+        mosaic_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_orthomosaic.tif" # Path to the orthomosaic file
+        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv" # Keep unchanged as it was not shown in the screenshot
 
-    settings: 
-        number_of_processor: -1 # here you can set the number of processors you want to assign to this task 
-        filter_radius: 1 # Indicate in meters the filtering radius around your sampling points on the ground 
-        file_name: "my_project" # Indicate the name your files should carry as a prefix
+    settings:
+        number_of_processor: -1 # Use all available processors
+        filter_radius: 1 # Filtering radius around sampling points in meters
+        file_name: "20241029_week8_project" # Adjusted file prefix for Week 8 project
 
-outputs: 
-    paths: 
-        main_out: "D:\\Github_repository\\Output" # Indicate the folder that will contain all your outputs
+outputs:
+    paths:
+        main_out: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\output" # Output folder path adjusted to match the dataset
