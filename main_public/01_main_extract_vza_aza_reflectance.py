@@ -20,7 +20,7 @@ import pandas as pd
 import rasterio as rio
 import math
 import numpy as np
-import exiftool as exif
+import exiftool
 from pathlib import Path, PureWindowsPath
 from timeit import default_timer as timer
 
@@ -126,26 +126,59 @@ for source in sources:
                 # Step 2: Retrieve solar angles from EXIF
                 start3 = timer()
                 exifobj = [path for path in path_flat if name in path]
-                with exif.ExifTool(executable=exiftool_path) as et:
-                    metadata = et.get_metadata_batch([exifobj[0]])
-                    sunelev = float(metadata[0]['XMP:SolarElevation']) * (180 / math.pi)
-                    saa = float(metadata[0]['XMP:SolarAzimuth']) * (180 / math.pi)
+                try:
+                    with exiftool.ExifToolHelper(executable=exiftool_path) as et:
+                        metadata = et.get_metadata(exifobj[0])
+                        metadata =metadata[0]  # For debugging purposes
+                        sunelev = float(metadata.get('XMP:SolarElevation', 0)) * (180 / math.pi)
+                        saa = float(metadata.get('XMP:SolarAzimuth', 0)) * (180 / math.pi)
+                    end3 = timer()
+                    print('Getting SAA and Sun Elevation from ortho EXIF data: ', end3 - start3, 'seconds')
+                except Exception as e:
+                    logging.error(f"Error processing orthophoto {file}: {e}")
 
                 end3 = timer()
                 logging.info(f"Solar angles retrieved for {file} in {end3 - start3:.2f} seconds")
 
-                # Step 3: Process orthophoto bands
                 start4 = timer()
-                bands = {}
                 with rio.open(each_ortho) as rst:
-                    for counter in range(1, 11):
-                        b1 = rst.read(counter)
-                        Xp, Yp, val = xyval(b1)
-                        res = [rst.xy(i, j) for i, j in zip(Xp, Yp)]
-                        df_ortho = pd.DataFrame(res, columns=['Xw', 'Yw'])
-                        df_ortho['band' + str(counter)] = val
-                        bands[f"band{counter}"] = df_ortho
-                df_allbands = reduce(partial(pd.merge, on=["Xw", "Yw"], how='outer'), bands.values())
+                    nodata = rst.nodata  # Get the nodata value
+                    num_bands = rst.count  # Total number of bands
+                    height = rst.height
+                    width = rst.width
+
+                    # Read all bands into a 3D numpy array of shape (bands, rows, cols)
+                    # If memory is a concern, you can process bands individually
+                    b_all = rst.read()  # shape: (num_bands, height, width)
+
+                    # Create a valid data mask where data is not nodata
+                    if nodata is not None:
+                        valid_mask = np.all(b_all != nodata, axis=0)
+                    else:
+                        # If nodata is not defined, assume all data is valid
+                        valid_mask = np.all(b_all != 0, axis=0)  # Adjust if 0 is a valid data value
+
+                    # Get the indices of valid data points
+                    rows, cols = np.where(valid_mask)
+
+                    # Get the world coordinates for these indices (vectorized)
+                    Xw, Yw = rio.transform.xy(rst.transform, rows, cols)
+
+                    # Extract band values at valid indices
+                    # Shape of band_values: (num_valid_pixels, num_bands)
+                    band_values = b_all[:, rows, cols].T
+
+                    # Prepare data for DataFrame
+                    data = {
+                        'Xw': Xw,
+                        'Yw': Yw,
+                    }
+                    for idx in range(num_bands):
+                        data[f'band{idx + 1}'] = band_values[:, idx]
+
+                    # Create a single DataFrame with all bands
+                    df_allbands = pd.DataFrame(data)
+
                 end4 = timer()
                 logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
 
