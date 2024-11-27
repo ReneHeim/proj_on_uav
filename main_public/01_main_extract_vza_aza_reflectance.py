@@ -3,7 +3,7 @@
 #----------------------------------------------------------------------------
 # Created By  : Rene HJ Heim
 # Created Date: 2022/06/22
-# Version      : 1.0
+# Version      : 1.5
 # ---------------------------------------------------------------------------
 
 import pandas as pd
@@ -67,11 +67,8 @@ for source in sources:
         # Log start of DEM processing
         logging.info(f"Processing DEM for iteration {iteration}")
         start = timer()
-        print("here")
+        start_DEM_i = timer()
 
-        # Log start of DEM processing
-        logging.info(f"Processing DEM for iteration {iteration}")
-        start = timer()
 
         try:
             with rio.open(dem_path) as dem:
@@ -219,6 +216,9 @@ for source in sources:
             logging.info(f"Results saved for iteration {iteration}")
         except Exception as e:
             logging.error(f"Error saving results for iteration {iteration}: {e}")
+        end_DEM_i=timer()
+        logging.info(f"Total time of iteration{iteration}: { end_DEM_i-start_DEM_i:.2f} seconds ")
+
 
     # Split orthophoto paths into chunks for parallel processing
     path_list = glob.glob(source['path_list_tag'])
