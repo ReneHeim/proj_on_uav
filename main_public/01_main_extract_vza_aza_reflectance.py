@@ -138,43 +138,45 @@ for source in sources:
                 logging.info(f"Solar angles retrieved for {file} in {end3 - start3:.2f} seconds")
 
                 start4 = timer()
-                with rio.open(each_ortho) as rst:
-                    nodata = rst.nodata  # Get the nodata value
-                    num_bands = rst.count  # Total number of bands
-                    height = rst.height
-                    width = rst.width
+                try:
+                    with rio.open(each_ortho) as rst:
+                        num_bands = rst.count  # Total number of bands
 
-                    # Read all bands into a 3D numpy array of shape (bands, rows, cols)
-                    # If memory is a concern, you can process bands individually
-                    b_all = rst.read()  # shape: (num_bands, height, width)
+                        # Read all bands into a 3D numpy array of shape (num_bands, height, width)
+                        b_all = rst.read()  # shape: (num_bands, height, width)
+                        height, width = rst.height, rst.width
+                        print(f"Raster data shape: {b_all.shape}")
 
-                    # Create a valid data mask where data is not nodata
-                    if nodata is not None:
-                        valid_mask = np.all(b_all != nodata, axis=0)
-                    else:
-                        # If nodata is not defined, assume all data is valid
-                        valid_mask = np.all(b_all != 0, axis=0)  # Adjust if 0 is a valid data value
+                        # Get indices of all pixels
+                        rows, cols = np.indices((height, width))
+                        rows = rows.flatten()
+                        cols = cols.flatten()
 
-                    # Get the indices of valid data points
-                    rows, cols = np.where(valid_mask)
+                        # Get the world coordinates for these indices (vectorized)
+                        Xw, Yw = rio.transform.xy(rst.transform, rows, cols)
 
-                    # Get the world coordinates for these indices (vectorized)
-                    Xw, Yw = rio.transform.xy(rst.transform, rows, cols)
+                        # Extract band values at all indices
+                        # Shape of band_values: (num_pixels, num_bands)
+                        band_values = b_all[:, rows, cols].T
 
-                    # Extract band values at valid indices
-                    # Shape of band_values: (num_valid_pixels, num_bands)
-                    band_values = b_all[:, rows, cols].T
+                        # Prepare data for DataFrame
+                        data = {
+                            'Xw': np.array(Xw),
+                            'Yw': np.array(Yw),
+                        }
+                        for idx in range(num_bands):
+                            data[f'band{idx + 1}'] = band_values[:, idx]
 
-                    # Prepare data for DataFrame
-                    data = {
-                        'Xw': Xw,
-                        'Yw': Yw,
-                    }
-                    for idx in range(num_bands):
-                        data[f'band{idx + 1}'] = band_values[:, idx]
+                        # Create a single DataFrame with all bands
+                        df_allbands = pd.DataFrame(data)
 
-                    # Create a single DataFrame with all bands
-                    df_allbands = pd.DataFrame(data)
+                    end4 = timer()
+                    logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
+
+
+                except Exception as e:
+                    logging.error(f"Error processing orthophoto {file}: {e}")
+                    return None
 
                 end4 = timer()
                 logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
@@ -182,8 +184,10 @@ for source in sources:
                 # Step 4: Merge DEM and orthophoto data
                 start5 = timer()
                 dfs = [df_dem, df_allbands]
+                print(df_dem)
+                print(df_allbands)
                 df_merged = reduce(lambda left, right: pd.merge(left, right, on=["Xw", "Yw"]), dfs)
-
+                print(df_merged)
                 # Calculate angles
                 df_merged['vza'] = df_merged.apply(
                     lambda x: np.arctan((zcam - x.elev) / math.sqrt((xcam - x.Xw)**2 + (ycam - x.Yw)**2)), axis=1)
@@ -200,6 +204,7 @@ for source in sources:
                 df_merged.insert(2, 'ycam', ycam)
                 df_merged.insert(3, 'sunelev', round(sunelev, 2))
                 df_merged.insert(4, 'saa', round(saa, 2))
+                print(df_merged)
                 df_list.append(df_merged)
                 end5 = timer()
                 logging.info(f"Data merging and angle calculations completed for {file} in {end5 - start5:.2f} seconds")
