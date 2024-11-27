@@ -74,24 +74,26 @@ for source in sources:
             with rio.open(dem_path) as dem:
                 arr_dem = dem.read(1)  # Read DEM as a numpy array
                 transform = dem.transform  # Affine transformation for pixel-to-world coordinates
+                dem_crs = dem.crs
+                print(f"DEM CRS: {dem_crs}")
 
             # Create a meshgrid for all indices
             rows, cols = np.indices(arr_dem.shape)
+            rows_flat = rows.flatten()
+            cols_flat = cols.flatten()
 
             # Use Rasterio's vectorized function to get all coordinates at once
-            x_coords, y_coords = rio.transform.xy(transform, rows, cols, offset='center')
-            end = timer()
-
+            x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
+            end= timer()
             logging.info(f"DEM processing completed for iteration {iteration} in {end - start:.2f} seconds")
 
         # Flatten the arrays and create a DataFrame
             df_dem = pd.DataFrame({
-                "Xw": np.array(x_coords).ravel(),
-                "Yw": np.array(y_coords).ravel(),
+                "Xw": np.array(x_coords),
+                "Yw": np.array(y_coords),
                 "elev": arr_dem.ravel()
-            }).round({"elev": 2, "Xw": 1, "Yw": 1})
-
-            end = timer()
+            })
+            print(df_dem['elev'].value_counts())
         except Exception as e:
             logging.error(f"Error processing DEM: {e}")
             return
@@ -144,6 +146,8 @@ for source in sources:
 
                         # Read all bands into a 3D numpy array of shape (num_bands, height, width)
                         b_all = rst.read()  # shape: (num_bands, height, width)
+                        ortho_crs = rst.crs
+                        print(f"Orthophoto CRS: {ortho_crs}")
                         height, width = rst.height, rst.width
                         print(f"Raster data shape: {b_all.shape}")
 
@@ -183,7 +187,16 @@ for source in sources:
 
                 # Step 4: Merge DEM and orthophoto data
                 start5 = timer()
+                df_dem = df_dem.round({"Xw": 5, "Yw": 5})
+                # Remove no-data values from df_dem
+                df_dem = df_dem[df_dem['elev'] != -32767.0].reset_index()
+
+                df_allbands = df_allbands.round({"Xw": 5, "Yw": 5})
+
+
                 dfs = [df_dem, df_allbands]
+                # Round coordinates
+
                 print(df_dem)
                 print(df_allbands)
                 df_merged = reduce(lambda left, right: pd.merge(left, right, on=["Xw", "Yw"]), dfs)
