@@ -188,27 +188,16 @@ for source in sources:
                 start_write = timer()
                 df_merged.write_parquet(f"{out}\\{source['name']}_{iteration}_{file}.parquet", compression='zstd', compression_level=2)
                 end_write = timer()
-                logging.info(f"Saved chunk result for {file} in {end_write - start_write:.2f} seconds")
+                logging.info(f"Saved image result for {file} in {end_write - start_write:.2f} seconds")
             except Exception as e:
                 logging.error(f"Error processing orthophoto {file}: {e}")
-
-        # Combine and save all results
-        try:
-            start_combination = timer()
-            chunk_files = glob.glob(f"{out}\\{source['name']}_{iteration}_*.parquet")
-            result = pl.concat([pl.read_parquet(file) for file in chunk_files])
-            result.write_parquet(f"{out}\\{source['name']}_{iteration}_final.parquet", compression='zstd')
-            end_combination = timer()
-            logging.info(f"Combined and saved results for iteration {iteration} in {end_combination - start_combination:.2f} seconds")
-        except Exception as e:
-            logging.error(f"Error saving results for iteration {iteration}: {e}")
 
         end_DEM_i = timer()
         logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
 
-    # Split paths into chunks and process in parallel
+    # Split paths into images and process in parallel
     path_list = glob.glob(source['path_list_tag'])
-    chunks = np.array_split(path_list, len(path_list))  # Adjust chunk size for memory and performance
-    logging.info(f"Starting parallel processing with {len(chunks)} chunks")
+    images = np.array_split(path_list, len(path_list))  # Adjust image size for memory and performance
+    logging.info(f"Starting parallel processing with {len(images)} chunks")
 
-    Parallel(n_jobs=1)(delayed(build_database)(i) for i in list(enumerate(chunks)))
+    Parallel(n_jobs=1)(delayed(build_database)(i) for i in list(enumerate(images)))
