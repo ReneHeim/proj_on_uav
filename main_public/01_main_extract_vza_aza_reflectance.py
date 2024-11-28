@@ -152,35 +152,65 @@ for source in sources:
                 end_merge = timer()
                 logging.info(f"Merged data for {file} in {end_merge - start_merge:.2f} seconds")
 
-                # Calculate angles
+
+                # Calculate angles using NumPy for atan2 with Polars expressions
+
+
+                # Start timer for angle calculations
                 start_angles = timer()
-                elev = df_merged["elev"].to_numpy()
-                Xw = df_merged["Xw"].to_numpy()
-                Yw = df_merged["Yw"].to_numpy()
-                band1 = df_merged["band1"].to_numpy()
 
-                delta_z = zcam - elev
-                delta_x = xcam - Xw
-                delta_y = ycam - Yw
-                distance_xy = np.hypot(delta_x, delta_y)
+                # Add delta values
+                df_merged = df_merged.with_columns([
+                    (zcam - pl.col("elev")).alias("delta_z"),
+                    (xcam - pl.col("Xw")).alias("delta_x"),
+                    (ycam - pl.col("Yw")).alias("delta_y")
+                ])
 
-                angle_rad = np.arctan2(delta_z, distance_xy)
-                vza = 90 - (angle_rad * (180 / np.pi))
-                vza = np.where(band1 == 65535, np.nan, np.round(vza, 2))
+                # Calculate distance_xy
+                df_merged = df_merged.with_columns([
+                    (pl.col("delta_x").pow(2) + pl.col("delta_y").pow(2)).sqrt().alias("distance_xy")
+                ])
 
-                vaa_rad = np.arctan2(delta_x, delta_y)
-                vaa = (vaa_rad * (180 / np.pi)) - saa
-                vaa = np.where(band1 == 65535, np.nan, (vaa + 360) % 360)
+                # Calculate angle_rad (viewing zenith angle) using pl.arctan2
+                df_merged = df_merged.with_columns([
+                    pl.arctan2(pl.col("delta_z"), pl.col("distance_xy")).alias("angle_rad")
+                ])
+
+                # Calculate vza (Viewing Zenith Angle)
+                df_merged = df_merged.with_columns([
+                    (90 - (pl.col("angle_rad") * (180 / np.pi))).round(2).alias("vza")
+                ])
+
+                # Calculate vaa_rad (viewing azimuth angle) using pl.arctan2
+                df_merged = df_merged.with_columns([
+                    pl.arctan2(pl.col("delta_x"), pl.col("delta_y")).alias("vaa_rad")
+                ])
+
+                # Calculate vaa_temp and vaa (Viewing Azimuth Angle)
+                df_merged = df_merged.with_columns([
+                    ((pl.col("vaa_rad") * (180 / np.pi)) - saa).alias("vaa_temp")
+                ])
 
                 df_merged = df_merged.with_columns([
-                    pl.Series("vza", vza),
-                    pl.Series("vaa", vaa),
+                    ((pl.col("vaa_temp") + 360) % 360).alias("vaa")
+                ])
+
+                # Handle band1 == 65535 condition for vza and vaa
+                df_merged = df_merged.with_columns([
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa")
+                ])
+
+                # Add constant columns
+                df_merged = df_merged.with_columns([
                     pl.lit(file).alias("path"),
                     pl.lit(xcam).alias("xcam"),
                     pl.lit(ycam).alias("ycam"),
                     pl.lit(sunelev).alias("sunelev"),
                     pl.lit(saa).alias("saa")
                 ])
+
+                # End timer
                 end_angles = timer()
                 logging.info(f"Calculated angles for {file} in {end_angles - start_angles:.2f} seconds")
 
