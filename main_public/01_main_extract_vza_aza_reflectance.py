@@ -1,32 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-#----------------------------------------------------------------------------
-# Created By  : Rene HJ Heim
-# Created Date: 2022/06/22
-# Version      : 1.5
-# ---------------------------------------------------------------------------
-
-import pandas as pd
+import polars as pl
 import glob
 import os
 import logging
 from smac_functions import *
 from config_object import config
-from functools import reduce, partial
-import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
-import pandas as pd
 import rasterio as rio
-
-import exiftool
-from pathlib import Path, PureWindowsPath
-
-import polars as pl
-import numpy as np
 import math
 from timeit import default_timer as timer
-import logging
+import exiftool
+from pathlib import PureWindowsPath
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -37,264 +24,191 @@ logging.basicConfig(
     ]
 )
 
-# Define a dictionary for each input source containing paths and settings
+# Define input sources
 sources = [
     {
-        'out': config.main_extract_out,               # Output directory for results
-        'cam_path': config.main_extract_cam_path,     # Path to camera position file
-        'dem_path': config.main_extract_dem_path,     # Path to DEM file
-        'ori': config.main_extract_ori,               # Path to directory with original images (containing EXIF data)
-        'name': config.main_extract_name,             # Output file name prefix
-        'path_list_tag': config.main_extract_path_list_tag  # Path list tag for orthophotos
+        'out': config.main_extract_out,
+        'cam_path': config.main_extract_cam_path,
+        'dem_path': config.main_extract_dem_path,
+        'ori': config.main_extract_ori,
+        'name': config.main_extract_name,
+        'path_list_tag': config.main_extract_path_list_tag
     }
 ]
 
-
-
-# Loop through each source dictionary to process all provided data
+# Process each source independently
 for source in sources:
     exiftool_path = r"C:\Program Files\ExifTool\exiftool.exe"
-    # Define function to process each chunk of images in parallel
-    def build_database(tuple_chunk):
 
+    # Function to process a chunk of images
+    def build_database(tuple_chunk):
         iteration = tuple_chunk[0]
         chunk = tuple_chunk[1]
-        df_list = []
 
         # Assign source variables to local variables
         out = source['out']
-
         cam_path = source['cam_path']
-
         dem_path = source['dem_path']
         ori = source['ori']
 
-        # Log start of DEM processing
-        logging.info(f"Processing DEM for iteration {iteration}")
-        start = timer()
+        logging.info(f"Starting DEM processing for iteration {iteration}")
         start_DEM_i = timer()
 
-
         try:
+            start_dem_read = timer()
+            # Read the DEM file and convert to DataFrame
             with rio.open(dem_path) as dem:
-                arr_dem = dem.read(1)  # Read DEM as a numpy array
-                transform = dem.transform  # Affine transformation for pixel-to-world coordinates
-                dem_crs = dem.crs
-                #print(f"DEM CRS: {dem_crs}")
+                arr_dem = dem.read(1)  # Read the elevation data
+                transform = dem.transform  # Affine transformation
+                rows, cols = np.indices(arr_dem.shape)
+                rows_flat, cols_flat = rows.flatten(), cols.flatten()
+                x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
 
-            # Create a meshgrid for all indices
-            rows, cols = np.indices(arr_dem.shape)
-            rows_flat = rows.flatten()
-            cols_flat = cols.flatten()
-
-            # Use Rasterio's vectorized function to get all coordinates at once
-            x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
-            end= timer()
-            logging.info(f"DEM processing completed for iteration {iteration} in {end - start:.2f} seconds")
-
-        # Flatten the arrays and create a DataFrame
-            df_dem = pd.DataFrame({
-                "Xw": np.array(x_coords),
-                "Yw": np.array(y_coords),
-                "elev": arr_dem.ravel()
+            # Create a Polars DataFrame for DEM with Float32 precision
+            df_dem = pl.DataFrame({
+                "Xw": pl.Series(x_coords, dtype=pl.Float32),
+                "Yw": pl.Series(y_coords, dtype=pl.Float32),
+                "elev": pl.Series(arr_dem.ravel(), dtype=pl.Float32)
             })
-            #print(df_dem['elev'].value_counts())
+            end_dem_read = timer()
+            logging.info(f"DEM processing completed for iteration {iteration} in {end_dem_read - start_dem_read:.2f} seconds")
+
         except Exception as e:
-            logging.error(f"Error processing DEM: {e}")
+            logging.error(f"Error processing DEM for iteration {iteration}: {e}")
             return
 
         try:
+            # Retrieve orthophoto paths
+            start_ori = timer()
             ori_list = [glob.glob(item + "\\*.tif") for item in ori]
             path_flat = [str(PureWindowsPath(path)) for sublist in ori_list for path in sublist]
+            end_ori = timer()
+            logging.info(f"Retrieved orthophoto paths for iteration {iteration} in {end_ori - start_ori:.2f} seconds")
         except Exception as e:
-            logging.error(f"Error retrieving original images: {e}")
+            logging.error(f"Error retrieving orthophoto paths for iteration {iteration}: {e}")
             return
 
-        # Process each image in the current chunk
-        for each_ortho in tqdm(chunk):
+        # Process each orthophoto in the chunk
+        for each_ortho in tqdm(chunk, desc=f"Processing iteration {iteration}"):
             try:
+                start_ortho = timer()
                 path, file = os.path.split(each_ortho)
                 name, _ = os.path.splitext(file)
                 logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
-                # Step 1: Retrieve camera position
-                start2 = timer()
-                campos = pd.read_csv(cam_path, sep='\t', skiprows=2, header=None)
+                # Retrieve camera position
+                start_campos = timer()
+                campos = pl.read_csv(cam_path, separator='\t', skip_rows=2, has_header=False)
                 campos.columns = ['PhotoID', 'X', 'Y', 'Z', 'Omega', 'Phi', 'Kappa', 'r11', 'r12', 'r13',
                                   'r21', 'r22', 'r23', 'r31', 'r32', 'r33']
-                campos1 = campos[campos['PhotoID'].str.match(name)]
-                xcam, ycam, zcam = campos1['X'].values[0], campos1['Y'].values[0], campos1['Z'].values[0]
-                end2 = timer()
-                logging.info(f"Camera position retrieved for {file} in {end2 - start2:.2f} seconds")
+                campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
+                xcam, ycam, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+                end_campos = timer()
+                logging.info(f"Retrieved camera position for {file} in {end_campos - start_campos:.2f} seconds")
 
-                # Step 2: Retrieve solar angles from EXIF
-                start3 = timer()
+                # Retrieve solar angles from EXIF
+                start_exif = timer()
                 exifobj = [path for path in path_flat if name in path]
                 try:
                     with exiftool.ExifToolHelper(executable=exiftool_path) as et:
-                        metadata = et.get_metadata(exifobj[0])
-                        metadata =metadata[0]  # For debugging purposes
-                        sunelev = float(metadata.get('XMP:SolarElevation', 0)) * (180 / math.pi)
-                        saa = float(metadata.get('XMP:SolarAzimuth', 0)) * (180 / math.pi)
-                    end3 = timer()
-                    #print('Getting SAA and Sun Elevation from ortho EXIF data: ', end3 - start3, 'seconds')
+                        metadata = et.get_metadata(exifobj[0])[0]
+                        sunelev = float(metadata.get('XMP:SolarElevation', 0))
+                        saa = float(metadata.get('XMP:SolarAzimuth', 0))
                 except Exception as e:
-                    logging.error(f"Error processing orthophoto {file}: {e}")
+                    logging.error(f"Error processing EXIF data for {file}: {e}")
+                end_exif = timer()
+                logging.info(f"Retrieved EXIF data for {file} in {end_exif - start_exif:.2f} seconds")
 
-                end3 = timer()
-                logging.info(f"Solar angles retrieved for {file} in {end3 - start3:.2f} seconds")
+                # Read orthophoto bands
+                start_bands = timer()
+                with rio.open(each_ortho) as rst:
+                    num_bands = rst.count
+                    b_all = rst.read()
+                    rows, cols = np.indices((rst.height, rst.width))
+                    rows_flat, cols_flat = rows.flatten(), cols.flatten()
+                    Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat)
 
-                start4 = timer()
-                try:
-                    with rio.open(each_ortho) as rst:
-                        num_bands = rst.count  # Total number of bands
+                    band_values = b_all[:, rows_flat, cols_flat].T
+                    data = {'Xw': pl.Series(Xw, dtype=pl.Float32), 'Yw': pl.Series(Yw, dtype=pl.Float32)}
+                    for idx in range(num_bands):
+                        data[f'band{idx + 1}'] = band_values[:, idx]
+                    df_allbands = pl.DataFrame(data)
+                end_bands = timer()
+                logging.info(f"Processed orthophoto bands for {file} in {end_bands - start_bands:.2f} seconds")
 
-                        # Read all bands into a 3D numpy array of shape (num_bands, height, width)
-                        b_all = rst.read()  # shape: (num_bands, height, width)
-                        ortho_crs = rst.crs
-                        #print(f"Orthophoto CRS: {ortho_crs}")
-                        height, width = rst.height, rst.width
-                        #print(f"Raster data shape: {b_all.shape}")
-
-                        # Get indices of all pixels
-                        rows, cols = np.indices((height, width))
-                        rows = rows.flatten()
-                        cols = cols.flatten()
-
-                        # Get the world coordinates for these indices (vectorized)
-                        Xw, Yw = rio.transform.xy(rst.transform, rows, cols)
-
-                        # Extract band values at all indices
-                        # Shape of band_values: (num_pixels, num_bands)
-                        band_values = b_all[:, rows, cols].T
-
-                        # Prepare data for DataFrame
-                        data = {
-                            'Xw': np.array(Xw),
-                            'Yw': np.array(Yw),
-                        }
-                        for idx in range(num_bands):
-                            data[f'band{idx + 1}'] = band_values[:, idx]
-
-                        # Create a single DataFrame with all bands
-                        df_allbands = pd.DataFrame(data)
-
-                except Exception as e:
-                    logging.error(f"Error processing orthophoto {file}: {e}")
-                    return None
-
-                end4 = timer()
-                logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
-
-
-                start5 = timer()
-
-                # Convert to Polars DataFrames if not already
-                df_dem = pl.DataFrame(df_dem)
-                df_allbands = pl.DataFrame(df_allbands)
-
-                # Round "Xw" and "Yw" to 3 decimal places and remove duplicates
+                # Merge DEM and band data
+                start_merge = timer()
                 df_dem = df_dem.with_columns([
                     pl.col("Xw").round(3),
                     pl.col("Yw").round(3)
                 ]).unique()
-
-                # Remove no-data values from df_dem
-                df_dem = df_dem.filter(pl.col("elev") != -32767.0)
 
                 df_allbands = df_allbands.with_columns([
                     pl.col("Xw").round(3),
                     pl.col("Yw").round(3)
                 ]).unique()
 
-                # Efficient merge on "Xw" and "Yw"
                 df_merged = df_dem.join(df_allbands, on=["Xw", "Yw"], how="inner")
+                end_merge = timer()
+                logging.info(f"Merged data for {file} in {end_merge - start_merge:.2f} seconds")
 
-                print(df_merged.shape)
-
-                # Extract necessary columns as NumPy arrays for vectorized computations
+                # Calculate angles
+                start_angles = timer()
                 elev = df_merged["elev"].to_numpy()
                 Xw = df_merged["Xw"].to_numpy()
                 Yw = df_merged["Yw"].to_numpy()
                 band1 = df_merged["band1"].to_numpy()
 
-                # Pre-compute constants
-                deg_to_rad = np.pi / 180
-                rad_to_deg = 180 / np.pi
-
-                # Calculate deltas and distances
                 delta_z = zcam - elev
                 delta_x = xcam - Xw
                 delta_y = ycam - Yw
-                distance_xy = np.hypot(delta_x, delta_y)  # More efficient than sqrt(x^2 + y^2)
+                distance_xy = np.hypot(delta_x, delta_y)
 
-                # Calculate viewing zenith angle (vza)
                 angle_rad = np.arctan2(delta_z, distance_xy)
-                vza = 90 - (angle_rad * rad_to_deg)
-                vza = np.round(vza, 2)
+                vza = 90 - (angle_rad * (180 / np.pi))
+                vza = np.where(band1 == 65535, np.nan, np.round(vza, 2))
 
-                # Set vza to NaN where band1 == 65535
-                vza = np.where(band1 == 65535, np.nan, vza)
-
-                # Calculate viewing azimuth angle (vaa)
                 vaa_rad = np.arctan2(delta_x, delta_y)
-                vaa = (vaa_rad * rad_to_deg) - saa
-                vaa = np.round(vaa, 2)
+                vaa = (vaa_rad * (180 / np.pi)) - saa
+                vaa = np.where(band1 == 65535, np.nan, (vaa + 360) % 360)
 
-                # Normalize vaa to the range [0, 360)
-                vaa = (vaa + 360) % 360
-                vaa = np.where(band1 == 65535, np.nan, vaa)
-
-                # Create Polars Series for new columns
-                vza_series = pl.Series("vza", vza)
-                vaa_series = pl.Series("vaa", vaa)
-
-                # Add new columns to the DataFrame
                 df_merged = df_merged.with_columns([
-                    vza_series,
-                    vaa_series
-                ])
-
-                # Insert additional constant columns
-                df_merged = df_merged.with_columns([
+                    pl.Series("vza", vza),
+                    pl.Series("vaa", vaa),
                     pl.lit(file).alias("path"),
                     pl.lit(xcam).alias("xcam"),
                     pl.lit(ycam).alias("ycam"),
-                    pl.lit(round(sunelev, 2)).alias("sunelev"),
-                    pl.lit(round(saa, 2)).alias("saa")
+                    pl.lit(sunelev).alias("sunelev"),
+                    pl.lit(saa).alias("saa")
                 ])
+                end_angles = timer()
+                logging.info(f"Calculated angles for {file} in {end_angles - start_angles:.2f} seconds")
 
-                print('df_merged')
-
-                # Append to list
-                df_list.append(df_merged)
-
-                end5 = timer()
-                logging.info(f"Data merging and angle calculations completed for {file} in {end5 - start5:.2f} seconds")
-
-
-
+                # Save to Parquet
+                start_write = timer()
+                df_merged.write_parquet(f"{out}\\{source['name']}_{iteration}_{file}.parquet", compression='zstd', compression_level=2)
+                end_write = timer()
+                logging.info(f"Saved chunk result for {file} in {end_write - start_write:.2f} seconds")
             except Exception as e:
                 logging.error(f"Error processing orthophoto {file}: {e}")
 
-        # Save results
+        # Combine and save all results
         try:
-            result = pd.concat(df_list).reset_index(drop=True)
-            if not os.path.isdir(out):
-                os.makedirs(out)
-            result.to_feather(f"{out}\\{source['name']}_{iteration}.feather")
-            logging.info(f"Results saved for iteration {iteration}")
+            start_combination = timer()
+            chunk_files = glob.glob(f"{out}\\{source['name']}_{iteration}_*.parquet")
+            result = pl.concat([pl.read_parquet(file) for file in chunk_files])
+            result.write_parquet(f"{out}\\{source['name']}_{iteration}_final.parquet", compression='zstd')
+            end_combination = timer()
+            logging.info(f"Combined and saved results for iteration {iteration} in {end_combination - start_combination:.2f} seconds")
         except Exception as e:
             logging.error(f"Error saving results for iteration {iteration}: {e}")
-        end_DEM_i=timer()
-        logging.info(f"Total time of iteration{iteration}: { end_DEM_i-start_DEM_i:.2f} seconds ")
 
+        end_DEM_i = timer()
+        logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
 
-    # Split orthophoto paths into chunks for parallel processing
+    # Split paths into chunks and process in parallel
     path_list = glob.glob(source['path_list_tag'])
-    chunks = np.array_split(path_list, 15)
+    chunks = np.array_split(path_list, len(path_list))  # Adjust chunk size for memory and performance
     logging.info(f"Starting parallel processing with {len(chunks)} chunks")
 
-    # Process each chunk in parallel
     Parallel(n_jobs=1)(delayed(build_database)(i) for i in list(enumerate(chunks)))
-
