@@ -189,65 +189,73 @@ for source in sources:
 
                 start5 = timer()
 
-                # Round, drop duplicates, and reset index using Polars
+                # Convert to Polars DataFrames if not already
                 df_dem = pl.DataFrame(df_dem)
                 df_allbands = pl.DataFrame(df_allbands)
 
+                # Round "Xw" and "Yw" to 3 decimal places and remove duplicates
                 df_dem = df_dem.with_columns([
                     pl.col("Xw").round(3),
                     pl.col("Yw").round(3)
                 ]).unique()
 
-                df_dem = df_dem.filter(df_dem["elev"] != -32767.0)
+                # Remove no-data values from df_dem
+                df_dem = df_dem.filter(pl.col("elev") != -32767.0)
 
                 df_allbands = df_allbands.with_columns([
                     pl.col("Xw").round(3),
                     pl.col("Yw").round(3)
                 ]).unique()
 
-                # Merge DataFrames on "Xw" and "Yw"
-                dfs = [df_dem, df_allbands]
-                df_merged = dfs[0]
-                for df in dfs[1:]:
-                    df_merged = df_merged.join(df, on=["Xw", "Yw"])
-
-                df_merged = df_merged.unique()
+                # Efficient merge on "Xw" and "Yw"
+                df_merged = df_dem.join(df_allbands, on=["Xw", "Yw"], how="inner")
 
                 print(df_merged.shape)
 
-                # Calculate angles
-                def calculate_vza(row):
-                    return 90 - (np.arctan((zcam - row["elev"]) /
-                                           math.sqrt((xcam - row["Xw"])**2 + (ycam - row["Yw"])**2)) * (180 / math.pi))
+                # Extract necessary columns as NumPy arrays for vectorized computations
+                elev = df_merged["elev"].to_numpy()
+                Xw = df_merged["Xw"].to_numpy()
+                Yw = df_merged["Yw"].to_numpy()
+                band1 = df_merged["band1"].to_numpy()
 
-                df_merged = df_merged.with_columns(
-                    pl.struct(["Xw", "Yw", "elev"]).apply(lambda x: calculate_vza(x)).alias("vza")
-                )
+                # Pre-compute constants
+                deg_to_rad = np.pi / 180
+                rad_to_deg = 180 / np.pi
 
-                df_merged = df_merged.with_columns(
-                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza")
-                )
+                # Calculate deltas and distances
+                delta_z = zcam - elev
+                delta_x = xcam - Xw
+                delta_y = ycam - Yw
+                distance_xy = np.hypot(delta_x, delta_y)  # More efficient than sqrt(x^2 + y^2)
 
-                def calculate_vaa_rad(row):
-                    dist = math.sqrt((row["Xw"] - xcam)**2 + (row["Yw"] - ycam)**2)
-                    acos_term = math.acos((ycam - row["Yw"]) / dist)
-                    return acos_term if row["Xw"] - xcam < 0 else -acos_term
+                # Calculate viewing zenith angle (vza)
+                angle_rad = np.arctan2(delta_z, distance_xy)
+                vza = 90 - (angle_rad * rad_to_deg)
+                vza = np.round(vza, 2)
 
+                # Set vza to NaN where band1 == 65535
+                vza = np.where(band1 == 65535, np.nan, vza)
 
+                # Calculate viewing azimuth angle (vaa)
+                vaa_rad = np.arctan2(delta_x, delta_y)
+                vaa = (vaa_rad * rad_to_deg) - saa
+                vaa = np.round(vaa, 2)
 
-                df_merged = df_merged.with_columns(
-                    pl.struct(["Xw", "Yw"]).apply(lambda x: calculate_vaa_rad(x)).alias("vaa_rad")
-                )
+                # Normalize vaa to the range [0, 360)
+                vaa = (vaa + 360) % 360
+                vaa = np.where(band1 == 65535, np.nan, vaa)
 
-                df_merged = df_merged.with_columns(
-                    ((pl.col("vaa_rad") * (180 / math.pi)) - saa).round(2).alias("vaa")
-                )
+                # Create Polars Series for new columns
+                vza_series = pl.Series("vza", vza)
+                vaa_series = pl.Series("vaa", vaa)
 
-                df_merged = df_merged.with_columns(
-                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa")
-                )
+                # Add new columns to the DataFrame
+                df_merged = df_merged.with_columns([
+                    vza_series,
+                    vaa_series
+                ])
 
-                # Insert additional columns
+                # Insert additional constant columns
                 df_merged = df_merged.with_columns([
                     pl.lit(file).alias("path"),
                     pl.lit(xcam).alias("xcam"),
@@ -263,6 +271,7 @@ for source in sources:
 
                 end5 = timer()
                 logging.info(f"Data merging and angle calculations completed for {file} in {end5 - start5:.2f} seconds")
+
 
 
             except Exception as e:
