@@ -18,12 +18,15 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 import pandas as pd
 import rasterio as rio
-import math
-import numpy as np
+
 import exiftool
 from pathlib import Path, PureWindowsPath
-from timeit import default_timer as timer
 
+import polars as pl
+import numpy as np
+import math
+from timeit import default_timer as timer
+import logging
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +48,8 @@ sources = [
         'path_list_tag': config.main_extract_path_list_tag  # Path list tag for orthophotos
     }
 ]
+
+
 
 # Loop through each source dictionary to process all provided data
 for source in sources:
@@ -75,7 +80,7 @@ for source in sources:
                 arr_dem = dem.read(1)  # Read DEM as a numpy array
                 transform = dem.transform  # Affine transformation for pixel-to-world coordinates
                 dem_crs = dem.crs
-                print(f"DEM CRS: {dem_crs}")
+                #print(f"DEM CRS: {dem_crs}")
 
             # Create a meshgrid for all indices
             rows, cols = np.indices(arr_dem.shape)
@@ -93,7 +98,7 @@ for source in sources:
                 "Yw": np.array(y_coords),
                 "elev": arr_dem.ravel()
             })
-            print(df_dem['elev'].value_counts())
+            #print(df_dem['elev'].value_counts())
         except Exception as e:
             logging.error(f"Error processing DEM: {e}")
             return
@@ -132,7 +137,7 @@ for source in sources:
                         sunelev = float(metadata.get('XMP:SolarElevation', 0)) * (180 / math.pi)
                         saa = float(metadata.get('XMP:SolarAzimuth', 0)) * (180 / math.pi)
                     end3 = timer()
-                    print('Getting SAA and Sun Elevation from ortho EXIF data: ', end3 - start3, 'seconds')
+                    #print('Getting SAA and Sun Elevation from ortho EXIF data: ', end3 - start3, 'seconds')
                 except Exception as e:
                     logging.error(f"Error processing orthophoto {file}: {e}")
 
@@ -147,9 +152,9 @@ for source in sources:
                         # Read all bands into a 3D numpy array of shape (num_bands, height, width)
                         b_all = rst.read()  # shape: (num_bands, height, width)
                         ortho_crs = rst.crs
-                        print(f"Orthophoto CRS: {ortho_crs}")
+                        #print(f"Orthophoto CRS: {ortho_crs}")
                         height, width = rst.height, rst.width
-                        print(f"Raster data shape: {b_all.shape}")
+                        #print(f"Raster data shape: {b_all.shape}")
 
                         # Get indices of all pixels
                         rows, cols = np.indices((height, width))
@@ -174,10 +179,6 @@ for source in sources:
                         # Create a single DataFrame with all bands
                         df_allbands = pd.DataFrame(data)
 
-                    end4 = timer()
-                    logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
-
-
                 except Exception as e:
                     logging.error(f"Error processing orthophoto {file}: {e}")
                     return None
@@ -185,42 +186,84 @@ for source in sources:
                 end4 = timer()
                 logging.info(f"Orthophoto bands processed for {file} in {end4 - start4:.2f} seconds")
 
-                # Step 4: Merge DEM and orthophoto data
+
                 start5 = timer()
-                df_dem = df_dem.round({"Xw": 5, "Yw": 5})
-                # Remove no-data values from df_dem
-                df_dem = df_dem[df_dem['elev'] != -32767.0].reset_index()
 
-                df_allbands = df_allbands.round({"Xw": 5, "Yw": 5})
+                # Round, drop duplicates, and reset index using Polars
+                df_dem = pl.DataFrame(df_dem)
+                df_allbands = pl.DataFrame(df_allbands)
 
+                df_dem = df_dem.with_columns([
+                    pl.col("Xw").round(3),
+                    pl.col("Yw").round(3)
+                ]).unique()
 
+                df_dem = df_dem.filter(df_dem["elev"] != -32767.0)
+
+                df_allbands = df_allbands.with_columns([
+                    pl.col("Xw").round(3),
+                    pl.col("Yw").round(3)
+                ]).unique()
+
+                # Merge DataFrames on "Xw" and "Yw"
                 dfs = [df_dem, df_allbands]
-                # Round coordinates
+                df_merged = dfs[0]
+                for df in dfs[1:]:
+                    df_merged = df_merged.join(df, on=["Xw", "Yw"])
 
-                print(df_dem)
-                print(df_allbands)
-                df_merged = reduce(lambda left, right: pd.merge(left, right, on=["Xw", "Yw"]), dfs)
-                print(df_merged)
+                df_merged = df_merged.unique()
+
+                print(df_merged.shape)
+
                 # Calculate angles
-                df_merged['vza'] = df_merged.apply(
-                    lambda x: np.arctan((zcam - x.elev) / math.sqrt((xcam - x.Xw)**2 + (ycam - x.Yw)**2)), axis=1)
-                df_merged['vza'] = round(90 - (df_merged['vza'] * (180 / math.pi)), 2)
-                df_merged['vza'] = np.where(df_merged['band1'] == 65535, np.nan, df_merged['vza'])
+                def calculate_vza(row):
+                    return 90 - (np.arctan((zcam - row["elev"]) /
+                                           math.sqrt((xcam - row["Xw"])**2 + (ycam - row["Yw"])**2)) * (180 / math.pi))
 
-                df_merged['vaa_rad'] = df_merged.apply(
-                    lambda x: math.acos((ycam - x.Yw) / (math.sqrt((x.Xw - xcam)**2 + (x.Yw - ycam)**2))) if x.Xw - xcam < 0 else -math.acos((ycam - x.Yw) / (math.sqrt((x.Xw - xcam)**2 + (x.Yw - ycam)**2))), axis=1)
-                df_merged['vaa'] = round((df_merged['vaa_rad'] * (180 / math.pi)) - saa, 2)
-                df_merged['vaa'] = np.where(df_merged['band1'] == 65535, np.nan, df_merged['vaa'])
+                df_merged = df_merged.with_columns(
+                    pl.struct(["Xw", "Yw", "elev"]).apply(lambda x: calculate_vza(x)).alias("vza")
+                )
 
-                df_merged.insert(0, 'path', file)
-                df_merged.insert(1, 'xcam', xcam)
-                df_merged.insert(2, 'ycam', ycam)
-                df_merged.insert(3, 'sunelev', round(sunelev, 2))
-                df_merged.insert(4, 'saa', round(saa, 2))
-                print(df_merged)
+                df_merged = df_merged.with_columns(
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza")
+                )
+
+                def calculate_vaa_rad(row):
+                    dist = math.sqrt((row["Xw"] - xcam)**2 + (row["Yw"] - ycam)**2)
+                    acos_term = math.acos((ycam - row["Yw"]) / dist)
+                    return acos_term if row["Xw"] - xcam < 0 else -acos_term
+
+
+
+                df_merged = df_merged.with_columns(
+                    pl.struct(["Xw", "Yw"]).apply(lambda x: calculate_vaa_rad(x)).alias("vaa_rad")
+                )
+
+                df_merged = df_merged.with_columns(
+                    ((pl.col("vaa_rad") * (180 / math.pi)) - saa).round(2).alias("vaa")
+                )
+
+                df_merged = df_merged.with_columns(
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa")
+                )
+
+                # Insert additional columns
+                df_merged = df_merged.with_columns([
+                    pl.lit(file).alias("path"),
+                    pl.lit(xcam).alias("xcam"),
+                    pl.lit(ycam).alias("ycam"),
+                    pl.lit(round(sunelev, 2)).alias("sunelev"),
+                    pl.lit(round(saa, 2)).alias("saa")
+                ])
+
+                print('df_merged')
+
+                # Append to list
                 df_list.append(df_merged)
+
                 end5 = timer()
                 logging.info(f"Data merging and angle calculations completed for {file} in {end5 - start5:.2f} seconds")
+
 
             except Exception as e:
                 logging.error(f"Error processing orthophoto {file}: {e}")
@@ -240,7 +283,7 @@ for source in sources:
 
     # Split orthophoto paths into chunks for parallel processing
     path_list = glob.glob(source['path_list_tag'])
-    chunks = np.array_split(path_list, 150)
+    chunks = np.array_split(path_list, 15)
     logging.info(f"Starting parallel processing with {len(chunks)} chunks")
 
     # Process each chunk in parallel
