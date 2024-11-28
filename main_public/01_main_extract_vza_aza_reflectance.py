@@ -43,7 +43,7 @@ for source in sources:
     # Function to process a chunk of images
     def build_database(tuple_chunk):
         iteration = tuple_chunk[0]
-        chunk = tuple_chunk[1]
+        image = tuple_chunk[1]
 
         # Assign source variables to local variables
         out = source['out']
@@ -89,7 +89,7 @@ for source in sources:
             return
 
         # Process each orthophoto in the chunk
-        for each_ortho in tqdm(chunk, desc=f"Processing iteration {iteration}"):
+        for each_ortho in tqdm(image, desc=f"Processing iteration {iteration}"):
             try:
                 start_ortho = timer()
                 path, file = os.path.split(each_ortho)
