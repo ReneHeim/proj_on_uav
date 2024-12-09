@@ -39,5 +39,7 @@ class config_object():
         self.orthomosaic_name = self.main_extract_name + "_for_classification_mosaic"
         self.orthomosaic_out = self.merging_out
         self.orthomosaic_radius = self.filter_radius
-        
+        self.precision = input_config.inputs.settings.precision  # default to 0.01 or any suitable value
+
+
 config = config_object(input_config)

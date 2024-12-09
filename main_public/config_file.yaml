@@ -10,6 +10,7 @@ inputs:
     settings:
         number_of_processor: -1 # Use all available processors
         filter_radius: 1 # Filtering radius around sampling points in meters
+        precision: 3  #To which number the coordinate are rounded to
         file_name: "20241029_week8_project" # Adjusted file prefix for Week 8 project
 
 outputs:

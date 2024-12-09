@@ -25,7 +25,7 @@ def configure_logging():
         ]
     )
 
-def read_dem(dem_path):
+def read_dem(dem_path, precision):
     start = timer()
     try:
         with rio.open(dem_path) as dem:
@@ -51,8 +51,8 @@ def read_dem(dem_path):
 
         # Round and unique can remain, but ensure no unnecessary large intermediate:
         df_dem = df_dem.with_columns([
-            pl.col("Xw").round(3),
-            pl.col("Yw").round(3)
+            pl.col("Xw").round(precision),
+            pl.col("Yw").round(precision)
         ]).unique()
 
         end = timer()
@@ -114,7 +114,7 @@ def get_camera_position(cam_path, name):
         logging.error(f"Error retrieving camera position for {name}: {e}")
         raise
 
-def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path):
+def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision):
     try:
         start_ortho = timer()
         path, file = os.path.split(each_ortho)
@@ -194,13 +194,13 @@ def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, ite
         start_merge = timer()
         # df_dem already float32
         df_dem = df_dem.with_columns([
-            pl.col("Xw").round(3),
-            pl.col("Yw").round(3)
+            pl.col("Xw").round(precision),
+            pl.col("Yw").round(precision)
         ]).unique()
 
         df_allbands = df_allbands.with_columns([
-            pl.col("Xw").round(3),
-            pl.col("Yw").round(3)
+            pl.col("Xw").round(precision),
+            pl.col("Yw").round(precision)
         ]).unique()
 
         df_merged = df_dem.join(df_allbands, on=["Xw", "Yw"], how="inner")
@@ -284,18 +284,19 @@ def build_database(tuple_chunk, source, exiftool_path):
     cam_path = source['cam_path']
     dem_path = source['dem_path']
     ori = source['ori']
+    precision = source['precision']
 
     logging.info(f"Starting DEM processing for iteration {iteration}")
     start_DEM_i = timer()
 
     # Read DEM once per chunk
-    df_dem = read_dem(dem_path)
+    df_dem = read_dem(dem_path, precision)
 
     # Retrieve orthophoto paths once per chunk
     path_flat = retrieve_orthophoto_paths(ori)
 
     for each_ortho in tqdm(images, desc=f"Processing iteration {iteration}"):
-        process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path)
+        process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision)
 
     end_DEM_i = timer()
     logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
@@ -310,7 +311,8 @@ def main():
             'dem_path': config.main_extract_dem_path,
             'ori': config.main_extract_ori,
             'name': config.main_extract_name,
-            'path_list_tag': config.main_extract_path_list_tag
+            'path_list_tag': config.main_extract_path_list_tag,
+            "precision": config.precision
         }
     ]
 
