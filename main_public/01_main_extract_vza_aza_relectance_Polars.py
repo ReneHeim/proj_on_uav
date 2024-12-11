@@ -16,6 +16,11 @@ import exiftool
 from pathlib import PureWindowsPath
 import traceback
 
+import rasterio
+from rasterio.warp import reproject, Resampling, calculate_default_transform
+
+
+
 def configure_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -254,12 +259,150 @@ def save_parquet(df, out, source, iteration, file):
         logging.error(f"Error saving parquet for {file}: {e}")
         raise
 
+def check_alignment(dem_path, ortho_path):
+    """
+    Check if the DEM and orthophoto are aligned:
+    - Same CRS
+    - Same pixel size
+    - Same alignment of pixel boundaries
+
+    Returns True if aligned, False otherwise.
+    """
+    try:
+        with rasterio.open(dem_path) as dem_src, rasterio.open(ortho_path) as ortho_src:
+            # Check CRS
+            if dem_src.crs != ortho_src.crs:
+                logging.info(f"CRS mismatch: DEM={dem_src.crs}, Ortho={ortho_src.crs}")
+                return False
+
+            # Extract transforms
+            dem_transform = dem_src.transform
+            ortho_transform = ortho_src.transform
+
+            # Check pixel sizes
+            dem_res = (dem_transform.a, dem_transform.e)  # (xres, yres)
+            ortho_res = (ortho_transform.a, ortho_transform.e)
+            if not (abs(dem_res[0]) == abs(ortho_res[0]) and abs(dem_res[1]) == abs(ortho_res[1])):
+                logging.info(f"Resolution mismatch: DEM={dem_res}, Ortho={ortho_res}")
+                return False
+
+            # Check alignment: We must ensure that the pixel grid aligns.
+            # We'll check if the difference in the origins aligns with a multiple of the pixel size.
+            # For alignment: (ortho_transform.c - dem_transform.c) should be an integer multiple of the xres
+            # and (ortho_transform.f - dem_transform.f) should be an integer multiple of the yres.
+
+            x_offset = (ortho_transform.c - dem_transform.c) / dem_res[0]
+            y_offset = (ortho_transform.f - dem_transform.f) / dem_res[1]
+
+            # If x_offset and y_offset are close to integers, we consider them aligned
+            if not (abs(x_offset - round(x_offset)) < 1e-6 and abs(y_offset - round(y_offset)) < 1e-6):
+                logging.info(f"Pixel alignment mismatch: x_offset={x_offset}, y_offset={y_offset}")
+                return False
+
+            # If we reach here, DEM and orthophoto are aligned
+            logging.info(f" DEM and orthophoto are aligned: x_offset={x_offset}, y_offset={y_offset}")
+            return True
+    except Exception as e:
+        logging.error(f"Error checking alignment: {e}")
+        return False
+
+
+def coregister_and_resample(input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest):
+    """
+    Reproject and resample the input raster (orthophoto) to match the reference raster (DEM).
+    If target_resolution is provided (e.g., (10, 10)), the output will be resampled to that resolution.
+    """
+    try:
+        with rasterio.open(ref_path) as ref_src:
+            ref_crs = ref_src.crs
+            ref_transform = ref_src.transform
+            ref_width = ref_src.width
+            ref_height = ref_src.height
+            ref_bounds = ref_src.bounds
+
+        with rasterio.open(input_path) as src:
+            # Compute the transform, width, and height of the output raster
+            if target_resolution:
+                # If a target resolution is provided, recalculate transform for the new resolution
+                # We'll use calculate_default_transform but override the resolution
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    src.crs,
+                    ref_crs,
+                    ref_width,
+                    ref_height,
+                    *ref_bounds
+                )
+
+                # Now adjust the transform for the target resolution
+                # The calculate_default_transform gives a transform that matches the reference image,
+                # We just need to scale it if we want a different resolution.
+                xres, yres = target_resolution
+                # We know dst_transform:
+                # dst_transform = | xres, 0, x_min|
+                #                 | 0, -yres, y_max|
+                #                 | 0, 0, 1       |
+                # If we want a different resolution, we can recompute width/height
+                x_min, y_min, x_max, y_max = ref_bounds
+                dst_width = int((x_max - x_min) / xres)
+                dst_height = int((y_max - y_min) / abs(yres))
+                dst_transform = rasterio.transform.from_bounds(x_min, y_min, x_max, y_max, dst_width, dst_height)
+            else:
+                # Use the reference transform and size directly
+                dst_transform, dst_width, dst_height = ref_transform, ref_width, ref_height
+
+            dst_kwargs = src.meta.copy()
+            dst_kwargs.update({
+                "crs": ref_crs,
+                "transform": dst_transform,
+                "width": dst_width,
+                "height": dst_height,
+            })
+
+            # Create output directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            with rasterio.open(output_path, "w", **dst_kwargs) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=dst_transform,
+                        dst_crs=ref_crs,
+                        resampling=resampling
+                    )
+
+        logging.info(f"Co-registration and resampling completed. Output saved to {output_path}")
+        return output_path
+    except Exception as e:
+        logging.error(f"Error in co-registration: {e}")
+        raise
+
+
+# Integration example within process_orthophoto:
 def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision):
     try:
         start_ortho = timer()
         path, file = os.path.split(each_ortho)
         name, _ = os.path.splitext(file)
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
+
+        # Paths
+        dem_path = source['dem_path']
+
+        # Co-registration Check
+        # Before proceeding, ensure DEM and orthophoto are aligned
+        if not check_alignment(dem_path, each_ortho):
+            # Not aligned, co-register orthophoto to DEM
+            coreg_path = os.path.join(out, f"coreg_{file}")
+            # Optionally, define a target resolution (e.g., (10,10)) if you want to change pixel size
+            target_resolution = None  # or (10, 10)
+            each_ortho = coregister_and_resample(each_ortho, dem_path, coreg_path, target_resolution=target_resolution, resampling=Resampling.bilinear)
+
+            # Verify alignment again after co-registration
+            if not check_alignment(dem_path, each_ortho):
+                raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
 
         # Get camera position
         xcam, ycam, zcam = get_camera_position(cam_path, name)
@@ -274,6 +417,7 @@ def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, ite
         df_merged = merge_data(df_dem, df_allbands, precision)
 
         # Log structure of df_merged
+        logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Ensure necessary columns exist
         required_columns = ["Xw", "Yw", "elev"]
@@ -347,6 +491,7 @@ def main():
         num_chunks = 10
         images_split = np.array_split(path_list, num_chunks)
         logging.info(f"Starting parallel processing with {len(images_split)} chunks")
+
 
         Parallel(n_jobs=1)(delayed(build_database)(i, source, exiftool_path) for i in enumerate(images_split))
 
