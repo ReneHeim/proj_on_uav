@@ -22,7 +22,7 @@
 
 ### **Raster Image Characteristics:**
 - **Dimensions:**
-  - 3 Bands
+  - 5 Bands
   - 2319 Rows × 2479 Columns
 
 ### **Processing Requirements:**
@@ -33,7 +33,7 @@
 
 ### **Output Format:**
 - **Total Rows:** 5,748,801
-- **Columns:** `Xw, Yw, band1, band2, band3`
+- **Columns:** `Xw, Yw, band1, band2, band3`, band 4, band 5
 
 ---
 
@@ -70,7 +70,7 @@
 
 ---
 
-### **3. Vectorized Execution**
+### **3. Vectorized Execution** (Please explain.)
 - **Pandas Drawback:**
   - Heavy reliance on `.apply()` functions, which run loops under the hood, slowing down processing.
 - **Polars Solution:**
@@ -188,6 +188,7 @@ df_merged = df_merged.with_columns([
   - **GPU acceleration with CuDF.**
   - **Spatial indexing techniques (R-tree) for faster queries.**
   - **Integration with GIS tools like QGIS for visualization.**
+  - **Spatial filtering to access regions of interests using polygons**
 
 ---
 
