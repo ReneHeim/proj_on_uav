@@ -1,7 +1,3 @@
-Here’s a more detailed presentation explaining the improvements achieved by transitioning from Pandas to Polars for geospatial data processing.
-
----
-
 # **Performance Optimization of Geospatial Data Processing**
 ## Transitioning from Pandas to Polars
 
