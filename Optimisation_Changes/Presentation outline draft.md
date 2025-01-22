@@ -33,7 +33,7 @@
 
 ### **Output Format:**
 - **Total Rows:** 5,748,801
-- **Columns:** `Xw, Yw, band1, band2, band3`, band 4, band 5
+- **Columns:** `Xw, Yw, band1, band2, band3, band 4, band 5
 
 ---
 
@@ -70,7 +70,11 @@
 
 ---
 
-### **3. Vectorized Execution** (Please explain.)
+### **3. Vectorized Execution** 
+#### **Vectorized Operations:**
+Vectorization refers to processing entire arrays or columns of data simultaneously instead of looping through individual elements. 
+This approach leverages low-level optimizations, leading to faster computations. Needed for data manipulation tasks.
+
 - **Pandas Drawback:**
   - Heavy reliance on `.apply()` functions, which run loops under the hood, slowing down processing.
 - **Polars Solution:**
@@ -79,7 +83,7 @@
 ---
 
 ## **Detailed Improvements by Task**
-
+Vectorization refers to processing entire arrays or columns of data simultaneously instead of looping through individual elements. This approach leverages low-level optimizations, leading to faster computations.
 ### **1. Data Preparation (Rounding & Deduplication)**
 
 | **Step**           | **Pandas (O(n))**         | **Polars (O(n/p))**         |
@@ -173,6 +177,29 @@ df_merged = df_merged.with_columns([
 
 ---
 
+## **Application in UAV-Based Multi-Angular Reflectance Data**
+
+### **Context from the Precision Agriculture Study:**
+- UAV-mounted optical sensors provide multi-angular reflectance data to classify plant traits.
+- Extraction of view zenith (VZA) and azimuth angles (VAA) enhances classification of LAI, GLAI, and chlorophyll content.
+- **Polars integration:**
+  - Handles large UAV datasets efficiently.
+  - Enables faster processing of multi-angular reflectance data.
+
+### **Key Processing Steps with Polars:**
+1. **Reading DEM Data:**
+- Efficient extraction of elevation data using Polars with optimized memory usage.
+2. **Orthophoto Processing:**
+- Parallelized reading of image bands and coordinate extraction.
+3. **Data Merging:**
+- Multi-threaded hash joins for georeferenced data compilation.
+4. **Angle Calculations:**
+- Optimized trigonometric calculations for view angles.
+5. **Data Validation:**
+- Ensure coordinate alignment and precision checks.
+
+---
+
 ## **Key Takeaways**
 
 - **Switching to Polars provides:**
@@ -188,7 +215,6 @@ df_merged = df_merged.with_columns([
   - **GPU acceleration with CuDF.**
   - **Spatial indexing techniques (R-tree) for faster queries.**
   - **Integration with GIS tools like QGIS for visualization.**
-  - **Spatial filtering to access regions of interests using polygons**
 
 ---
 
@@ -200,3 +226,4 @@ df_merged = df_merged.with_columns([
   - Seamless migration from Pandas with minimal learning curve.
 
 ---
+
