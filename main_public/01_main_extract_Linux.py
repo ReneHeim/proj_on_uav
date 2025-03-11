@@ -5,6 +5,7 @@ import polars as pl
 import glob
 import os
 import logging
+
 from smac_functions import *
 from config_object import config
 from joblib import Parallel, delayed
@@ -18,8 +19,9 @@ import traceback
 from pathlib import Path
 import rasterio
 from rasterio.warp import reproject, Resampling, calculate_default_transform
-import json
-import subprocess
+import geopandas as gpd
+from shapely.geometry import Polygon
+from shapely.geometry import Point
 import subprocess
 import re
 import json
@@ -34,6 +36,87 @@ def configure_logging():
             logging.StreamHandler()
         ]
     )
+
+
+def read_raster(raster_path, precision, transform_to_utm=True):
+    """
+    Reads a raster file at raster_path and extracts pixel values and pixel center coordinates.
+
+    If transform_to_utm is True, the native coordinates (from the raster’s transform and CRS)
+    are transformed to UTM Zone 32N (EPSG:32632) using pyproj.
+
+    For single-band rasters (DEM), the pixel values are stored in a column named "elev".
+    For multi-band rasters (e.g. orthophotos), each band is stored as "band1", "band2", etc.
+
+    The Xw and Yw coordinates are rounded to the specified precision.
+
+    Returns:
+      A Polars DataFrame with columns:
+        - Xw: (Transformed) X coordinate (Easting, in meters)
+        - Yw: (Transformed) Y coordinate (Northing, in meters)
+        - elev OR band1, band2, ...: Pixel values.
+    """
+    from pyproj import Transformer
+    start = timer()
+    try:
+        with rio.open(raster_path) as rst:
+            num_bands = rst.count
+            data_array = rst.read()  # shape: (num_bands, height, width)
+            # Ensure floating point data is float32
+            if data_array.dtype == np.float64:
+                data_array = data_array.astype(np.float32)
+
+            height, width = rst.height, rst.width
+            transform = rst.transform
+            src_crs = rst.crs
+
+            # Create grid indices for every pixel
+            rows, cols = np.indices((height, width))
+            rows_flat, cols_flat = rows.flatten(), cols.flatten()
+            # Get native (world) coordinates for pixel centers
+            x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
+
+        # Convert coordinates to numpy arrays of float32 and round to the specified precision
+        x_coords = np.array(x_coords, dtype=np.float32).round(precision)
+        y_coords = np.array(y_coords, dtype=np.float32).round(precision)
+
+        # Transform coordinates if requested
+        if transform_to_utm:
+            transformer = Transformer.from_crs(src_crs, "EPSG:32632", always_xy=True)
+            x_trans, y_trans = transformer.transform(x_coords, y_coords)
+            x_coords = np.array(x_trans, dtype=np.float32).round(precision)
+            y_coords = np.array(y_trans, dtype=np.float32).round(precision)
+
+        # Prepare dictionary for DataFrame
+        data = {
+            "Xw": pl.Series(x_coords, dtype=pl.Float32),
+            "Yw": pl.Series(y_coords, dtype=pl.Float32)
+        }
+        # If single band, name the values "elev"; else, loop through bands
+        if num_bands == 1:
+            data["elev"] = pl.Series(data_array.ravel(), dtype=pl.Float32)
+        else:
+            # Reshape data_array from (num_bands, height, width) to (height*width, num_bands)
+            band_values = data_array.reshape(num_bands, -1).T
+            for idx in range(num_bands):
+                # For integer data, cast to UInt16; for floating, keep as Float32.
+                if np.issubdtype(data_array.dtype, np.integer):
+                    data[f'band{idx + 1}'] = pl.Series(band_values[:, idx], dtype=pl.UInt16)
+                else:
+                    data[f'band{idx + 1}'] = pl.Series(band_values[:, idx], dtype=pl.Float32)
+
+        # Build DataFrame and remove duplicate rows if any
+        df = pl.DataFrame(data).unique()
+
+        end = timer()
+        logging.info(
+            f"Raster {os.path.basename(raster_path)} read, transformed and processed in {end - start:.2f} seconds")
+        return df
+
+    except Exception as e:
+        logging.error(f"Error reading raster {raster_path}: {e}")
+        raise
+
 
 def read_dem(dem_path, precision):
     start = timer()
@@ -166,6 +249,7 @@ def read_orthophoto_bands(each_ortho, precision):
                 b_all = b_all.astype(np.float32)
 
             rows, cols = np.indices((rst.height, rst.width))
+            rows_flat, cols_flat = rows.flatten(), cols.flatten()
             rows_flat, cols_flat = rows.flatten(), cols.flatten()
             Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset='center')
 
@@ -435,7 +519,7 @@ def coregister_and_resample(input_path, ref_path, output_path, target_resolution
 
 
 # Integration example within process_orthophoto:
-def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision):
+def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision, polygon_filtering = False, alignment= False):
     try:
         start_ortho = timer()
         path, file = os.path.split(each_ortho)
@@ -445,21 +529,45 @@ def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, ite
         # Paths
         dem_path = source['dem_path']
 
-        # Co-registration Check
-        # Before proceeding, ensure DEM and orthophoto are aligned
-        if not check_alignment(dem_path, each_ortho):
-            # Not aligned, co-register orthophoto to DEM
-            coreg_path = os.path.join(out, f"coreg_{file}")
-            # Optionally, define a target resolution (e.g., (10,10)) if you want to change pixel size
-            target_resolution = None  # or (10, 10)
-            each_ortho = coregister_and_resample(each_ortho, dem_path, coreg_path, target_resolution=target_resolution, resampling=Resampling.bilinear)
-
-            # Verify alignment again after co-registration
-            if not check_alignment(dem_path, each_ortho):
-                raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
-
         # Get camera position
         xcam, ycam, zcam = get_camera_position(cam_path, name)
+
+
+        #Check if the image is inside a polygon
+        if polygon_filtering:
+            #Convert it to the Polygon system
+            easting, northing = latlon_to_utm32n_series(ycam, xcam )
+            point = Point(easting, northing)
+
+            # Load the GPKG file
+            file_path = source["Polygon_path"]
+            gdf = gpd.read_file(file_path)
+            inside = False
+
+            for polygon in gdf["geometry"]:
+                if(point.within(polygon)):
+                    logging.info(f"The Image is inside the polygon: {polygon}")
+                    print(f"The Image is inside the polygon: {polygon}")
+                    inside = True
+            if(inside == False):
+                raise ValueError(f"The Image is not inside any polygon")
+
+        # Before proceeding, ensure DEM and orthophoto are aligned
+        if alignment:
+            if not check_alignment(dem_path, each_ortho):
+                # Not aligned, co-register orthophoto to DEM
+                coreg_path = os.path.join(out, f"coreg_{file}")
+                target_resolution = None  # or (10, 10)
+                each_ortho = coregister_and_resample(each_ortho, dem_path, coreg_path, target_resolution=target_resolution, resampling=Resampling.bilinear)
+                # Verify alignment again after co-registration
+                if not check_alignment(dem_path, each_ortho):
+                    raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
+
+
+
+
+
+
 
         # Get solar angles
         sunelev, saa = extract_sun_angles(name, path_flat, exiftool_path)
@@ -469,6 +577,8 @@ def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, ite
 
         # Merge DEM and band data
         df_merged = merge_data(df_dem, df_allbands, precision)
+
+
 
         # Log structure of df_merged
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
@@ -511,13 +621,17 @@ def build_database(tuple_chunk, source, exiftool_path):
     start_DEM_i = timer()
 
     # Read DEM once per chunk
-    df_dem = read_dem(dem_path, precision)
+    #df_dem = read_dem(dem_path, precision)
+
+    df_dem = read_raster(dem_path, precision, transform_to_utm=True)
+    print(df_dem)
+
 
     # Retrieve orthophoto paths once per chunk
     path_flat = retrieve_orthophoto_paths(ori)
 
     for each_ortho in tqdm(images, desc=f"Processing iteration {iteration}"):
-        process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision)
+        process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, iteration, exiftool_path, precision, polygon_filtering = True)
 
     end_DEM_i = timer()
     logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
@@ -533,7 +647,8 @@ def main():
             'ori': config.main_extract_ori,
             'name': config.main_extract_name,
             'path_list_tag': config.main_extract_path_list_tag,
-            "precision": config.precision
+            "precision": config.precision,
+            "Polygon_path": config.main_polygon_path
         }
     ]
 

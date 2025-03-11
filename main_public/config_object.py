@@ -24,6 +24,8 @@ class config_object():
         self.main_extract_ori = input_config.inputs.paths.ori
         self.main_extract_name = input_config.inputs.settings.file_name
         self.main_extract_path_list_tag = input_config.inputs.paths.orthophoto_path
+        self.main_polygon_path = input_config.inputs.paths.polygon_file_path
+
         
         self.filter_input_dir = self.main_extract_out
         self.filter_out = os.path.join(input_config.outputs.paths.main_out, "filter")

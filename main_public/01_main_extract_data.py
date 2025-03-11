@@ -407,6 +407,8 @@ def process_orthophoto(each_ortho, df_dem, cam_path, path_flat, out, source, ite
         # Get camera position
         xcam, ycam, zcam = get_camera_position(cam_path, name)
 
+
+
         # Get solar angles
         sunelev, saa = extract_sun_angles(name, path_flat, exiftool_path)
 
