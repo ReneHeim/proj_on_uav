@@ -1,167 +1,233 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-#----------------------------------------------------------------------------
-# Created By  : Rene HJ Heim
-# Created Date: 2022/06/22
-# Version      : 1.0
-# ---------------------------------------------------------------------------
-"""
-This script retrieves pixel-wise reflectance values from Metashape orthophotos. For each pixel, the
-observation/illumination angles are calculated based on the methodology outlined in Roosjen (2017).
-Orthophotos are used instead of ortho mosaics as the camera positions are available for each orthophoto
-but not for the mosaic. The pixel resolution is determined by the orthophotos and the digital elevation model (DEM).
-
-Input requirements:
-    - Camera positions in omega, phi, kappa text file format (Agisoft Metashape)
-    - Digital Elevation Model (DEM)
-    - List of orthophotos (in the same CRS as the DEM)
-
-This script utilizes parallelization to enhance performance by processing images in parallel.
-"""
-
-# Import necessary libraries
-import pandas as pd
+import polars as pl
 import glob
 import os
+import logging
 from smac_functions import *
 from config_object import config
-from functools import reduce, partial
-import numpy as np
 from joblib import Parallel, delayed
+from tqdm import tqdm
+import rasterio as rio
+import math
+from timeit import default_timer as timer
+import exiftool
+from pathlib import PureWindowsPath
 
-# Define a dictionary for each input source containing paths and settings
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("process.log"),
+        logging.StreamHandler()
+    ]
+)
+
+# Define input sources
 sources = [
     {
-        'out': config.main_extract_out,               # Output directory for results
-        'cam_path': config.main_extract_cam_path,     # Path to camera position file
-        'dem_path': config.main_extract_dem_path,     # Path to DEM file
-        'ori': config.main_extract_ori,               # Path to directory with original images (containing EXIF data)
-        'name': config.main_extract_name,             # Output file name prefix
-        'path_list_tag': config.main_extract_path_list_tag  # Path list tag for orthophotos
+        'out': config.main_extract_out,
+        'cam_path': config.main_extract_cam_path,
+        'dem_path': config.main_extract_dem_path,
+        'ori': config.main_extract_ori,
+        'name': config.main_extract_name,
+        'path_list_tag': config.main_extract_path_list_tag
     }
 ]
 
-# Loop through each source dictionary to process all provided data
+# Process each source independently
 for source in sources:
+    exiftool_path = r"C:\Program Files\ExifTool\exiftool.exe"
 
-    # Define function to process each chunk of images in parallel
-    # This function takes as input a tuple: an index, and a list of images (1/15th of all orthophotos)
+    # Function to process a chunk of images
     def build_database(tuple_chunk):
         iteration = tuple_chunk[0]
-        chunk = tuple_chunk[1]
-        df_list = []  # Initialize list to store dataframes for each image in the chunk
+        image = tuple_chunk[1]
 
-        # Import required libraries within function scope
-        from tqdm import tqdm
-        import pandas as pd
-        import rasterio as rio
-        import math
-        import numpy as np
-        import exiftool as exif
-        from pathlib import Path, PureWindowsPath
-        from timeit import default_timer as timer
-
-        # Assign source variables to local variables for readability
+        # Assign source variables to local variables
         out = source['out']
         cam_path = source['cam_path']
         dem_path = source['dem_path']
         ori = source['ori']
 
-        # Step 1: Process DEM to extract pixel-based elevation and coordinates
-        start = timer()
-        with rio.open(dem_path) as dem:
-            arr_dem = np.array(dem.read(1))  # Read DEM as a numpy array
-        Xp_dem, Yp_dem, val_dem = xyval(arr_dem)  # Extract pixel coordinates and values
+        logging.info(f"Starting DEM processing for iteration {iteration}")
+        start_DEM_i = timer()
 
-        # Create DataFrame for DEM data with coordinates and elevations for each pixel
-        res_dem = []
-        with rio.open(dem_path) as dem_layer:
-            for i, j in zip(Xp_dem, Yp_dem):
-                res_dem.append(dem_layer.xy(i, j))  # Convert pixel indices to geographic coordinates
-        df_dem = pd.DataFrame(res_dem, columns=['Xw', 'Yw'])
-        df_dem['elev'] = val_dem
-        df_dem = df_dem.round({'elev': 2, 'Xw': 1, 'Yw': 1})  # Round coordinates and elevation for consistent merging
-        end = timer()
-        print('DEM processing time: ', end - start, 'seconds')
+        try:
+            start_dem_read = timer()
+            # Read the DEM file and convert to DataFrame
+            with rio.open(dem_path) as dem:
+                arr_dem = dem.read(1)  # Read the elevation data
+                transform = dem.transform  # Affine transformation
+                rows, cols = np.indices(arr_dem.shape)
+                rows_flat, cols_flat = rows.flatten(), cols.flatten()
+                x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
 
-        # Step 2: Generate a list of all paths to original images with EXIF data
-        ori_list = [glob.glob(item + "\\*.tif") for item in ori]
-        path_flat = [str(PureWindowsPath(path)) for sublist in ori_list for path in sublist]
+            # Create a Polars DataFrame for DEM with Float32 precision
+            df_dem = pl.DataFrame({
+                "Xw": pl.Series(x_coords, dtype=pl.Float32),
+                "Yw": pl.Series(y_coords, dtype=pl.Float32),
+                "elev": pl.Series(arr_dem.ravel(), dtype=pl.Float32)
+            })
+            end_dem_read = timer()
+            logging.info(f"DEM processing completed for iteration {iteration} in {end_dem_read - start_dem_read:.2f} seconds")
 
-        # Step 3: Process each image in the current chunk
-        for each_ortho in tqdm(chunk):
+        except Exception as e:
+            logging.error(f"Error processing DEM for iteration {iteration}: {e}")
+            return
 
-            # Step 3a: Retrieve camera position for the current orthophoto
-            start2 = timer()
-            campos = pd.read_csv(cam_path, sep='\t', skiprows=2, header=None)
-            campos.columns = ['PhotoID', 'X', 'Y', 'Z', 'Omega', 'Phi', 'Kappa', 'r11', 'r12', 'r13',
-                              'r21', 'r22', 'r23', 'r31', 'r32', 'r33']
-            path, file = os.path.split(each_ortho)
-            name, _ = os.path.splitext(file)
-            campos1 = campos[campos['PhotoID'].str.match(name)]
-            xcam, ycam, zcam = campos1['X'].values[0], campos1['Y'].values[0], campos1['Z'].values[0]
-            end2 = timer()
-            print('Camera position retrieval time: ', end2 - start2, 'seconds')
+        try:
+            # Retrieve orthophoto paths
+            start_ori = timer()
+            ori_list = [glob.glob(item + "\\*.tif") for item in ori]
+            path_flat = [str(PureWindowsPath(path)) for sublist in ori_list for path in sublist]
+            end_ori = timer()
+            logging.info(f"Retrieved orthophoto paths for iteration {iteration} in {end_ori - start_ori:.2f} seconds")
+        except Exception as e:
+            logging.error(f"Error retrieving orthophoto paths for iteration {iteration}: {e}")
+            return
 
-            # Step 3b: Retrieve solar elevation and azimuth angles from EXIF data (Roosjen 2017)
-            start3 = timer()
-            exifobj = [path for path in path_flat if name in path]
-            with exif.ExifToolHelper() as et:
-                sunelev = float(et.get_tags(exifobj[0], 'XMP:SolarElevation')[0]['XMP:SolarElevation']) * (180 / math.pi)
-                saa = float(et.get_tags(exifobj[0], 'XMP:SolarAzimuth')[0]['XMP:SolarAzimuth']) * (180 / math.pi)
-            end3 = timer()
-            print('Solar angle retrieval time: ', end3 - start3, 'seconds')
+        # Process each orthophoto in the chunk
+        for each_ortho in tqdm(image, desc=f"Processing iteration {iteration}"):
+            try:
+                start_ortho = timer()
+                path, file = os.path.split(each_ortho)
+                name, _ = os.path.splitext(file)
+                logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
-            # Step 3c: Extract reflectance data for each pixel in orthophoto bands
-            start4 = timer()
-            bands = {}
-            with rio.open(each_ortho) as rst:
-                for counter in range(1, 11):
-                    b1 = rst.read(counter)
-                    Xp, Yp, val = xyval(b1)  # Get pixel values and coordinates
-                    res = [rst.xy(i, j) for i, j in zip(Xp, Yp)]
-                    df_ortho = pd.DataFrame(res, columns=['Xw', 'Yw'])
-                    df_ortho['band' + str(counter)] = val
-                    bands[f"band{counter}"] = df_ortho
-            df_allbands = reduce(partial(pd.merge, on=["Xw", "Yw"], how='outer'), bands.values())
-            end4 = timer()
-            print('Orthophoto band processing time: ', end4 - start4, 'seconds')
+                # Retrieve camera position
+                start_campos = timer()
+                campos = pl.read_csv(cam_path, separator='\t', skip_rows=2, has_header=False)
+                campos.columns = ['PhotoID', 'X', 'Y', 'Z', 'Omega', 'Phi', 'Kappa', 'r11', 'r12', 'r13',
+                                  'r21', 'r22', 'r23', 'r31', 'r32', 'r33']
+                campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
+                xcam, ycam, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+                end_campos = timer()
+                logging.info(f"Retrieved camera position for {file} in {end_campos - start_campos:.2f} seconds")
 
-            # Step 3d: Combine DEM and orthophoto data, then calculate VZA and VAA based on Roosjen (2017)
-            start5 = timer()
-            dfs = [df_dem, df_allbands]
-            df_merged = reduce(lambda left, right: pd.merge(left, right, on=["Xw", "Yw"]), dfs)
+                # Retrieve solar angles from EXIF
+                start_exif = timer()
+                exifobj = [path for path in path_flat if name in path]
+                try:
+                    with exiftool.ExifToolHelper(executable=exiftool_path) as et:
+                        metadata = et.get_metadata(exifobj[0])[0]
+                        sunelev = float(metadata.get('XMP:SolarElevation', 0))
+                        saa = float(metadata.get('XMP:SolarAzimuth', 0))
+                except Exception as e:
+                    logging.error(f"Error processing EXIF data for {file}: {e}")
+                end_exif = timer()
+                logging.info(f"Retrieved EXIF data for {file} in {end_exif - start_exif:.2f} seconds")
 
-            # Calculate view zenith angle (VZA) for each pixel
-            df_merged['vza'] = df_merged.apply(lambda x: np.arctan((zcam - x.elev) / math.sqrt((xcam - x.Xw)**2 + (ycam - x.Yw)**2)), axis=1)
-            df_merged['vza'] = round(90 - (df_merged['vza'] * (180 / math.pi)), 2)
-            df_merged['vza'] = np.where(df_merged['band1'] == 65535, np.nan, df_merged['vza'])  # Set NaN for missing data
+                # Read orthophoto bands
+                start_bands = timer()
+                with rio.open(each_ortho) as rst:
+                    num_bands = rst.count
+                    b_all = rst.read()
+                    rows, cols = np.indices((rst.height, rst.width))
+                    rows_flat, cols_flat = rows.flatten(), cols.flatten()
+                    Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat)
 
-            # Calculate view azimuth angle (VAA) based on Roosjen (2018) and subtract solar azimuth angle (SAA)
-            df_merged['vaa_rad'] = df_merged.apply(lambda x: math.acos((ycam - x.Yw) / (math.sqrt((x.Xw - xcam)**2 + (x.Yw - ycam)**2))) if x.Xw - xcam < 0 else -math.acos((ycam - x.Yw) / (math.sqrt((x.Xw - xcam)**2 + (x.Yw - ycam)**2))), axis=1)
-            df_merged['vaa'] = round((df_merged['vaa_rad'] * (180 / math.pi)) - saa, 2)
-            df_merged['vaa'] = np.where(df_merged['band1'] == 65535, np.nan, df_merged['vaa'])
+                    band_values = b_all[:, rows_flat, cols_flat].T
+                    data = {'Xw': pl.Series(Xw, dtype=pl.Float32), 'Yw': pl.Series(Yw, dtype=pl.Float32)}
+                    for idx in range(num_bands):
+                        data[f'band{idx + 1}'] = band_values[:, idx]
+                    df_allbands = pl.DataFrame(data)
+                end_bands = timer()
+                logging.info(f"Processed orthophoto bands for {file} in {end_bands - start_bands:.2f} seconds")
 
-            # Insert metadata columns
-            df_merged.insert(0, 'path', file)
-            df_merged.insert(1, 'xcam', xcam)
-            df_merged.insert(2, 'ycam', ycam)
-            df_merged.insert(3, 'sunelev', round(sunelev, 2))
-            df_merged.insert(4, 'saa', round(saa, 2))
-            df_list.append(df_merged)
-            end5 = timer()
-            print('Data merging and angle calculations time: ', end5 - start5, 'seconds')
+                # Merge DEM and band data
+                start_merge = timer()
+                df_dem = df_dem.with_columns([
+                    pl.col("Xw").round(3),
+                    pl.col("Yw").round(3)
+                ]).unique()
 
-        # Save results as a feather file and free memory
-        result = pd.concat(df_list).reset_index(drop=True)
-        if not os.path.isdir(out):
-            os.makedirs(out)
-        result.to_feather(f"{out}\\{source['name']}_{iteration}.feather")
-        del result, df_merged, df_allbands, df_list
+                df_allbands = df_allbands.with_columns([
+                    pl.col("Xw").round(3),
+                    pl.col("Yw").round(3)
+                ]).unique()
 
-    # Split orthophoto paths into chunks for parallel processing
+                df_merged = df_dem.join(df_allbands, on=["Xw", "Yw"], how="inner")
+                end_merge = timer()
+                logging.info(f"Merged data for {file} in {end_merge - start_merge:.2f} seconds")
+
+
+                # Calculate angles using NumPy for atan2 with Polars expressions
+
+
+                # Start timer for angle calculations
+                start_angles = timer()
+
+                # Add delta values
+                df_merged = df_merged.with_columns([
+                    (zcam - pl.col("elev")).alias("delta_z"),
+                    (xcam - pl.col("Xw")).alias("delta_x"),
+                    (ycam - pl.col("Yw")).alias("delta_y")
+                ])
+
+                # Calculate distance_xy
+                df_merged = df_merged.with_columns([
+                    (pl.col("delta_x").pow(2) + pl.col("delta_y").pow(2)).sqrt().alias("distance_xy")
+                ])
+
+                # Calculate angle_rad (viewing zenith angle) using pl.arctan2
+                df_merged = df_merged.with_columns([
+                    pl.arctan2(pl.col("delta_z"), pl.col("distance_xy")).alias("angle_rad")
+                ])
+
+                # Calculate vza (Viewing Zenith Angle)
+                df_merged = df_merged.with_columns([
+                    (90 - (pl.col("angle_rad") * (180 / np.pi))).round(2).alias("vza")
+                ])
+
+                # Calculate vaa_rad (viewing azimuth angle) using pl.arctan2
+                df_merged = df_merged.with_columns([
+                    pl.arctan2(pl.col("delta_x"), pl.col("delta_y")).alias("vaa_rad")
+                ])
+
+                # Calculate vaa_temp and vaa (Viewing Azimuth Angle)
+                df_merged = df_merged.with_columns([
+                    ((pl.col("vaa_rad") * (180 / np.pi)) - saa).alias("vaa_temp")
+                ])
+
+                df_merged = df_merged.with_columns([
+                    ((pl.col("vaa_temp") + 360) % 360).alias("vaa")
+                ])
+
+                # Handle band1 == 65535 condition for vza and vaa
+                df_merged = df_merged.with_columns([
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
+                    pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa")
+                ])
+
+                # Add constant columns
+                df_merged = df_merged.with_columns([
+                    pl.lit(file).alias("path"),
+                    pl.lit(xcam).alias("xcam"),
+                    pl.lit(ycam).alias("ycam"),
+                    pl.lit(sunelev).alias("sunelev"),
+                    pl.lit(saa).alias("saa")
+                ])
+
+                # End timer
+                end_angles = timer()
+                logging.info(f"Calculated angles for {file} in {end_angles - start_angles:.2f} seconds")
+
+                # Save to Parquet
+                start_write = timer()
+                df_merged.write_parquet(f"{out}\\{source['name']}_{iteration}_{file}.parquet", compression='zstd', compression_level=2)
+                end_write = timer()
+                logging.info(f"Saved image result for {file} in {end_write - start_write:.2f} seconds")
+            except Exception as e:
+                logging.error(f"Error processing orthophoto {file}: {e}")
+
+        end_DEM_i = timer()
+        logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
+
+    # Split paths into images and process in parallel
     path_list = glob.glob(source['path_list_tag'])
-    chunks = np.array_split(path_list, 15)
+    images = np.array_split(path_list, len(path_list))  # Adjust image size for memory and performance
+    logging.info(f"Starting parallel processing with {len(images)} chunks")
 
-    # Process each chunk in parallel
-    Parallel(n_jobs=8)(delayed(build_database)(i) for i in list(enumerate(chunks)))
+    Parallel(n_jobs=1)(delayed(build_database)(i) for i in list(enumerate(images)))

@@ -9,7 +9,7 @@ import yaml
 from metadict import MetaDict
 import os
 
-input_config_file = r"D:\Github_repository\config_file.yaml"
+input_config_file = r"config_file.yaml"
 
 with open(input_config_file, "r") as file:
     input_config = yaml.load(file,  yaml.Loader)
@@ -24,6 +24,8 @@ class config_object():
         self.main_extract_ori = input_config.inputs.paths.ori
         self.main_extract_name = input_config.inputs.settings.file_name
         self.main_extract_path_list_tag = input_config.inputs.paths.orthophoto_path
+        self.main_polygon_path = input_config.inputs.paths.polygon_file_path
+
         
         self.filter_input_dir = self.main_extract_out
         self.filter_out = os.path.join(input_config.outputs.paths.main_out, "filter")
@@ -39,5 +41,7 @@ class config_object():
         self.orthomosaic_name = self.main_extract_name + "_for_classification_mosaic"
         self.orthomosaic_out = self.merging_out
         self.orthomosaic_radius = self.filter_radius
-        
+        self.precision = input_config.inputs.settings.precision  # default to 0.01 or any suitable value
+
+
 config = config_object(input_config)

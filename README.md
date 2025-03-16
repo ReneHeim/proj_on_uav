@@ -12,7 +12,7 @@ Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. 
 - The [main](https://github.com/ReneHeim/proj_on_uav/tree/main/main) directory containing the code to re-run the presented method as it was done in the published manuscript.
 - The [main_public](https://github.com/ReneHeim/proj_on_uav/tree/main/main_public) directory containing the code to run our method as it is intended for a new user.
 - The [analysis](https://github.com/ReneHeim/proj_on_uav/tree/main/analysis) directory containing the code that was used to generate the results and visualizations as they were published HERE (LINK TBA).
-
+- The [Optimisation_Changes](https://github.com/ReneHeim/proj_on_uav/tree/main/Optimisation_Changes)  Directory contains the changes made to optimise the original code
 ## How to use this method to unlock multi-angular reflectance data?
 
 ### Installing required software
