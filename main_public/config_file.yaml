@@ -1,18 +1,20 @@
 inputs:
     paths:
-        cam_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_cameras.txt" # Path to the camera position text file
-        dem_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_dem.tif" # Path to the DEM file
-        orthophoto_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos_5\\*.tif" # Path to the folder containing orthorectified photos
-        ori: ["D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos_5"] # Folder containing original images for orthophotos
-        mosaic_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_orthomosaic.tif" # Path to the orthomosaic file
-        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv" # Keep unchanged as it was not shown in the screenshot
+        cam_path: "/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241029_week8_cameras.txt" # Path to the camera position text file
+        dem_path: "/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241029_week8_dem.tif" # Path to the DEM file
+        orthophoto_path: "/run/media/mak/OS/example_data_week8/20241029_products_uav_data/orthophotos_5/*.tif" # Path to the folder containing orthorectified photos
+        ori: ["/run/media/mak/OS/example_data_week8/20241029_products_uav_data/orthophotos_5"] # Folder containing original images for orthophotos
+        mosaic_path: "/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241029_week8_orthomosaic.tif" # Path to the orthomosaic file
+        ground_truth_coordinates: "/run/media/mak/OS/example_data_week8/gpscoords_plots.csv" #
+        polygon_file_path: "/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241204_oncerco_plot_polygons.gpkg"
+
 
     settings:
         number_of_processor: -1 # Use all available processors
         filter_radius: 1 # Filtering radius around sampling points in meters
-        precision: 3  #To which number the coordinate are rounded to
+        precision: 5  #To which number the coordinate are rounded to
         file_name: "20241029_week8_project" # Adjusted file prefix for Week 8 project
 
 outputs:
     paths:
-        main_out: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\output" # Output folder path adjusted to match the dataset
+        main_out: "/run/media/mak/OS/example_data_week8/output" # Output folder path adjusted to match the dataset
