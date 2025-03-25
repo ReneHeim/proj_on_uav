@@ -12,12 +12,7 @@ pixels within a given radius around specific ground-sampled points.
 """
 
 # Import required libraries
-import pandas as pd
-import glob
-import os
-from smac_functions import *  # Import custom functions
-from functools import reduce, partial
-import numpy as np
+from Main.functions.raster_functions import *  # Import custom functions
 from joblib import Parallel, delayed
 from config_object import config
 
@@ -45,13 +40,10 @@ def process_orthomosaic(source):
     # Import necessary libraries inside the function for parallel processing
     from tqdm import tqdm
     import pandas as pd
-    import glob
     import os
     import rasterio as rio
     from functools import reduce, partial
-    import math
     import numpy as np
-    import pyarrow
     from scipy import spatial
     from timeit import default_timer as timer
 

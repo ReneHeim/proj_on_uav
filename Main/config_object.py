@@ -18,6 +18,10 @@ input_config = MetaDict(input_config)
 
 class config_object():
     def __init__(self, input_config):
+        self.start_date = input_config.inputs.date_time.start
+        self.time_zone = input_config.inputs.date_time.time_zone
+
+
         self.main_extract_out = os.path.join(input_config.outputs.paths.main_out, "extract")
         self.main_extract_cam_path = input_config.inputs.paths.cam_path
         self.main_extract_dem_path = input_config.inputs.paths.dem_path

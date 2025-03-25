@@ -1,33 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
-import polars as pl
+from datetime import datetime
+import pytz
 import glob
 import os
 import logging
 import rasterio as rio
-import numpy as np
 from timeit import default_timer as timer
-#import exiftool
 from pathlib import PureWindowsPath, Path
 import traceback
 import re
-import json
-import subprocess
-import geopandas as gpd
 from pyproj import Transformer
-from shapely.geometry import Point
 from rasterio.warp import reproject, Resampling, calculate_default_transform
-from joblib import Parallel, delayed
-from shapely.geometry.base import BaseGeometry
 from tqdm import tqdm
-import math
-from smac_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
+
+from Main.functions.date_time_functions import convert_to_timezone
+from Main.functions.raster_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
 from config_object import config
 import geopandas as gpd
 from shapely.geometry import Point
 import polars as pl
-
+import pysolar as solar
 
 def configure_logging():
     logging.basicConfig(
@@ -216,10 +209,6 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
             .alias("elev")
         ])
 
-
-
-
-
         df_merged = df_merged.with_columns([
             pl.lit(xcam, dtype=pl.Float32).alias("xcam"),
             pl.lit(ycam, dtype=pl.Float32).alias("ycam"),
@@ -390,35 +379,45 @@ def fix_path(path_str):
     return re.sub(r"\\+", "/", path_str)
 
 
-def extract_sun_angles(name, path_flat, exiftool_path):
+def extract_sun_angles(name, lon, lat, datetime_str, timezone="UTC"):
+    """
+    Calculate sun angles using pysolar library based on timestamp and position.
+
+    Args:
+        name (str): Name of the image file (for logging)
+        lon (float): longitude
+        lat (float): latitude
+        datetime_str (str): Datetime string in the format 'YYYY-MM-DD HH:MM:SS'
+        timezone (str): Timezone of the datetime string
+
+    Returns:
+        tuple: (solar_elevation, solar_azimuth) in degrees
+    """
     start = timer()
     sunelev, saa = 0.0, 0.0
-    try:
-        exifobj = [pth for pth in path_flat if name in pth]
-        if not exifobj:
-            logging.warning(f"No matching orthophoto found for EXIF data extraction: {name}")
-            return sunelev, saa
-        original_path = exifobj[0]
-        fixed_path = fix_path(original_path)
-        file_path = Path(fixed_path).as_posix()
-        cmd = [exiftool_path, "-j", "-SolarElevation", "-SolarAzimuth", file_path]
-        output = subprocess.run(cmd, capture_output=True, text=True)
-        if output.returncode != 0:
-            logging.warning(f"EXIF metadata extraction failed for {name}. Error: {output.stderr}")
-            return sunelev, saa
-        metadata_list = json.loads(output.stdout)
-        if not metadata_list:
-            logging.warning(f"No EXIF metadata found for {name}")
-            return sunelev, saa
-        metadata = metadata_list[0]
-        sunelev = float(metadata.get('SolarElevation', 0))
-        saa = float(metadata.get('SolarAzimuth', 0))
-        end = timer()
-        logging.info(f"Retrieved EXIF (Sun Angles) for {name} in {end - start:.2f} seconds")
-    except Exception as e:
-        logging.warning(f"EXIF metadata extraction failed for {name}, skipping. Error: {e}")
-    return sunelev, saa
 
+    try:
+
+        dt = datetime.strptime(datetime_str, "%Y-%m-%d %H:%M:%S")
+        dt_with_tz = convert_to_timezone(dt, timezone)
+
+        # Calculate solar position using pysolar
+        solar_elevation = solar.solar.get_altitude(lat, lon, dt_with_tz)
+        solar_azimuth = solar.solar.get_azimuth(lat, lon, dt_with_tz)
+
+        # Ensure azimuth is in the range [0, 360]
+        if solar_azimuth < 0:
+            solar_azimuth += 360
+
+        sunelev = solar_elevation
+        saa = solar_azimuth
+
+        end = timer()
+        logging.info(f"Calculated sun angles for {name} using pysolar: elevation={sunelev:.2f}°, azimuth={saa:.2f}° in {end - start:.2f} seconds")
+    except Exception as e:
+        logging.warning(f"Sun angle calculation with pysolar failed for {name}, skipping. Error: {e}")
+
+    return sunelev, saa
 
 def get_camera_position(cam_path, name):
     start = timer()
@@ -432,10 +431,12 @@ def get_camera_position(cam_path, name):
             pl.col("Z").cast(pl.Float32)
         ])
         campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
-        xcam, ycam, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+        lon, lat, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+
+
         end = timer()
         logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
-        return float(xcam), float(ycam), float(zcam)
+        return float(lon), float(lat), float(zcam)
     except Exception as e:
         logging.error(f"Error retrieving camera position for {name}: {e}")
         raise
@@ -501,14 +502,16 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
 
         dem_path = source['dem_path']
         # Get camera position from the camera file
-        xcam, ycam, zcam = get_camera_position(cam_path, name)
+        lon, lat, zcam = get_camera_position(cam_path, name)
+        print(f"longitude: {lon}, latitude: {lat}, zcam: {zcam}")
 
         # Optional: Check if the image is within a polygon
         if polygon_filtering:
-            easting, northing = latlon_to_utm32n_series(ycam, xcam)
+            easting, northing = latlon_to_utm32n_series(lat, lon)
             point = Point(easting, northing)
             gdf = gpd.read_file(source["Polygon_path"])
             inside = any(point.within(polygon) for polygon in gdf["geometry"])
+            logging.info(f"Point inside Polygon: {str(inside)}")
             if not inside:
                 raise ValueError(f"The Image {file} is not inside any polygon")
 
@@ -523,8 +526,11 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
 
         # Read DEM with transformation so that coordinates match the polygon system (UTM)
         df_dem = read_dem(dem_path, precision, transform_to_utm=True, target_crs="EPSG:32632")
+
         # Read orthophoto bands (assumed to be transformed already if needed)
         df_allbands = read_orthophoto_bands(each_ortho, precision)
+
+
         # Merge DEM and orthophoto data on (Xw, Yw)
         df_merged = merge_data(df_dem, df_allbands, precision)
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
@@ -533,14 +539,17 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         required_columns = ["Xw", "Yw", "band1", "band2", "band3"]
         if not all(col in df_merged.columns for col in required_columns):
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
+
+
         if polygon_filtering:
          polygon_path = source["Polygon_path"]  # path to your polygon file
          df_merged = filter_df_by_polygon(df_merged, polygon_path, target_crs="EPSG:32632", precision=2)
 
-        # Retrieve solar angles from EXIF data
-        sunelev, saa = extract_sun_angles(name, path_flat, exiftool_path)
+        # Retrieve solar angles from position and time
+        sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
+
         # Calculate viewing angles
-        df_merged = calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa)
+        df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)
         # Add file name column
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
 
@@ -608,17 +617,23 @@ def main():
             'name': config.main_extract_name,
             'path_list_tag': config.main_extract_path_list_tag,
             "precision": config.precision,
-            "Polygon_path": config.main_polygon_path
+            "Polygon_path": config.main_polygon_path,
+            "start date": config.start_date,
+            "time zone": config.time_zone,
         }
     ]
     exiftool_path = r"exiftool"
     for source in sources:
         path_list = glob.glob(source['path_list_tag'])
-        num_chunks = 10
-        images_split = np.array_split(path_list, num_chunks)
-        logging.info(f"Starting parallel processing with {len(images_split)} chunks")
-        Parallel(n_jobs=1)(delayed(build_database)(i, source, exiftool_path) for i in enumerate(images_split))
+        logging.info(f"Processing {len(path_list)} images sequentially")
 
+        # Process each image directly without splitting into chunks
+        for i, image_path in enumerate(path_list):
+            logging.info(f"Processing image {i+1}/{len(path_list)}: {os.path.basename(image_path)}")
+            # Create a single-item list to maintain compatibility with build_database
+            single_image = [image_path]
+            # Process directly with the current iteration number
+            build_database((i, single_image), source, exiftool_path)
 
 if __name__ == "__main__":
     main()
