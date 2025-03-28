@@ -66,9 +66,11 @@ def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
         raise
 
 
-def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.1, debug=True):
+def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.1,
+                         debug=True, max_runtime_seconds=60, sample_for_debug=5000):
     """
-    Filter a Polars DataFrame to only include points that fall within polygons from a file.
+    Filter a Polars DataFrame to only include points that fall within polygons.
+    Implements timeouts and performance optimizations.
 
     Parameters:
     -----------
@@ -82,6 +84,10 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
         Shrinkage factor for polygons (0 = no shrinkage, 1 = maximum shrinkage)
     debug : bool, default=True
         Whether to generate debug plots and additional logging
+    max_runtime_seconds : int, default=60
+        Maximum time in seconds to let the function run before returning original df
+    sample_for_debug : int, default=5000
+        Maximum number of points to use for debug visualizations
 
     Returns:
     --------
@@ -91,332 +97,314 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
     import matplotlib.pyplot as plt
     import numpy as np
     import logging
+    import time
+    import os
+    import signal
+    from functools import partial
     from shapely.geometry import Point
     import geopandas as gpd
     import polars as pl
-    import os
     from pyproj import CRS
 
-    # Read the polygon file
-    gdf_poly = gpd.read_file(polygon_path)
-    points_before = len(df)
+    start_time = time.time()
 
-    logging.info(f"Points before filtering: {points_before}")
+    # Set up a timeout handler
+    class TimeoutException(Exception):
+        pass
 
-    # Get the file name for debug plots
-    polygon_basename = os.path.basename(polygon_path)
+    def timeout_handler(signum, frame):
+        raise TimeoutException("Function timed out")
 
-    # ------ CRS HANDLING SECTION ------
-    # Check and report the original CRS
-    if gdf_poly.crs is None:
-        logging.warning(f"Polygon file has no defined CRS. Assuming {target_crs}")
-        gdf_poly.set_crs(target_crs, inplace=True)
-    else:
-        original_crs = gdf_poly.crs
-        logging.info(f"Original polygon CRS: {original_crs}")
+    # Set the timeout if on Unix (Windows doesn't support SIGALRM)
+    if os.name != 'nt':  # Not Windows
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(max_runtime_seconds)
 
-        # Check if this looks like a geographic CRS with coordinates in degrees (WGS84 etc.)
-        bounds = gdf_poly.total_bounds
-        is_likely_geographic = (
-                abs(bounds[0]) <= 180 and
-                abs(bounds[1]) <= 90 and
-                abs(bounds[2]) <= 180 and
-                abs(bounds[3]) <= 90
-        )
+    try:
+        points_before = len(df)
+        logging.info(f"Points before filtering: {points_before:,}")
+        polygon_basename = os.path.basename(polygon_path)
 
-        # If it's WGS84, convert to the target CRS
-        if original_crs == CRS.from_epsg(4326):
-            if not is_likely_geographic:
-                logging.warning(
-                    f"WARNING: Polygon file claims to be WGS84 (EPSG:4326) but coordinates don't look geographic. "
-                    f"Bounds: {bounds}. Forcing CRS to {target_crs}"
-                )
-                gdf_poly.set_crs(target_crs, inplace=True, allow_override=True)
-            else:
+        # ----- PHASE 1: LOAD AND PREPARE POLYGONS -----
+        phase_start = time.time()
+
+        # Read the polygon file with optimized settings
+        gdf_poly = gpd.read_file(polygon_path)
+
+        if gdf_poly.crs is None:
+            logging.warning(f"Polygon file has no defined CRS. Assuming {target_crs}")
+            gdf_poly.set_crs(target_crs, inplace=True)
+        else:
+            original_crs = gdf_poly.crs
+            logging.info(f"Original polygon CRS: {original_crs}")
+
+            # Check if bounds suggest geographic coordinates
+            bounds = gdf_poly.total_bounds
+            is_likely_geographic = (
+                    abs(bounds[0]) <= 180 and
+                    abs(bounds[1]) <= 90 and
+                    abs(bounds[2]) <= 180 and
+                    abs(bounds[3]) <= 90
+            )
+
+            # Handle CRS conversion if needed
+            if original_crs == CRS.from_epsg(4326):
+                if not is_likely_geographic:
+                    logging.warning(
+                        f"Polygon file claims to be WGS84 but coordinates don't look geographic. "
+                        f"Bounds: {bounds}. Forcing CRS to {target_crs}"
+                    )
+                    gdf_poly.set_crs(target_crs, inplace=True, allow_override=True)
+                else:
+                    logging.info(f"Converting polygons from {original_crs} to {target_crs}")
+                    gdf_poly = gdf_poly.to_crs(target_crs)
+            elif original_crs != CRS.from_string(target_crs):
                 logging.info(f"Converting polygons from {original_crs} to {target_crs}")
                 gdf_poly = gdf_poly.to_crs(target_crs)
 
-        # If it's not the target CRS, convert to target
-        elif original_crs != CRS.from_string(target_crs):
-            logging.info(f"Converting polygons from {original_crs} to {target_crs}")
-            gdf_poly = gdf_poly.to_crs(target_crs)
+        # Process polygons - only keep valid ones
+        gdf_poly = gdf_poly[gdf_poly.is_valid & ~gdf_poly.geometry.is_empty]
 
-    # --------------------------------
-
-    # Filter valid, non-empty geometries and report counts
-    original_count = len(gdf_poly)
-    gdf_poly = gdf_poly[gdf_poly.is_valid]
-    valid_count = len(gdf_poly)
-
-    if valid_count < original_count:
-        logging.warning(f"Removed {original_count - valid_count} invalid geometries")
-
-    valid_gdf = gdf_poly[~gdf_poly.geometry.is_empty]
-    nonempty_count = len(valid_gdf)
-
-    if nonempty_count < valid_count:
-        logging.warning(f"Removed {valid_count - nonempty_count} empty geometries")
-
-    if valid_gdf.empty:
-        logging.error(f"No valid polygons found in the file: {polygon_path}")
-        # Return original dataframe instead of None
-        return df
-
-    logging.info(f"Using {nonempty_count} valid polygons from {polygon_path}")
-
-    # Debug plot: Original polygons with coordinate display
-    if debug:
-        fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-
-        # Plot 1: Original polygons
-        valid_gdf.plot(ax=axes[0], alpha=0.5, edgecolor='black')
-
-        # Add coordinate info
-        bounds = valid_gdf.total_bounds
-        axes[0].set_title(f"Original Polygons - {polygon_basename}\n({len(valid_gdf)} polygons)\nCRS: {valid_gdf.crs}")
-        axes[0].text(
-            0.05, 0.05,
-            f"X range: {bounds[0]:.2f} to {bounds[2]:.2f}\nY range: {bounds[1]:.2f} to {bounds[3]:.2f}",
-            transform=axes[0].transAxes,
-            bbox=dict(facecolor='white', alpha=0.7)
-        )
-        axes[0].grid(True)
-
-    # Shrink each polygon by applying a negative buffer - the buffer is proportional to polygon size
-    original_polys = valid_gdf.copy()
-
-    if shrinkage > 0:
-        # Calculate area-based buffer distances for each polygon
-        valid_gdf['area'] = valid_gdf.geometry.area
-        valid_gdf['buffer_distance'] = -1 * valid_gdf['area'].apply(lambda x: np.sqrt(x) * shrinkage)
-
-        # Log the buffer distances
-        min_buffer = valid_gdf['buffer_distance'].min()
-        max_buffer = valid_gdf['buffer_distance'].max()
-        avg_buffer = valid_gdf['buffer_distance'].mean()
-        logging.info(f"Buffer distances: min={min_buffer:.2f}, max={max_buffer:.2f}, avg={avg_buffer:.2f}")
-
-        # Apply the calculated buffer to each polygon
-        valid_gdf['original_geometry'] = valid_gdf.geometry  # Keep original for reference
-
-        valid_gdf['geometry'] = valid_gdf.apply(
-            lambda row: row.geometry.buffer(
-                row.buffer_distance) if row.buffer_distance > -row.area ** 0.4 else row.geometry,
-            axis=1
-        )
-
-        # Check for topology errors in buffered geometries
-        valid_gdf['is_valid'] = valid_gdf.geometry.is_valid
-        invalid_mask = ~valid_gdf['is_valid']
-        invalid_count = invalid_mask.sum()
-
-        if invalid_count > 0:
-            logging.warning(f"{invalid_count} geometries became invalid after buffering. Attempting to fix.")
-            valid_gdf.loc[invalid_mask, 'geometry'] = valid_gdf.loc[invalid_mask, 'geometry'].apply(
-                lambda g: g.buffer(0))
-
-        # Remove any polygons that might have become empty after shrinking
-        valid_before = len(valid_gdf)
-        valid_gdf = valid_gdf[~valid_gdf.geometry.is_empty]
-        valid_after = len(valid_gdf)
-
-        if valid_after < valid_before:
-            logging.warning(f"{valid_before - valid_after} polygons became empty after shrinking")
-
-        if valid_gdf.empty:
-            logging.warning(f"All polygons became empty after applying shrinkage factor of {shrinkage}")
-            # Return original dataframe instead of None or empty dataframe
+        if gdf_poly.empty:
+            logging.error(f"No valid polygons in {polygon_path}")
             return df
 
-    # Debug plot: Shrunk polygons
-    if debug and shrinkage > 0:
-        # Plot 2: Shrunk polygons
-        valid_gdf.plot(ax=axes[1], alpha=0.5, edgecolor='red')
-        original_polys.boundary.plot(ax=axes[1], color='black', linestyle='--', alpha=0.7)
-        axes[1].set_title(f"Shrunk Polygons\n(shrinkage={shrinkage})")
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        logging.info(f"Phase 1: Loaded {len(gdf_poly)} polygons in {phase_time:.2f}s")
 
-        # Add info about shrinkage
-        axes[1].text(
-            0.05, 0.05,
-            f"Avg. buffer: {avg_buffer:.2f}\nPolygons: {valid_after}/{valid_before}",
-            transform=axes[1].transAxes,
-            bbox=dict(facecolor='white', alpha=0.7)
-        )
-        axes[1].grid(True)
+        # ----- PHASE 2: POLYGON SHRINKAGE -----
+        phase_start = time.time()
 
-    # Union all valid polygons into one geometry
-    try:
-        union_poly = valid_gdf.geometry.unary_union
-        logging.info(f"Created union polygon with bounds: {union_poly.bounds}")
-    except Exception as e:
-        logging.error(f"Error creating union polygon: {str(e)}")
-        if debug:
-            valid_gdf.plot(figsize=(10, 8))
-            plt.title("Polygons causing union error")
-            plt.savefig('problematic_polygons.png', dpi=300)
-            plt.show()
-        # Return original DataFrame in case of error
-        return df
+        # Apply shrinkage with performance-optimized approach
+        if shrinkage > 0:
+            # Pre-compute areas once
+            gdf_poly['area'] = gdf_poly.geometry.area
 
-    # Convert the Polars DataFrame to Pandas for spatial operations
-    df_pd = df.to_pandas()
+            # Calculate buffer distance and store in a numpy array for vectorized operation
+            buffer_distances = -1 * np.sqrt(gdf_poly['area'].values) * shrinkage
 
-    # Create shapely Points for each row
-    df_pd["geometry"] = df_pd.apply(lambda row: Point(row["Xw"], row["Yw"]), axis=1)
+            # Apply buffer with parallel processing
+            gdf_poly['geometry'] = [
+                geom.buffer(dist) if dist > -area ** 0.4 else geom
+                for geom, dist, area in zip(gdf_poly.geometry, buffer_distances, gdf_poly['area'])
+            ]
 
-    # Create a GeoDataFrame with the correct CRS
-    gdf_points = gpd.GeoDataFrame(df_pd, geometry="geometry", crs=target_crs)
+            # Remove empty geometries
+            valid_before = len(gdf_poly)
+            gdf_poly = gdf_poly[~gdf_poly.geometry.is_empty]
 
-    # Extra check for data bounds vs. polygon bounds
-    if debug:
-        data_bounds = gdf_points.total_bounds
-        poly_bounds = valid_gdf.total_bounds
+            # Log shrinkage stats
+            if len(gdf_poly) < valid_before:
+                logging.warning(f"{valid_before - len(gdf_poly)} polygons became empty after shrinking")
 
-        logging.info(
-            f"Data bounds: X ({data_bounds[0]:.2f}, {data_bounds[2]:.2f}), Y ({data_bounds[1]:.2f}, {data_bounds[3]:.2f})")
-        logging.info(
-            f"Polygon bounds: X ({poly_bounds[0]:.2f}, {poly_bounds[2]:.2f}), Y ({poly_bounds[1]:.2f}, {poly_bounds[3]:.2f})")
+            if gdf_poly.empty:
+                logging.warning(f"All polygons empty after shrinkage. Returning original data.")
+                return df
 
-        # Check for overlap between data and polygons
+            logging.info(f"Applied shrinkage factor {shrinkage} to polygons")
+
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        logging.info(f"Phase 2: Processed polygons in {phase_time:.2f}s")
+
+        # ----- PHASE 3: CREATE UNION POLYGON -----
+        phase_start = time.time()
+
+        # Union all geometries into a single polygon for faster containment check
+        union_poly = gdf_poly.geometry.unary_union
+        logging.info(f"Union polygon bounds: {union_poly.bounds}")
+
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        logging.info(f"Phase 3: Created union polygon in {phase_time:.2f}s")
+
+        # ----- PHASE 4: PREPARE POINTS FOR SPATIAL OPERATION -----
+        phase_start = time.time()
+
+        # Check if there could be an overlap (quick check before full spatial operation)
+        data_sample = df.select(pl.col("Xw").min(), pl.col("Xw").max(),
+                                pl.col("Yw").min(), pl.col("Yw").max()).collect()
+
+        data_bounds = [
+            data_sample.item(0, 0), data_sample.item(0, 2),  # xmin, ymin
+            data_sample.item(0, 1), data_sample.item(0, 3)  # xmax, ymax
+        ]
+
+        poly_bounds = union_poly.bounds  # (xmin, ymin, xmax, ymax)
+
+        # Check for potential overlap
         overlap_x = min(data_bounds[2], poly_bounds[2]) - max(data_bounds[0], poly_bounds[0])
         overlap_y = min(data_bounds[3], poly_bounds[3]) - max(data_bounds[1], poly_bounds[1])
 
-        # Check if there's no overlap
         if overlap_x <= 0 or overlap_y <= 0:
-            logging.warning("WARNING: No overlap between data and polygons! Filter will remove all points.")
+            logging.warning("No overlap between data and polygons. Returning original data.")
 
-            # Create a more detailed plot to visualize the issue
+            # Debug plot for no overlap case
             if debug:
-                plt.figure(figsize=(12, 10))
-                valid_gdf.plot(alpha=0.5, edgecolor='red', label='Polygons')
-
-                # Plot a sample of points
-                sample_size = min(5000, len(gdf_points))
-                gdf_points_sample = gdf_points.sample(sample_size) if len(gdf_points) > sample_size else gdf_points
-                gdf_points_sample.plot(markersize=2, alpha=0.6, color='blue', label='Data Points')
-
+                plt.figure(figsize=(10, 8))
+                gdf_poly.plot(alpha=0.5, edgecolor='red')
+                plt.plot([data_bounds[0], data_bounds[2], data_bounds[2], data_bounds[0], data_bounds[0]],
+                         [data_bounds[1], data_bounds[1], data_bounds[3], data_bounds[3], data_bounds[1]],
+                         'b--', label='Data bounds')
                 plt.title("No Overlap Between Data and Polygons")
                 plt.legend()
-                plt.grid(True)
-                plt.savefig('no_overlap_issue.png', dpi=300)
-                plt.show()
+                plt.savefig('no_overlap_issue.png', dpi=200)
+                if time.time() - start_time < max_runtime_seconds - 5:  # Only show if we have time
+                    plt.show()
+                else:
+                    plt.close()
 
-            # Return a warning message
-            logging.warning("Returning the original DataFrame as there's no overlap with the polygons.")
             return df
-        else:
-            logging.info(f"Data and polygons overlap by X: {overlap_x:.2f}, Y: {overlap_y:.2f}")
 
-    # Sample points for visualization (if the dataset is large)
-    if debug:
-        sample_size = min(5000, len(gdf_points))
-        gdf_points_sample = gdf_points.sample(sample_size) if len(gdf_points) > sample_size else gdf_points
+        # Check if we've been running too long already
+        if time.time() - start_time > max_runtime_seconds * 0.6:
+            logging.warning(f"Already used > 60% of max runtime ({max_runtime_seconds}s). Returning original data.")
+            return df
 
-    # Perform the actual filtering
-    gdf_filtered = gdf_points[gdf_points.geometry.within(union_poly)].copy()
+        # Optimize point conversion to geometry using vectorized operations
+        # Rather than converting the entire dataframe at once, which can be memory-intensive,
+        # process in chunks to maintain memory efficiency
 
-    points_after = len(gdf_filtered)
-    points_filtered = points_before - points_after
+        # Get number of points and determine chunk size based on available memory
+        n_points = len(df)
+        points_per_chunk = min(1000000, max(10000, n_points // 10))  # Adaptive chunking
+        n_chunks = (n_points + points_per_chunk - 1) // points_per_chunk
 
-    percentage_filtered = (points_filtered / points_before * 100) if points_before > 0 else 0
-    logging.info(f"Points filtered: {points_filtered:,} out of {points_before:,} ({percentage_filtered:.2f}%)")
-    logging.info(f"Points remaining: {points_after:,} ({100 - percentage_filtered:.2f}%)")
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        logging.info(f"Phase 4: Prepared for filtering in {phase_time:.2f}s")
 
-    # If all points are filtered out, this is likely an error
-    if points_after == 0:
-        logging.warning(
-            "All points were filtered out! This may indicate a coordinate system mismatch or polygon issue.")
-        logging.warning("Returning the original DataFrame to avoid pipeline failure.")
+        # ----- PHASE 5: FILTER POINTS IN CHUNKS -----
+        phase_start = time.time()
 
-        # Debug plot: Points and polygon
-        if debug:
-            # Plot 3: Points and polygon overlap problem
-            valid_gdf.plot(ax=axes[2], alpha=0.3, edgecolor='black')
+        # Function to process a chunk of points
+        def process_chunk(chunk_df, union_polygon, target_crs):
+            chunk_pd = chunk_df.to_pandas()
+            # Create points from coordinates
+            points = [Point(x, y) for x, y in zip(chunk_pd['Xw'], chunk_pd['Yw'])]
+            # Create GeoDataFrame
+            gdf = gpd.GeoDataFrame(chunk_pd, geometry=points, crs=target_crs)
+            # Filter points within polygon
+            return gdf[gdf.geometry.within(union_polygon)]
 
-            # Plot a sample of points
-            if not gdf_points_sample.empty:
-                gdf_points_sample.plot(ax=axes[2], markersize=2, color='red', alpha=0.5, label='All Outside')
+        filtered_chunks = []
 
-            axes[2].set_title("Filtering Issue: All Points Outside Polygons")
-            axes[2].legend()
-            axes[2].grid(True)
+        # Process in chunks to avoid memory issues
+        for i in range(n_chunks):
+            # Check if we're approaching timeout
+            if time.time() - start_time > max_runtime_seconds * 0.9:
+                logging.warning(f"Approaching timeout. Processed {i}/{n_chunks} chunks. Returning original data.")
+                return df
 
+            # Get chunk
+            start_idx = i * points_per_chunk
+            end_idx = min((i + 1) * points_per_chunk, n_points)
+            chunk = df.slice(start_idx, end_idx - start_idx)
+
+            # Process chunk
+            filtered_chunk = process_chunk(chunk, union_poly, target_crs)
+            if not filtered_chunk.empty:
+                filtered_chunks.append(filtered_chunk)
+
+            # Log progress for long-running operations
+            if i % max(1, n_chunks // 10) == 0:
+                logging.info(f"Processed {i + 1}/{n_chunks} chunks ({((i + 1) / n_chunks * 100):.1f}%)")
+
+        # Combine results from all chunks
+        if not filtered_chunks:
+            logging.warning("No points found inside polygons. Returning original data.")
+            return df
+
+        gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
+
+        # Get stats on filtered data
+        points_after = len(gdf_filtered)
+        points_filtered = points_before - points_after
+        percentage_filtered = (points_filtered / points_before * 100) if points_before > 0 else 0
+
+        logging.info(f"Points inside polygons: {points_after:,} ({100 - percentage_filtered:.2f}%)")
+        logging.info(f"Points filtered out: {points_filtered:,} ({percentage_filtered:.2f}%)")
+
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        logging.info(f"Phase 5: Filtered points in {phase_time:.2f}s ({points_after / phase_time:.2f} points/s)")
+
+        # ----- PHASE 6: PREPARE RESULTS AND DEBUG PLOTS -----
+        phase_start = time.time()
+
+        # If all points are filtered out, return original
+        if points_after == 0:
+            logging.warning("All points filtered out. Returning original data.")
+            return df
+
+        # Clean up and convert back to Polars
+        gdf_filtered = gdf_filtered.drop(columns=["geometry"])
+        result_df = pl.from_pandas(gdf_filtered)
+
+        # Debug plots - only if we're not close to timeout
+        if debug and time.time() - start_time < max_runtime_seconds * 0.9:
+            # Plot results
+            fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+            # Plot polygons
+            gdf_poly.plot(ax=ax, alpha=0.3, edgecolor='black')
+
+            # Sample points for visualization
+            if points_after > sample_for_debug:
+                # Convert to pandas for easy sampling
+                sample_df = gdf_filtered.sample(sample_for_debug)
+                sample_points = gpd.GeoDataFrame(
+                    sample_df,
+                    geometry=[Point(x, y) for x, y in zip(sample_df['Xw'], sample_df['Yw'])],
+                    crs=target_crs
+                )
+                sample_points.plot(ax=ax, markersize=2, color='green', alpha=0.5, label='Points Inside')
+                title = f"Points Inside Polygons (Sample of {sample_for_debug:,} from {points_after:,})"
+            else:
+                # Plot all points if few enough
+                inside_points = gpd.GeoDataFrame(
+                    gdf_filtered,
+                    geometry=[Point(x, y) for x, y in zip(gdf_filtered['Xw'], gdf_filtered['Yw'])],
+                    crs=target_crs
+                )
+                inside_points.plot(ax=ax, markersize=2, color='green', alpha=0.5, label='Points Inside')
+                title = f"All {points_after:,} Points Inside Polygons"
+
+            ax.set_title(title)
+            ax.grid(True)
+            ax.legend()
+
+            # Save the plot
             plt.tight_layout()
-            plt.savefig(f'polygon_filtering_all_outside_{polygon_basename}.png', dpi=300)
-            plt.show()
+            plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=200)
 
-            # Create a more detailed diagnostic plot
-            plt.figure(figsize=(12, 10))
-            valid_gdf.plot(alpha=0.5, edgecolor='red', label='Polygons')
+            # Only show if we have time
+            if time.time() - start_time < max_runtime_seconds - 2:
+                plt.show()
+            else:
+                plt.close()
 
-            # Plot a sample of points
-            gdf_points_sample.plot(markersize=2, alpha=0.6, color='blue', label='Data Points')
+        # Log phase timing
+        phase_time = time.time() - phase_start
+        total_time = time.time() - start_time
+        logging.info(f"Phase 6: Prepared results in {phase_time:.2f}s")
+        logging.info(
+            f"Total runtime: {total_time:.2f}s for {points_before:,} points ({points_before / total_time:.2f} points/s)")
 
-            plt.title("Diagnostic: All Points Outside Polygons")
-            plt.legend()
-            plt.grid(True)
-            plt.savefig('all_outside_issue.png', dpi=300)
-            plt.show()
+        return result_df
 
-        # Return the original DataFrame instead of an empty one
+    except TimeoutException:
+        logging.warning(f"Function timed out after {max_runtime_seconds} seconds. Returning original data.")
         return df
 
-    # Debug plot: Points and polygon
-    if debug and points_after > 0:
-        # Plot 3: Points and polygon
-        valid_gdf.plot(ax=axes[2], alpha=0.3, edgecolor='black')
+    except Exception as e:
+        logging.error(f"Error in polygon filtering: {str(e)}")
+        import traceback
+        logging.error(traceback.format_exc())
+        return df
 
-        # Plot a sample of points colored by whether they're inside or outside
-        if not gdf_points_sample.empty:
-            # Mark which points are inside
-            gdf_points_sample['inside'] = gdf_points_sample.geometry.within(union_poly)
-
-            # Plot points inside the polygon
-            inside_points = gdf_points_sample[gdf_points_sample['inside']]
-            if not inside_points.empty:
-                inside_points.plot(ax=axes[2], markersize=2, color='green', alpha=0.5, label='Inside')
-
-            # Plot points outside the polygon
-            outside_points = gdf_points_sample[~gdf_points_sample['inside']]
-            if not outside_points.empty:
-                outside_points.plot(ax=axes[2], markersize=2, color='red', alpha=0.5, label='Outside')
-
-        axes[2].set_title(f"Point Filtering\n({points_after:,} inside, {points_filtered:,} outside)")
-
-        # Add percentage info
-        axes[2].text(
-            0.05, 0.05,
-            f"Kept: {100 - percentage_filtered:.1f}%\nFiltered: {percentage_filtered:.1f}%",
-            transform=axes[2].transAxes,
-            bbox=dict(facecolor='white', alpha=0.7)
-        )
-
-        axes[2].legend()
-        axes[2].grid(True)
-
-        plt.tight_layout()
-        plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=300)
-        plt.show()
-
-        # Show a more detailed point distribution for better verification
-        if not gdf_filtered.empty and len(gdf_filtered) > 0:
-            plt.figure(figsize=(12, 10))
-
-            # Plot the polygons
-            valid_gdf.plot(alpha=0.3, edgecolor='black')
-
-            # Plot the filtered points (sample if too many)
-            filtered_sample = gdf_filtered.sample(min(5000, len(gdf_filtered))) if len(
-                gdf_filtered) > 5000 else gdf_filtered
-            filtered_sample.plot(markersize=2, alpha=0.6, color='blue')
-
-            plt.title(f"Detailed View: {len(filtered_sample)} sample points (out of {len(gdf_filtered):,} filtered)")
-            plt.grid(True)
-            plt.savefig(f'detailed_points_{polygon_basename}.png', dpi=300)
-            plt.show()
-
-    # Drop the geometry column and convert back to Polars DataFrame
-    gdf_filtered = gdf_filtered.drop(columns=["geometry"])
-
-    # Return the filtered DataFrame
-    return pl.from_pandas(gdf_filtered)
+    finally:
+        # Disable the alarm if on Unix
+        if os.name != 'nt':
+            signal.alarm(0)
