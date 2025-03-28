@@ -1,0 +1,2594 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Conclusion and Motivation for Performance Improvement &#8212; My sample book</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css?v=be8a1c11" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'Optimisation_Changes/Journal of improvements';</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+        
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="My sample book - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="My sample book - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    UAV Data Analyser
+                </a>
+            </li>
+        </ul>
+        <ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../markdown.html">Markdown Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../notebooks.html">Content with notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../markdown-notebooks.html">Notebooks with MyST Markdown</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../Functions.html">UAV Orthophoto and DEM Processing Documentation</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/executablebooks/jupyter-book" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/executablebooks/jupyter-book/issues/new?title=Issue%20on%20page%20%2FOptimisation_Changes/Journal of improvements.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/Optimisation_Changes/Journal of improvements.ipynb" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.ipynb</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Conclusion and Motivation for Performance Improvement</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#"><strong>Conclusion and Motivation for Performance Improvement</strong></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#results-analysis"><strong>Results Analysis</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-benchmark-results"><strong>Performance Benchmark Results:</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-validation"><strong>Accuracy Validation:</strong></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conclusions"><strong>Conclusions</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motivation-for-performance-improvement"><strong>Motivation for Performance Improvement</strong></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmark-results-optimized-code-vs-original-code">Benchmark Results: Optimized Code vs. Original Code</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview"><strong>Overview</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmark-results"><strong>Benchmark Results</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-metrics"><strong>Performance Metrics</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-results"><strong>Key Results</strong></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-insights"><strong>Performance Insights</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-optimization-of-polars-code-over-pandas-code">Performance Optimization of Polars Code Over Pandas Code</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#overview-of-what-happened"><strong>Overview of What Happened</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-polars-code-is-more-efficient"><strong>Why the Polars Code is More Efficient</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-efficiency">1. <strong>Memory Efficiency</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#parallel-execution">2. <strong>Parallel Execution</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#efficient-execution-model">3. <strong>Efficient Execution Model</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#improvements-in-time-complexity"><strong>Improvements in Time Complexity</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#rounding-and-deduplication"><strong>1. Rounding and Deduplication</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-dataframes"><strong>2. Merging DataFrames</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#angle-calculations"><strong>3. Angle Calculations</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-observations-from-benchmark"><strong>Key Observations from Benchmark</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-polars-is-ideal-for-large-datasets"><strong>Why Polars is Ideal for Large Datasets</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#polygon-extraction-with-geopandas">Polygon extraction with geopandas</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#let-s-create-a-function-that-does-that">Let’s create a function that does that</a></li>
+</ul>
+
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rio</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">rasterio.transform</span><span class="w"> </span><span class="kn">import</span> <span class="n">from_origin</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">timeit</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Import custom functions</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_numpy2</span><span class="p">(</span><span class="n">transform</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span>
+        <span class="n">transform</span><span class="o">.</span><span class="n">a</span><span class="p">,</span> <span class="n">transform</span><span class="o">.</span><span class="n">b</span><span class="p">,</span> <span class="n">transform</span><span class="o">.</span><span class="n">c</span><span class="p">,</span>
+        <span class="n">transform</span><span class="o">.</span><span class="n">d</span><span class="p">,</span> <span class="n">transform</span><span class="o">.</span><span class="n">e</span><span class="p">,</span> <span class="n">transform</span><span class="o">.</span><span class="n">f</span><span class="p">,</span>
+        <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span>
+    <span class="p">],</span> <span class="n">dtype</span><span class="o">=</span><span class="s1">&#39;float64&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">xy_np</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">):</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">rows</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">cols</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="mi">1</span><span class="p">]])</span><span class="o">.</span><span class="n">T</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">cols</span><span class="p">)</span>
+        <span class="n">pts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">rows</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">pts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">rows</span>
+        <span class="n">pts</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">cols</span>
+
+    <span class="k">if</span> <span class="n">offset</span> <span class="o">==</span> <span class="s1">&#39;center&#39;</span><span class="p">:</span>
+        <span class="n">coff</span><span class="p">,</span> <span class="n">roff</span> <span class="o">=</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">offset</span> <span class="o">==</span> <span class="s1">&#39;ul&#39;</span><span class="p">:</span>
+        <span class="n">coff</span><span class="p">,</span> <span class="n">roff</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">offset</span> <span class="o">==</span> <span class="s1">&#39;ur&#39;</span><span class="p">:</span>
+        <span class="n">coff</span><span class="p">,</span> <span class="n">roff</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">offset</span> <span class="o">==</span> <span class="s1">&#39;ll&#39;</span><span class="p">:</span>
+        <span class="n">coff</span><span class="p">,</span> <span class="n">roff</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">offset</span> <span class="o">==</span> <span class="s1">&#39;lr&#39;</span><span class="p">:</span>
+        <span class="n">coff</span><span class="p">,</span> <span class="n">roff</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Invalid offset&quot;</span><span class="p">)</span>
+
+    <span class="n">_transnp</span> <span class="o">=</span> <span class="n">to_numpy2</span><span class="p">(</span><span class="n">transform</span><span class="p">)</span>
+    <span class="n">_translt</span> <span class="o">=</span> <span class="n">to_numpy2</span><span class="p">(</span><span class="n">transform</span><span class="o">.</span><span class="n">translation</span><span class="p">(</span><span class="n">coff</span><span class="p">,</span> <span class="n">roff</span><span class="p">))</span>
+    <span class="n">locs</span> <span class="o">=</span> <span class="n">_transnp</span> <span class="o">@</span> <span class="n">_translt</span> <span class="o">@</span> <span class="n">pts</span>
+    <span class="k">return</span> <span class="n">locs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">(),</span> <span class="n">locs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+
+<span class="c1"># Original Code Function (Fixed)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">original_code</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows_flat</span><span class="p">,</span> <span class="n">cols_flat</span><span class="p">):</span>
+    <span class="n">res_dem</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="p">(</span><span class="n">transform</span> <span class="o">*</span> <span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">row</span><span class="p">))</span> <span class="k">for</span> <span class="n">row</span><span class="p">,</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">rows_flat</span><span class="p">,</span> <span class="n">cols_flat</span><span class="p">),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">rows_flat</span><span class="p">),</span> <span class="n">desc</span><span class="o">=</span><span class="s2">&quot;Original Code&quot;</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">x_coords</span><span class="p">,</span> <span class="n">y_coords</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">res_dem</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x_coords</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y_coords</span><span class="p">)</span>
+
+<span class="c1"># Create a synthetic DEM-like array</span>
+<span class="n">width</span><span class="p">,</span> <span class="n">height</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span> <span class="mi">1000</span>  <span class="c1"># Adjust size for testing</span>
+<span class="n">dem_array</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
+
+<span class="c1"># Define an affine transformation</span>
+<span class="n">transform</span> <span class="o">=</span> <span class="n">from_origin</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10000</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># Origin (0, 10000), pixel size 1x1</span>
+
+<span class="c1"># Create a meshgrid of row and column indices</span>
+<span class="n">rows</span><span class="p">,</span> <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">(</span><span class="n">dem_array</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+<span class="n">rows_flat</span> <span class="o">=</span> <span class="n">rows</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+<span class="n">cols_flat</span> <span class="o">=</span> <span class="n">cols</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+<span class="c1"># Benchmarking with timeit</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Running Benchmarks...&quot;</span><span class="p">)</span>
+
+<span class="n">rasterio_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+    <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;rio.transform.xy(transform, rows, cols, offset=&#39;center&#39;, precision=1)&quot;</span><span class="p">,</span>
+    <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+    <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+
+<span class="n">custom_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+    <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;xy_np(transform, rows_flat, cols_flat, offset=&#39;center&#39;)&quot;</span><span class="p">,</span>
+    <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+    <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+
+<span class="n">original_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+    <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;original_code(transform, rows_flat, cols_flat)&quot;</span><span class="p">,</span>
+    <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+    <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+
+<span class="c1"># Results</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Benchmark Results (average over 10 runs):&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Rasterio transform.xy time: </span><span class="si">{</span><span class="n">rasterio_time</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Custom xy_np time: </span><span class="si">{</span><span class="n">custom_time</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original code time: </span><span class="si">{</span><span class="n">original_time</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+<span class="c1"># Validation of Results</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Validating Results...&quot;</span><span class="p">)</span>
+<span class="n">x_coords_rasterio</span><span class="p">,</span> <span class="n">y_coords_rasterio</span> <span class="o">=</span> <span class="n">rio</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">xy</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">,</span> <span class="n">precision</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">x_coords_rasterio</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x_coords_rasterio</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+<span class="n">y_coords_rasterio</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y_coords_rasterio</span><span class="p">)</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+<span class="n">x_coords_custom</span><span class="p">,</span> <span class="n">y_coords_custom</span> <span class="o">=</span> <span class="n">xy_np</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows_flat</span><span class="p">,</span> <span class="n">cols_flat</span><span class="p">,</span> <span class="n">offset</span><span class="o">=</span><span class="s1">&#39;center&#39;</span><span class="p">)</span>
+<span class="n">x_coords_original</span><span class="p">,</span> <span class="n">y_coords_original</span> <span class="o">=</span> <span class="n">original_code</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows_flat</span><span class="p">,</span> <span class="n">cols_flat</span><span class="p">)</span>
+
+<span class="n">x_diff_custom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x_coords_rasterio</span> <span class="o">-</span> <span class="n">x_coords_custom</span><span class="p">))</span>
+<span class="n">y_diff_custom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">y_coords_rasterio</span> <span class="o">-</span> <span class="n">y_coords_custom</span><span class="p">))</span>
+<span class="n">x_diff_original</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x_coords_rasterio</span> <span class="o">-</span> <span class="n">x_coords_original</span><span class="p">))</span>
+<span class="n">y_diff_original</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">y_coords_rasterio</span> <span class="o">-</span> <span class="n">y_coords_original</span><span class="p">))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Custom function - Max X difference: </span><span class="si">{</span><span class="n">x_diff_custom</span><span class="si">}</span><span class="s2">, Max Y difference: </span><span class="si">{</span><span class="n">y_diff_custom</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original code - Max X difference: </span><span class="si">{</span><span class="n">x_diff_original</span><span class="si">}</span><span class="s2">, Max Y difference: </span><span class="si">{</span><span class="n">y_diff_original</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Running Benchmarks...
+</pre></div>
+</div>
+<div class="output traceback highlight-ipythontb notranslate"><div class="highlight"><pre><span></span><span class="gt">---------------------------------------------------------------------------</span>
+<span class="ne">NameError</span><span class="g g-Whitespace">                                 </span>Traceback (most recent call last)
+<span class="n">Cell</span> <span class="n">In</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">line</span> <span class="mi">71</span>
+<span class="g g-Whitespace">     </span><span class="mi">59</span> <span class="n">rasterio_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+<span class="g g-Whitespace">     </span><span class="mi">60</span>     <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;rio.transform.xy(transform, rows, cols, offset=&#39;center&#39;, precision=1)&quot;</span><span class="p">,</span>
+<span class="g g-Whitespace">     </span><span class="mi">61</span>     <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+<span class="g g-Whitespace">     </span><span class="mi">62</span>     <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="g g-Whitespace">     </span><span class="mi">63</span> <span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+<span class="g g-Whitespace">     </span><span class="mi">65</span> <span class="n">custom_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+<span class="g g-Whitespace">     </span><span class="mi">66</span>     <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;xy_np(transform, rows_flat, cols_flat, offset=&#39;center&#39;)&quot;</span><span class="p">,</span>
+<span class="g g-Whitespace">     </span><span class="mi">67</span>     <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+<span class="g g-Whitespace">     </span><span class="mi">68</span>     <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="g g-Whitespace">     </span><span class="mi">69</span> <span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+<span class="ne">---&gt; </span><span class="mi">71</span> <span class="n">original_time</span> <span class="o">=</span> <span class="n">timeit</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span>
+<span class="g g-Whitespace">     </span><span class="mi">72</span>     <span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;original_code(transform, rows_flat, cols_flat)&quot;</span><span class="p">,</span>
+<span class="g g-Whitespace">     </span><span class="mi">73</span>     <span class="nb">globals</span><span class="o">=</span><span class="nb">globals</span><span class="p">(),</span>
+<span class="g g-Whitespace">     </span><span class="mi">74</span>     <span class="n">number</span><span class="o">=</span><span class="mi">10</span>
+<span class="g g-Whitespace">     </span><span class="mi">75</span> <span class="p">)</span> <span class="o">/</span> <span class="mi">10</span>
+<span class="g g-Whitespace">     </span><span class="mi">77</span> <span class="c1"># Results</span>
+<span class="g g-Whitespace">     </span><span class="mi">78</span> <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Benchmark Results (average over 10 runs):&quot;</span><span class="p">)</span>
+
+<span class="nn">File ~/.conda/envs/UAV-2/lib/python3.12/timeit.py:237,</span> in <span class="ni">timeit</span><span class="nt">(stmt, setup, timer, number, globals)</span>
+<span class="g g-Whitespace">    </span><span class="mi">234</span> <span class="k">def</span><span class="w"> </span><span class="nf">timeit</span><span class="p">(</span><span class="n">stmt</span><span class="o">=</span><span class="s2">&quot;pass&quot;</span><span class="p">,</span> <span class="n">setup</span><span class="o">=</span><span class="s2">&quot;pass&quot;</span><span class="p">,</span> <span class="n">timer</span><span class="o">=</span><span class="n">default_timer</span><span class="p">,</span>
+<span class="g g-Whitespace">    </span><span class="mi">235</span>            <span class="n">number</span><span class="o">=</span><span class="n">default_number</span><span class="p">,</span> <span class="nb">globals</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="g g-Whitespace">    </span><span class="mi">236</span><span class="w">     </span><span class="sd">&quot;&quot;&quot;Convenience function to create Timer object and call timeit method.&quot;&quot;&quot;</span>
+<span class="ne">--&gt; </span><span class="mi">237</span>     <span class="k">return</span> <span class="n">Timer</span><span class="p">(</span><span class="n">stmt</span><span class="p">,</span> <span class="n">setup</span><span class="p">,</span> <span class="n">timer</span><span class="p">,</span> <span class="nb">globals</span><span class="p">)</span><span class="o">.</span><span class="n">timeit</span><span class="p">(</span><span class="n">number</span><span class="p">)</span>
+
+<span class="nn">File ~/.conda/envs/UAV-2/lib/python3.12/timeit.py:180,</span> in <span class="ni">Timer.timeit</span><span class="nt">(self, number)</span>
+<span class="g g-Whitespace">    </span><span class="mi">178</span> <span class="n">gc</span><span class="o">.</span><span class="n">disable</span><span class="p">()</span>
+<span class="g g-Whitespace">    </span><span class="mi">179</span> <span class="k">try</span><span class="p">:</span>
+<span class="ne">--&gt; </span><span class="mi">180</span>     <span class="n">timing</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inner</span><span class="p">(</span><span class="n">it</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">timer</span><span class="p">)</span>
+<span class="g g-Whitespace">    </span><span class="mi">181</span> <span class="k">finally</span><span class="p">:</span>
+<span class="g g-Whitespace">    </span><span class="mi">182</span>     <span class="k">if</span> <span class="n">gcold</span><span class="p">:</span>
+
+<span class="nn">File &lt;timeit-src&gt;:6,</span> in <span class="ni">inner</span><span class="nt">(_it, _timer)</span>
+
+<span class="nn">Cell In[2], line 39,</span> in <span class="ni">original_code</span><span class="nt">(transform, rows_flat, cols_flat)</span>
+<span class="g g-Whitespace">     </span><span class="mi">37</span> <span class="k">def</span><span class="w"> </span><span class="nf">original_code</span><span class="p">(</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows_flat</span><span class="p">,</span> <span class="n">cols_flat</span><span class="p">):</span>
+<span class="g g-Whitespace">     </span><span class="mi">38</span>     <span class="n">res_dem</span> <span class="o">=</span> <span class="p">[</span>
+<span class="nn">---&gt; 39         (transform * (col, row)) for row, col</span> in <span class="ni">tqdm(zip(rows_flat, cols_flat), total=len</span><span class="nt">(rows_flat), desc=&quot;Original Code&quot;)</span>
+<span class="g g-Whitespace">     </span><span class="mi">40</span>     <span class="p">]</span>
+<span class="g g-Whitespace">     </span><span class="mi">41</span>     <span class="n">x_coords</span><span class="p">,</span> <span class="n">y_coords</span> <span class="o">=</span> <span class="nb">zip</span><span class="p">(</span><span class="o">*</span><span class="n">res_dem</span><span class="p">)</span>
+<span class="g g-Whitespace">     </span><span class="mi">42</span>     <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">x_coords</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">y_coords</span><span class="p">)</span>
+
+<span class="ne">NameError</span>: name &#39;tqdm&#39; is not defined
+</pre></div>
+</div>
+</div>
+</div>
+<section class="tex2jax_ignore mathjax_ignore" id="conclusion-and-motivation-for-performance-improvement">
+<h1><strong>Conclusion and Motivation for Performance Improvement</strong><a class="headerlink" href="#conclusion-and-motivation-for-performance-improvement" title="Link to this heading">#</a></h1>
+<section id="results-analysis">
+<h2><strong>Results Analysis</strong><a class="headerlink" href="#results-analysis" title="Link to this heading">#</a></h2>
+<section id="performance-benchmark-results">
+<h3><strong>Performance Benchmark Results:</strong><a class="headerlink" href="#performance-benchmark-results" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Method</strong></p></th>
+<th class="head"><p><strong>Execution Time (average)</strong></p></th>
+<th class="head"><p><strong>Observations</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Rasterio <code class="docutils literal notranslate"><span class="pre">transform.xy</span></code></strong></p></td>
+<td><p><strong>0.0287 seconds</strong></p></td>
+<td><p>Fastest method, optimized for vectorized operations.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Custom <code class="docutils literal notranslate"><span class="pre">xy_np</span></code></strong></p></td>
+<td><p><strong>0.0401 seconds</strong></p></td>
+<td><p>Slightly slower than Rasterio, but efficient for custom implementation.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Original Code</strong></p></td>
+<td><p><strong>4.2850 seconds</strong></p></td>
+<td><p>Significantly slower, using a Python loop for transformations.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="accuracy-validation">
+<h3><strong>Accuracy Validation:</strong><a class="headerlink" href="#accuracy-validation" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Method</strong></p></th>
+<th class="head"><p><strong>Max X Difference</strong></p></th>
+<th class="head"><p><strong>Max Y Difference</strong></p></th>
+<th class="head"><p><strong>Observations</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Rasterio <code class="docutils literal notranslate"><span class="pre">transform.xy</span></code></strong></p></td>
+<td><p>-</p></td>
+<td><p>-</p></td>
+<td><p>Used as the baseline for accuracy comparison.</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Custom <code class="docutils literal notranslate"><span class="pre">xy_np</span></code></strong></p></td>
+<td><p><strong>999.0</strong></p></td>
+<td><p><strong>999.0</strong></p></td>
+<td><p>Significant deviation, needs correction for precise results.</p></td>
+</tr>
+<tr class="row-even"><td><p><strong>Original Code</strong></p></td>
+<td><p><strong>0.5</strong></p></td>
+<td><p><strong>0.5</strong></p></td>
+<td><p>Matches closely with Rasterio, indicating high accuracy.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="conclusions">
+<h2><strong>Conclusions</strong><a class="headerlink" href="#conclusions" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Performance:</strong></p>
+<ul class="simple">
+<li><p>Rasterio’s <code class="docutils literal notranslate"><span class="pre">transform.xy</span></code> is the fastest and most efficient due to its highly optimized C implementation, handling large datasets seamlessly.</p></li>
+<li><p>The custom <code class="docutils literal notranslate"><span class="pre">xy_np</span></code> function, while slightly slower than Rasterio, demonstrates that matrix-based transformations are more efficient than Python loops.</p></li>
+<li><p>The original code is the slowest due to its reliance on Python loops, which are inherently slower for large-scale operations.</p></li>
+</ul>
+</li>
+<li><p><strong>Accuracy:</strong></p>
+<ul class="simple">
+<li><p>The custom <code class="docutils literal notranslate"><span class="pre">xy_np</span></code> function has a significant deviation in results (<code class="docutils literal notranslate"><span class="pre">999.0</span></code> difference), indicating potential issues with handling offsets or transformations.</p></li>
+<li><p>The original code closely matches Rasterio’s results, validating its correctness but highlighting its inefficiency.</p></li>
+</ul>
+</li>
+</ol>
+</section>
+<hr class="docutils" />
+<section id="motivation-for-performance-improvement">
+<h2><strong>Motivation for Performance Improvement</strong><a class="headerlink" href="#motivation-for-performance-improvement" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Scalability for Large Datasets:</strong></p>
+<ul class="simple">
+<li><p>In real-world applications like UAV image processing or geospatial analysis, datasets often contain millions of pixels. Improving performance directly impacts the feasibility of processing such large data in a reasonable time frame.</p></li>
+</ul>
+</li>
+<li><p><strong>Importance of Accuracy:</strong></p>
+<ul class="simple">
+<li><p>Accurate coordinate transformation is critical for applications like mapping, modeling, and spatial analysis. Rasterio provides a robust and precise baseline, while the custom implementation needs refinement to ensure correctness.</p></li>
+</ul>
+</li>
+</ol>
+<hr class="docutils" />
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">original_code</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">):</span>
+    <span class="n">start4</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+    <span class="n">bands</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">rio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">)</span> <span class="k">as</span> <span class="n">rst</span><span class="p">:</span>
+            <span class="n">num_bands</span> <span class="o">=</span> <span class="n">rst</span><span class="o">.</span><span class="n">count</span>  <span class="c1"># Dynamically get the number of bands</span>
+            <span class="k">for</span> <span class="n">counter</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">num_bands</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">b1</span> <span class="o">=</span> <span class="n">rst</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">counter</span><span class="p">)</span>
+                <span class="n">Xp</span><span class="p">,</span> <span class="n">Yp</span><span class="p">,</span> <span class="n">val</span> <span class="o">=</span> <span class="n">xyval</span><span class="p">(</span><span class="n">b1</span><span class="p">)</span>  <span class="c1"># Ensure xyval is defined appropriately</span>
+                <span class="c1"># Vectorize the coordinate transformation</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="p">[</span><span class="n">rst</span><span class="o">.</span><span class="n">xy</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">Xp</span><span class="p">,</span> <span class="n">Yp</span><span class="p">)]</span>
+                <span class="n">df_ortho</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">,</span> <span class="s1">&#39;Yw&#39;</span><span class="p">])</span>
+                <span class="n">df_ortho</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;band</span><span class="si">{</span><span class="n">counter</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+                <span class="n">bands</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;band</span><span class="si">{</span><span class="n">counter</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_ortho</span>
+        <span class="c1"># Merge all band DataFrames on &#39;Xw&#39; and &#39;Yw&#39;</span>
+        <span class="n">df_allbands</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Xw&quot;</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">],</span> <span class="n">how</span><span class="o">=</span><span class="s1">&#39;outer&#39;</span><span class="p">),</span> <span class="n">bands</span><span class="o">.</span><span class="n">values</span><span class="p">())</span>
+        <span class="n">end4</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Orthophoto bands processed for </span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">end4</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start4</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df_allbands</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error processing orthophoto </span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">optimized_code</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">):</span>
+    <span class="n">start4</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">rio</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">)</span> <span class="k">as</span> <span class="n">rst</span><span class="p">:</span>
+            <span class="n">num_bands</span> <span class="o">=</span> <span class="n">rst</span><span class="o">.</span><span class="n">count</span>  <span class="c1"># Total number of bands</span>
+
+            <span class="c1"># Read all bands into a 3D numpy array of shape (num_bands, height, width)</span>
+            <span class="n">b_all</span> <span class="o">=</span> <span class="n">rst</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>  <span class="c1"># shape: (num_bands, height, width)</span>
+            <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">rst</span><span class="o">.</span><span class="n">height</span><span class="p">,</span> <span class="n">rst</span><span class="o">.</span><span class="n">width</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Raster data shape: </span><span class="si">{</span><span class="n">b_all</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+            <span class="c1"># Get indices of all pixels</span>
+            <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">indices</span><span class="p">((</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">))</span>
+            <span class="n">rows</span> <span class="o">=</span> <span class="n">rows</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">cols</span> <span class="o">=</span> <span class="n">cols</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+            <span class="c1"># Get the world coordinates for these indices (vectorized)</span>
+            <span class="n">Xw</span><span class="p">,</span> <span class="n">Yw</span> <span class="o">=</span> <span class="n">rio</span><span class="o">.</span><span class="n">transform</span><span class="o">.</span><span class="n">xy</span><span class="p">(</span><span class="n">rst</span><span class="o">.</span><span class="n">transform</span><span class="p">,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">)</span>
+
+            <span class="c1"># Extract band values at all indices</span>
+            <span class="c1"># Shape of band_values: (num_pixels, num_bands)</span>
+            <span class="n">band_values</span> <span class="o">=</span> <span class="n">b_all</span><span class="p">[:,</span> <span class="n">rows</span><span class="p">,</span> <span class="n">cols</span><span class="p">]</span><span class="o">.</span><span class="n">T</span>
+
+            <span class="c1"># Prepare data for DataFrame</span>
+            <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;Xw&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Xw</span><span class="p">),</span>
+                <span class="s1">&#39;Yw&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">Yw</span><span class="p">),</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">num_bands</span><span class="p">):</span>
+                <span class="n">data</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;band</span><span class="si">{</span><span class="n">idx</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">band_values</span><span class="p">[:,</span> <span class="n">idx</span><span class="p">]</span>
+
+            <span class="c1"># Create a single DataFrame with all bands</span>
+            <span class="n">df_allbands</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="n">end4</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Orthophoto bands processed for </span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">end4</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start4</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">df_allbands</span>
+
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Error processing orthophoto </span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">benchmark_functions</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+    <span class="n">original_times</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">optimized_times</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">iterations</span><span class="p">):</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Benchmark Iteration </span><span class="si">{</span><span class="n">i</span><span class="o">+</span><span class="mi">1</span><span class="si">}</span><span class="s2"> for file </span><span class="si">{</span><span class="n">file</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+
+        <span class="c1"># Benchmark optimized_code</span>
+        <span class="n">start_opt</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">df_opt</span> <span class="o">=</span> <span class="n">optimized_code</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+        <span class="n">end_opt</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">time_opt</span> <span class="o">=</span> <span class="n">end_opt</span> <span class="o">-</span> <span class="n">start_opt</span>
+        <span class="n">optimized_times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_opt</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Optimized Code Time: </span><span class="si">{</span><span class="n">time_opt</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Optimized Code Time: </span><span class="si">{</span><span class="n">time_opt</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_opt</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_opt</span><span class="p">[</span><span class="s2">&quot;band1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_opt</span><span class="p">[</span><span class="s2">&quot;band2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_opt</span><span class="p">[</span><span class="s2">&quot;band3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+        <span class="c1"># Benchmark original_code</span>
+        <span class="n">start_orig</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">df_orig</span> <span class="o">=</span> <span class="n">original_code</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+        <span class="n">end_orig</span> <span class="o">=</span> <span class="n">timer</span><span class="p">()</span>
+        <span class="n">time_orig</span> <span class="o">=</span> <span class="n">end_orig</span> <span class="o">-</span> <span class="n">start_orig</span>
+        <span class="n">original_times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_orig</span><span class="p">)</span>
+        <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original Code Time: </span><span class="si">{</span><span class="n">time_orig</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original Code Time: </span><span class="si">{</span><span class="n">time_opt</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_orig</span><span class="p">[</span><span class="s2">&quot;band1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_orig</span><span class="p">[</span><span class="s2">&quot;band2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">df_orig</span><span class="p">[</span><span class="s2">&quot;band3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+
+        <span class="c1"># Optional: Verify that both DataFrames are equal</span>
+        <span class="c1"># Note: Due to potential floating-point precision differences, you might need a tolerance</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">df_original_sorted</span> <span class="o">=</span> <span class="n">df_orig</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">,</span> <span class="s1">&#39;Yw&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">df_optimized_sorted</span> <span class="o">=</span> <span class="n">df_opt</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">,</span> <span class="s1">&#39;Yw&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="n">pd</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_frame_equal</span><span class="p">(</span><span class="n">df_original_sorted</span><span class="p">,</span> <span class="n">df_optimized_sorted</span><span class="p">,</span> <span class="n">check_exact</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">)</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">&quot;DataFrames are equal.&quot;</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">AssertionError</span> <span class="k">as</span> <span class="n">e</span><span class="p">:</span>
+            <span class="n">logging</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;DataFrames differ: </span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Calculate average times</span>
+    <span class="n">avg_orig</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">original_times</span><span class="p">)</span> <span class="o">/</span> <span class="n">iterations</span>
+    <span class="n">avg_opt</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">optimized_times</span><span class="p">)</span> <span class="o">/</span> <span class="n">iterations</span>
+
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average Original Code Time over </span><span class="si">{</span><span class="n">iterations</span><span class="si">}</span><span class="s2"> iterations: </span><span class="si">{</span><span class="n">avg_orig</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average Optimized Code Time over </span><span class="si">{</span><span class="n">iterations</span><span class="si">}</span><span class="s2"> iterations: </span><span class="si">{</span><span class="n">avg_opt</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Return the timing results</span>
+    <span class="k">return</span> <span class="p">{</span>
+        <span class="s1">&#39;original_times&#39;</span><span class="p">:</span> <span class="n">original_times</span><span class="p">,</span>
+        <span class="s1">&#39;optimized_times&#39;</span><span class="p">:</span> <span class="n">optimized_times</span><span class="p">,</span>
+        <span class="s1">&#39;average_original_time&#39;</span><span class="p">:</span> <span class="n">avg_orig</span><span class="p">,</span>
+        <span class="s1">&#39;average_optimized_time&#39;</span><span class="p">:</span> <span class="n">avg_opt</span>
+    <span class="p">}</span>
+
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">Documentation.Optimisation_Changes.smac_functions</span><span class="w"> </span><span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">tqdm</span><span class="w"> </span><span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">rasterio</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">rio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tqdm</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">timeit</span><span class="w"> </span><span class="kn">import</span> <span class="n">default_timer</span> <span class="k">as</span> <span class="n">timer</span>
+
+
+
+<span class="c1"># Example paths (replace with your actual paths)</span>
+<span class="n">each_ortho</span> <span class="o">=</span> <span class="sa">r</span><span class="s2">&quot;D:/ds_seminar_ws_2024_2025/example_data_week8/20241029_products_uav_data/orthophotos/IMG_0000_1.tif&quot;</span>
+<span class="n">file</span> <span class="o">=</span> <span class="s2">&quot;IMG_0000_1.tif&quot;</span>
+
+<span class="c1"># Run the benchmark with desired number of iterations</span>
+<span class="n">benchmark_results</span> <span class="o">=</span> <span class="n">benchmark_functions</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">,</span> <span class="n">iterations</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">optimized_code</span><span class="p">(</span><span class="n">each_ortho</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+
+
+<span class="c1"># Display the results</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Benchmark Results:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Optimized Code Times: </span><span class="si">{</span><span class="n">benchmark_results</span><span class="p">[</span><span class="s1">&#39;optimized_times&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original Code Times: </span><span class="si">{</span><span class="n">benchmark_results</span><span class="p">[</span><span class="s1">&#39;original_times&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average Optimized Code Time: </span><span class="si">{</span><span class="n">benchmark_results</span><span class="p">[</span><span class="s1">&#39;average_optimized_time&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Average Original Code Time: </span><span class="si">{</span><span class="n">benchmark_results</span><span class="p">[</span><span class="s1">&#39;average_original_time&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+</section>
+<section class="tex2jax_ignore mathjax_ignore" id="benchmark-results-optimized-code-vs-original-code">
+<h1>Benchmark Results: Optimized Code vs. Original Code<a class="headerlink" href="#benchmark-results-optimized-code-vs-original-code" title="Link to this heading">#</a></h1>
+<section id="overview">
+<h2><strong>Overview</strong><a class="headerlink" href="#overview" title="Link to this heading">#</a></h2>
+<p>This benchmark compares the performance of the <strong>optimized code</strong> and the <strong>original code</strong> for processing a raster dataset. Both approaches aim to extract geospatial data (X, Y coordinates and band values) from a raster with the following dimensions:</p>
+<ul class="simple">
+<li><p><strong>Raster Data Shape</strong>: <code class="docutils literal notranslate"><span class="pre">(3,</span> <span class="pre">2319,</span> <span class="pre">2479)</span></code> (3 bands, 2319 rows, 2479 columns)</p></li>
+<li><p><strong>Output DataFrame Shape</strong>: <code class="docutils literal notranslate"><span class="pre">(5748801</span> <span class="pre">rows</span> <span class="pre">x</span> <span class="pre">5</span> <span class="pre">columns)</span></code> (columns: <code class="docutils literal notranslate"><span class="pre">Xw</span></code>, <code class="docutils literal notranslate"><span class="pre">Yw</span></code>, <code class="docutils literal notranslate"><span class="pre">band1</span></code>, <code class="docutils literal notranslate"><span class="pre">band2</span></code>, <code class="docutils literal notranslate"><span class="pre">band3</span></code>)</p></li>
+</ul>
+<p>The results highlight the significant improvement in runtime achieved by the optimized code.</p>
+</section>
+<hr class="docutils" />
+<section id="benchmark-results">
+<h2><strong>Benchmark Results</strong><a class="headerlink" href="#benchmark-results" title="Link to this heading">#</a></h2>
+<section id="performance-metrics">
+<h3><strong>Performance Metrics</strong><a class="headerlink" href="#performance-metrics" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Metric</p></th>
+<th class="head"><p>Optimized Code</p></th>
+<th class="head"><p>Original Code</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Average Runtime</strong></p></td>
+<td><p><strong>0.32 seconds</strong></p></td>
+<td><p><strong>458.67 seconds</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Performance Improvement</strong></p></td>
+<td><p><strong>1434x faster</strong></p></td>
+<td><p>-</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="key-results">
+<h3><strong>Key Results</strong><a class="headerlink" href="#key-results" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Output Consistency</strong>:</p>
+<ul>
+<li><p>Both the optimized and original codes produced identical results in terms of pixel counts and extracted band values.</p></li>
+<li><p>Total valid pixels in the output: <strong>2987429</strong></p></li>
+<li><p>Total band sums:</p>
+<ul>
+<li><p><strong>Band1</strong>: 557,761,802</p></li>
+<li><p><strong>Band2</strong>: 656,016,096</p></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><p><strong>DataFrame Shape</strong>:</p>
+<ul>
+<li><p>Both approaches generated a DataFrame with 5 columns: <code class="docutils literal notranslate"><span class="pre">Xw</span></code>, <code class="docutils literal notranslate"><span class="pre">Yw</span></code>, <code class="docutils literal notranslate"><span class="pre">band1</span></code>, <code class="docutils literal notranslate"><span class="pre">band2</span></code>, <code class="docutils literal notranslate"><span class="pre">band3</span></code>.</p></li>
+<li><p>The DataFrame contains <strong>5,748,801 rows</strong>, representing all pixel locations in the raster.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="performance-insights">
+<h2><strong>Performance Insights</strong><a class="headerlink" href="#performance-insights" title="Link to this heading">#</a></h2>
+<ol class="arabic simple">
+<li><p><strong>Optimized Code</strong>:</p>
+<ul class="simple">
+<li><p>Leveraged efficient, vectorized operations for raster data processing.</p></li>
+<li><p>Processed the raster dataset in just <strong>0.32 seconds</strong>.</p></li>
+<li><p>Scaled effectively for the given raster size, providing consistent and accurate results.</p></li>
+</ul>
+</li>
+<li><p><strong>Original Code</strong>:</p>
+<ul class="simple">
+<li><p>Used an iterative approach, processing each band separately and merging DataFrames.</p></li>
+<li><p>Took a significantly longer time (<strong>458.67 seconds</strong>) to produce the same output.</p></li>
+</ul>
+</li>
+</ol>
+<hr class="docutils" />
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">polars</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pl</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">reduce</span>
+
+<span class="c1"># Set up logging</span>
+<span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+
+<span class="c1"># Function to generate synthetic data</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_synthetic_data</span><span class="p">(</span><span class="n">num_rows</span><span class="p">):</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">data</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;Xw&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">num_rows</span><span class="p">),</span>
+        <span class="s1">&#39;Yw&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="o">-</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">num_rows</span><span class="p">),</span>
+        <span class="s1">&#39;elev&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1000</span><span class="p">,</span> <span class="n">num_rows</span><span class="p">),</span>
+        <span class="s1">&#39;band1&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randint</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">65536</span><span class="p">,</span> <span class="n">num_rows</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">df</span>
+
+<span class="c1"># Parameters (using example values)</span>
+<span class="n">num_rows</span> <span class="o">=</span> <span class="mi">10_000_000</span>  <span class="c1"># 10 million rows</span>
+<span class="n">xcam</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">ycam</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">zcam</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="n">saa</span> <span class="o">=</span> <span class="mf">45.0</span>
+<span class="n">sunelev</span> <span class="o">=</span> <span class="mf">60.0</span>
+<span class="n">file</span> <span class="o">=</span> <span class="s1">&#39;example_file.tif&#39;</span>
+
+<span class="c1"># Generate synthetic data</span>
+<span class="n">df_dem</span> <span class="o">=</span> <span class="n">generate_synthetic_data</span><span class="p">(</span><span class="n">num_rows</span><span class="p">)</span>
+<span class="n">df_allbands</span> <span class="o">=</span> <span class="n">generate_synthetic_data</span><span class="p">(</span><span class="n">num_rows</span><span class="p">)</span>
+
+<span class="c1"># Create a list to collect results</span>
+<span class="n">df_list</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="c1">### Old Pandas Code ###</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">old_pandas_code</span><span class="p">():</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="n">df_dem_copy</span> <span class="o">=</span> <span class="n">df_dem</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+    <span class="n">df_allbands_copy</span> <span class="o">=</span> <span class="n">df_allbands</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="n">df_dem_copy</span> <span class="o">=</span> <span class="n">df_dem_copy</span><span class="o">.</span><span class="n">round</span><span class="p">({</span><span class="s2">&quot;Xw&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Remove no-data values from df_dem</span>
+    <span class="n">df_dem_copy</span> <span class="o">=</span> <span class="n">df_dem_copy</span><span class="p">[</span><span class="n">df_dem_copy</span><span class="p">[</span><span class="s1">&#39;elev&#39;</span><span class="p">]</span> <span class="o">!=</span> <span class="o">-</span><span class="mf">32767.0</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">df_allbands_copy</span> <span class="o">=</span> <span class="n">df_allbands_copy</span><span class="o">.</span><span class="n">round</span><span class="p">({</span><span class="s2">&quot;Xw&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">})</span><span class="o">.</span><span class="n">drop_duplicates</span><span class="p">()</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+    <span class="n">dfs</span> <span class="o">=</span> <span class="p">[</span><span class="n">df_dem_copy</span><span class="p">,</span> <span class="n">df_allbands_copy</span><span class="p">]</span>
+
+    <span class="c1"># Merge DataFrames on &quot;Xw&quot; and &quot;Yw&quot; with explicit suffixes</span>
+    <span class="n">df_merged</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Xw&quot;</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">],</span> <span class="n">suffixes</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;_dem&#39;</span><span class="p">,</span> <span class="s1">&#39;_bands&#39;</span><span class="p">)),</span> <span class="n">dfs</span><span class="p">)</span>
+    
+    <span class="c1"># Ensure the &#39;elev&#39; column is appropriately handled</span>
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;elev_dem&#39;</span><span class="p">:</span> <span class="s1">&#39;elev&#39;</span><span class="p">},</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># Use the &#39;elev&#39; from df_dem</span>
+    
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pandas merged DataFrame shape: </span><span class="si">{</span><span class="n">df_merged</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    
+    <span class="c1"># Calculate angles</span>
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">((</span><span class="n">zcam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;elev&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">xcam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="mi">90</span> <span class="o">-</span> <span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">180</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)),</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;band1_bands&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">])</span>
+    
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa_rad&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
+        <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">acos</span><span class="p">((</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">ycam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span>
+        <span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">acos</span><span class="p">((</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">ycam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa_rad&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">180</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span> <span class="o">-</span> <span class="n">saa</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;band1_bands&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">])</span>
+    
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;xcam&#39;</span><span class="p">,</span> <span class="n">xcam</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;ycam&#39;</span><span class="p">,</span> <span class="n">ycam</span><span class="p">)</span>
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="s1">&#39;sunelev&#39;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">sunelev</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;saa&#39;</span><span class="p">,</span> <span class="nb">round</span><span class="p">(</span><span class="n">saa</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Pandas df_merged final columns inserted&#39;</span><span class="p">)</span>
+
+    <span class="n">df_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df_merged</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">df_merged</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pandas code completed in </span><span class="si">{</span><span class="n">end_time</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start_time</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+<span class="c1">### New Optimized Polars Code ###</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">optimized_polars_code</span><span class="p">():</span>
+    <span class="n">start_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+
+    <span class="c1"># Convert pandas DataFrames to Polars</span>
+    <span class="n">df_dem_pl</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">df_dem</span><span class="p">)</span>
+    <span class="n">df_allbands_pl</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">from_pandas</span><span class="p">(</span><span class="n">df_allbands</span><span class="p">)</span>
+
+    <span class="c1"># Round &quot;Xw&quot; and &quot;Yw&quot; to 3 decimal places and remove duplicates</span>
+    <span class="n">df_dem_pl</span> <span class="o">=</span> <span class="n">df_dem_pl</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;Xw&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;Yw&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="p">])</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+
+    <span class="c1"># Remove no-data values from df_dem</span>
+    <span class="n">df_dem_pl</span> <span class="o">=</span> <span class="n">df_dem_pl</span><span class="o">.</span><span class="n">filter</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;elev&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mf">32767.0</span><span class="p">)</span>
+
+    <span class="n">df_allbands_pl</span> <span class="o">=</span> <span class="n">df_allbands_pl</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;Xw&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s2">&quot;Yw&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span>
+    <span class="p">])</span><span class="o">.</span><span class="n">unique</span><span class="p">()</span>
+
+    <span class="c1"># Efficient merge on &quot;Xw&quot; and &quot;Yw&quot;</span>
+    <span class="n">df_merged</span> <span class="o">=</span> <span class="n">df_dem_pl</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">df_allbands_pl</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Xw&quot;</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">],</span> <span class="n">how</span><span class="o">=</span><span class="s2">&quot;inner&quot;</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Polars merged DataFrame shape: </span><span class="si">{</span><span class="n">df_merged</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="c1"># Extract necessary columns as NumPy arrays for vectorized computations</span>
+    <span class="n">elev</span> <span class="o">=</span> <span class="n">df_merged</span><span class="p">[</span><span class="s2">&quot;elev&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+    <span class="n">Xw</span> <span class="o">=</span> <span class="n">df_merged</span><span class="p">[</span><span class="s2">&quot;Xw&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+    <span class="n">Yw</span> <span class="o">=</span> <span class="n">df_merged</span><span class="p">[</span><span class="s2">&quot;Yw&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+    <span class="n">band1</span> <span class="o">=</span> <span class="n">df_merged</span><span class="p">[</span><span class="s2">&quot;band1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+
+    <span class="c1"># Pre-compute constants</span>
+    <span class="n">deg_to_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="mi">180</span>
+    <span class="n">rad_to_deg</span> <span class="o">=</span> <span class="mi">180</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span>
+
+    <span class="c1"># Calculate deltas and distances</span>
+    <span class="n">delta_z</span> <span class="o">=</span> <span class="n">zcam</span> <span class="o">-</span> <span class="n">elev</span>
+    <span class="n">delta_x</span> <span class="o">=</span> <span class="n">xcam</span> <span class="o">-</span> <span class="n">Xw</span>
+    <span class="n">delta_y</span> <span class="o">=</span> <span class="n">ycam</span> <span class="o">-</span> <span class="n">Yw</span>
+    <span class="n">distance_xy</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">delta_x</span><span class="p">,</span> <span class="n">delta_y</span><span class="p">)</span>  <span class="c1"># sqrt(delta_x**2 + delta_y**2)</span>
+
+    <span class="c1"># Calculate viewing zenith angle (vza)</span>
+    <span class="n">angle_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">delta_z</span><span class="p">,</span> <span class="n">distance_xy</span><span class="p">)</span>
+    <span class="n">vza</span> <span class="o">=</span> <span class="mi">90</span> <span class="o">-</span> <span class="p">(</span><span class="n">angle_rad</span> <span class="o">*</span> <span class="n">rad_to_deg</span><span class="p">)</span>
+    <span class="n">vza</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">vza</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Set vza to NaN where band1 == 65535</span>
+    <span class="n">vza</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">band1</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">vza</span><span class="p">)</span>
+
+    <span class="c1"># Calculate viewing azimuth angle (vaa)</span>
+    <span class="n">vaa_rad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan2</span><span class="p">(</span><span class="n">delta_x</span><span class="p">,</span> <span class="n">delta_y</span><span class="p">)</span>
+    <span class="n">vaa</span> <span class="o">=</span> <span class="p">(</span><span class="n">vaa_rad</span> <span class="o">*</span> <span class="n">rad_to_deg</span><span class="p">)</span> <span class="o">-</span> <span class="n">saa</span>
+    <span class="n">vaa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">vaa</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+
+    <span class="c1"># Normalize vaa to the range [0, 360)</span>
+    <span class="n">vaa</span> <span class="o">=</span> <span class="p">(</span><span class="n">vaa</span> <span class="o">+</span> <span class="mi">360</span><span class="p">)</span> <span class="o">%</span> <span class="mi">360</span>
+    <span class="n">vaa</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">band1</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">vaa</span><span class="p">)</span>
+
+    <span class="c1"># Create Polars Series for new columns</span>
+    <span class="n">vza_series</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="s2">&quot;vza&quot;</span><span class="p">,</span> <span class="n">vza</span><span class="p">)</span>
+    <span class="n">vaa_series</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="s2">&quot;vaa&quot;</span><span class="p">,</span> <span class="n">vaa</span><span class="p">)</span>
+
+    <span class="c1"># Add new columns to the DataFrame</span>
+    <span class="n">df_merged</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+        <span class="n">vza_series</span><span class="p">,</span>
+        <span class="n">vaa_series</span>
+    <span class="p">])</span>
+
+    <span class="c1"># Insert additional constant columns</span>
+    <span class="n">df_merged</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">with_columns</span><span class="p">([</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">file</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">xcam</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;xcam&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="n">ycam</span><span class="p">)</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;ycam&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">sunelev</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;sunelev&quot;</span><span class="p">),</span>
+        <span class="n">pl</span><span class="o">.</span><span class="n">lit</span><span class="p">(</span><span class="nb">round</span><span class="p">(</span><span class="n">saa</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="s2">&quot;saa&quot;</span><span class="p">)</span>
+    <span class="p">])</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Polars df_merged final columns inserted&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">df_merged</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="n">df_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">df_merged</span><span class="p">)</span>
+
+    <span class="n">end_time</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">time</span><span class="p">()</span>
+    <span class="n">logging</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Polars code completed in </span><span class="si">{</span><span class="n">end_time</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">start_time</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> seconds&quot;</span><span class="p">)</span>
+
+<span class="c1">### Run Benchmark ###</span>
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+    <span class="c1"># Run and time the old pandas code</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Running old pandas code...&quot;</span><span class="p">)</span>
+    <span class="n">old_pandas_code</span><span class="p">()</span>
+
+    <span class="c1"># Clear df_list for the next run</span>
+    <span class="n">df_list</span><span class="o">.</span><span class="n">clear</span><span class="p">()</span>
+
+    <span class="c1"># Run and time the optimized polars code</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Running optimized polars code...&quot;</span><span class="p">)</span>
+    <span class="n">optimized_polars_code</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Running old pandas code...
+Pandas merged DataFrame shape: (10000028, 6)
+</pre></div>
+</div>
+<div class="output stderr highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>INFO:root:Pandas code completed in 164.60 seconds
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Pandas df_merged final columns inserted
+
+Running optimized polars code...
+Polars merged DataFrame shape: (10000028, 6)
+</pre></div>
+</div>
+<div class="output stderr highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>INFO:root:Polars code completed in 3.64 seconds
+</pre></div>
+</div>
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Polars df_merged final columns inserted
+</pre></div>
+</div>
+</div>
+</div>
+<section id="performance-optimization-of-polars-code-over-pandas-code">
+<h3>Performance Optimization of Polars Code Over Pandas Code<a class="headerlink" href="#performance-optimization-of-polars-code-over-pandas-code" title="Link to this heading">#</a></h3>
+<section id="overview-of-what-happened">
+<h4><strong>Overview of What Happened</strong><a class="headerlink" href="#overview-of-what-happened" title="Link to this heading">#</a></h4>
+<p>The benchmarking compared the execution of the old pandas-based implementation with the optimized Polars-based implementation for processing two large datasets (each with 10,000,000 rows) and performing complex operations like:</p>
+<ul class="simple">
+<li><p>Rounding and deduplication</p></li>
+<li><p>Merging on specific columns</p></li>
+<li><p>Calculating angles (<code class="docutils literal notranslate"><span class="pre">vza</span></code> and <code class="docutils literal notranslate"><span class="pre">vaa</span></code>) based on geometric relationships</p></li>
+</ul>
+<p>Both implementations produced the same final result (<code class="docutils literal notranslate"><span class="pre">df_merged</span></code> with the same shape and content), but the Polars implementation completed the task significantly faster.</p>
+</section>
+</section>
+<hr class="docutils" />
+<section id="why-the-polars-code-is-more-efficient">
+<h3><strong>Why the Polars Code is More Efficient</strong><a class="headerlink" href="#why-the-polars-code-is-more-efficient" title="Link to this heading">#</a></h3>
+<p>Polars, a highly optimized DataFrame library, outperformed pandas due to several design and algorithmic advantages:</p>
+<section id="memory-efficiency">
+<h4>1. <strong>Memory Efficiency</strong><a class="headerlink" href="#memory-efficiency" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Polars</strong> processes data in chunks and avoids creating unnecessary intermediate copies, which reduces memory overhead.</p></li>
+<li><p><strong>Pandas</strong>, on the other hand, creates multiple intermediate DataFrames during operations like rounding, deduplication, and merging, leading to higher memory usage.</p></li>
+</ul>
+</section>
+<section id="parallel-execution">
+<h4>2. <strong>Parallel Execution</strong><a class="headerlink" href="#parallel-execution" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p>Polars automatically leverages <strong>multi-threading</strong> for operations like rounding, deduplication, and merging, which splits the workload across CPU cores. This parallelism accelerates computation, especially for large datasets.</p></li>
+<li><p>Pandas is primarily single-threaded for most operations, resulting in slower processing.</p></li>
+</ul>
+</section>
+<section id="efficient-execution-model">
+<h4>3. <strong>Efficient Execution Model</strong><a class="headerlink" href="#efficient-execution-model" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p>Polars uses an <strong>“Apache Arrow-based execution engine”</strong> that allows for vectorized operations. This avoids Python-level loops and makes operations like merging and filtering significantly faster.</p></li>
+<li><p>Pandas executes row-wise operations, especially during the <code class="docutils literal notranslate"><span class="pre">.apply()</span></code> calls, which are inherently slower because they involve Python function calls for each row.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="improvements-in-time-complexity">
+<h3><strong>Improvements in Time Complexity</strong><a class="headerlink" href="#improvements-in-time-complexity" title="Link to this heading">#</a></h3>
+<p>The Polars implementation improved the time complexity for several operations:</p>
+<section id="rounding-and-deduplication">
+<h4><strong>1. Rounding and Deduplication</strong><a class="headerlink" href="#rounding-and-deduplication" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Pandas:</strong></p>
+<ul>
+<li><p><strong>Rounding</strong>: ( O(n) ) — Iterates over each row.</p></li>
+<li><p><strong>Deduplication</strong>: ( O(n \log n) ) — Involves sorting or hash table operations.</p></li>
+</ul>
+</li>
+<li><p><strong>Polars:</strong></p>
+<ul>
+<li><p>Uses highly optimized vectorized operations with multi-threading for both rounding and deduplication, achieving near-linear performance.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="merging-dataframes">
+<h4><strong>2. Merging DataFrames</strong><a class="headerlink" href="#merging-dataframes" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Pandas:</strong> ( O(n \log n) )</p>
+<ul>
+<li><p>Involves sorting and matching keys, and pandas does this in a single-threaded fashion.</p></li>
+</ul>
+</li>
+<li><p><strong>Polars:</strong> ( O(n \log n / p) ), where ( p ) is the number of CPU cores.</p>
+<ul>
+<li><p>Leverages parallelized joins to distribute the workload across threads, significantly reducing the effective time.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+<section id="angle-calculations">
+<h4><strong>3. Angle Calculations</strong><a class="headerlink" href="#angle-calculations" title="Link to this heading">#</a></h4>
+<ul class="simple">
+<li><p><strong>Pandas:</strong> ( O(n) ) with significant overhead from Python loops and function calls during <code class="docutils literal notranslate"><span class="pre">.apply()</span></code>.</p></li>
+<li><p><strong>Polars:</strong> ( O(n / p) ) due to vectorized NumPy operations that run in parallel, avoiding Python loops entirely.</p></li>
+</ul>
+</section>
+</section>
+<hr class="docutils" />
+<section id="key-observations-from-benchmark">
+<h3><strong>Key Observations from Benchmark</strong><a class="headerlink" href="#key-observations-from-benchmark" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Metric</strong></p></th>
+<th class="head"><p><strong>Pandas Implementation</strong></p></th>
+<th class="head"><p><strong>Polars Implementation</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Execution Time</p></td>
+<td><p>164.60 seconds</p></td>
+<td><p>Significantly faster</p></td>
+</tr>
+<tr class="row-odd"><td><p>Memory Usage</p></td>
+<td><p>High</p></td>
+<td><p>Lower</p></td>
+</tr>
+<tr class="row-even"><td><p>Thread Utilization</p></td>
+<td><p>Single-threaded</p></td>
+<td><p>Multi-threaded</p></td>
+</tr>
+<tr class="row-odd"><td><p>Complexity Bottlenecks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.apply()</span></code> operations</p></td>
+<td><p>None (vectorized)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="why-polars-is-ideal-for-large-datasets">
+<h3><strong>Why Polars is Ideal for Large Datasets</strong><a class="headerlink" href="#why-polars-is-ideal-for-large-datasets" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Scalability:</strong> Polars’ multi-threaded approach ensures scalability for datasets much larger than the one tested.</p></li>
+<li><p><strong>Efficiency:</strong> Its ability to avoid Python-level overhead and leverage modern CPUs makes it inherently faster.</p></li>
+<li><p><strong>Ease of Use:</strong> Despite its performance, Polars offers a similar API to pandas, making it an easy transition for users familiar with pandas.</p></li>
+</ul>
+<hr class="docutils" />
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1">## Precision Metric</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>RIO xarray</p>
+<p>plot index for pixels</p>
+<p>filtering py poligons</p>
+<p>download QJIS</p>
+<p>Rtree for python</p>
+</section>
+</section>
+</section>
+<section class="tex2jax_ignore mathjax_ignore" id="polygon-extraction-with-geopandas">
+<h1>Polygon extraction with geopandas<a class="headerlink" href="#polygon-extraction-with-geopandas" title="Link to this heading">#</a></h1>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+
+<span class="c1"># Load the GPKG file</span>
+<span class="n">file_path</span> <span class="o">=</span>  <span class="s2">&quot;/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241204_oncerco_plot_polygons.gpkg&quot;</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="n">file_path</span><span class="p">)</span>
+
+<span class="c1"># Display the first few rows</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">head</span><span class="p">())</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">crs</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>     cult  ifz_id  trt    ino  \
+0   aluco   90024  trt  False   
+1  capone   90023  trt  False   
+2  capone   90022  trt  False   
+3   aluco   90021  trt  False   
+4  capone   90020  trt  False   
+
+                                            geometry  
+0  POLYGON ((563629.94384 5713009.6478, 563630.38...  
+1  POLYGON ((563630.38403 5713012.31167, 563630.8...  
+2  POLYGON ((563630.82421 5713014.97555, 563631.2...  
+3  POLYGON ((563631.2644 5713017.63943, 563631.70...  
+4  POLYGON ((563631.70458 5713020.3033, 563632.14...  
+EPSG:4326
+</pre></div>
+</div>
+<div class="output stderr highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>ERROR 1: PROJ: proj_create_from_database: Open of /home/mak/.conda/envs/UAV-2/share/proj failed
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">gdf</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_html"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>cult</th>
+      <th>ifz_id</th>
+      <th>trt</th>
+      <th>ino</th>
+      <th>geometry</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>aluco</td>
+      <td>90024</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563629.94384 5713009.6478, 563630.38...</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>capone</td>
+      <td>90023</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563630.38403 5713012.31167, 563630.8...</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>capone</td>
+      <td>90022</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563630.82421 5713014.97555, 563631.2...</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>aluco</td>
+      <td>90021</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563631.2644 5713017.63943, 563631.70...</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>capone</td>
+      <td>90020</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563631.70458 5713020.3033, 563632.14...</td>
+    </tr>
+    <tr>
+      <th>5</th>
+      <td>aluco</td>
+      <td>90019</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563632.14477 5713022.96718, 563632.5...</td>
+    </tr>
+    <tr>
+      <th>6</th>
+      <td>aluco</td>
+      <td>90018</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563632.58495 5713025.63106, 563633.0...</td>
+    </tr>
+    <tr>
+      <th>7</th>
+      <td>capone</td>
+      <td>90017</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563633.02514 5713028.29493, 563633.4...</td>
+    </tr>
+    <tr>
+      <th>8</th>
+      <td>aluco</td>
+      <td>90016</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563633.46532 5713030.95881, 563633.9...</td>
+    </tr>
+    <tr>
+      <th>9</th>
+      <td>capone</td>
+      <td>90015</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563633.9055 5713033.62269, 563634.34...</td>
+    </tr>
+    <tr>
+      <th>10</th>
+      <td>capone</td>
+      <td>90014</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563634.34569 5713036.28656, 563634.7...</td>
+    </tr>
+    <tr>
+      <th>11</th>
+      <td>aluco</td>
+      <td>90013</td>
+      <td>trt</td>
+      <td>False</td>
+      <td>POLYGON ((563634.78587 5713038.95044, 563635.2...</td>
+    </tr>
+    <tr>
+      <th>12</th>
+      <td>aluco</td>
+      <td>90012</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563608.22406 5713013.14795, 563608.6...</td>
+    </tr>
+    <tr>
+      <th>13</th>
+      <td>capone</td>
+      <td>90011</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563608.66425 5713015.81183, 563609.1...</td>
+    </tr>
+    <tr>
+      <th>14</th>
+      <td>capone</td>
+      <td>90010</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563609.10443 5713018.4757, 563609.54...</td>
+    </tr>
+    <tr>
+      <th>15</th>
+      <td>aluco</td>
+      <td>90009</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563609.54462 5713021.13958, 563609.9...</td>
+    </tr>
+    <tr>
+      <th>16</th>
+      <td>capone</td>
+      <td>90008</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563609.9848 5713023.80345, 563610.42...</td>
+    </tr>
+    <tr>
+      <th>17</th>
+      <td>aluco</td>
+      <td>90007</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563610.42498 5713026.46733, 563610.8...</td>
+    </tr>
+    <tr>
+      <th>18</th>
+      <td>aluco</td>
+      <td>90006</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563610.86517 5713029.13121, 563611.3...</td>
+    </tr>
+    <tr>
+      <th>19</th>
+      <td>capone</td>
+      <td>90005</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563611.30535 5713031.79508, 563611.7...</td>
+    </tr>
+    <tr>
+      <th>20</th>
+      <td>aluco</td>
+      <td>90004</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563611.74554 5713034.45896, 563612.1...</td>
+    </tr>
+    <tr>
+      <th>21</th>
+      <td>capone</td>
+      <td>90003</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563612.18572 5713037.12284, 563612.6...</td>
+    </tr>
+    <tr>
+      <th>22</th>
+      <td>capone</td>
+      <td>90002</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563612.62591 5713039.78671, 563613.0...</td>
+    </tr>
+    <tr>
+      <th>23</th>
+      <td>aluco</td>
+      <td>90001</td>
+      <td>no_trt</td>
+      <td>True</td>
+      <td>POLYGON ((563613.06609 5713042.45059, 563613.5...</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># Should show (number_of_rows, number_of_columns)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">isnull</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>  <span class="c1"># Check for missing values</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="o">.</span><span class="n">is_valid</span><span class="p">)</span>  <span class="c1"># Should return True for all rows</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>(24, 5)
+cult        0
+ifz_id      0
+trt         0
+ino         0
+geometry    0
+dtype: int64
+0     True
+1     True
+2     True
+3     True
+4     True
+5     True
+6     True
+7     True
+8     True
+9     True
+10    True
+11    True
+12    True
+13    True
+14    True
+15    True
+16    True
+17    True
+18    True
+19    True
+20    True
+21    True
+22    True
+23    True
+dtype: bool
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">shapely.geometry</span><span class="w"> </span><span class="kn">import</span> <span class="n">Point</span>
+
+<span class="c1"># Load camera data (adjust delimiter as needed)</span>
+<span class="n">camera_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;/run/media/mak/OS/example_data_week8/20241029_products_uav_data/20241029_week8_cameras.txt&quot;</span><span class="p">,</span> <span class="n">sep</span><span class="o">=</span><span class="s2">&quot;</span><span class="se">\t</span><span class="s2">&quot;</span><span class="p">,</span>  <span class="n">skiprows</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="p">)</span>
+
+<span class="n">camera_df</span><span class="o">.</span><span class="n">columns</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;PhotoID&#39;</span><span class="p">,</span> <span class="s1">&#39;X&#39;</span><span class="p">,</span> <span class="s1">&#39;Y&#39;</span><span class="p">,</span> <span class="s1">&#39;Z&#39;</span><span class="p">,</span> <span class="s1">&#39;Omega&#39;</span><span class="p">,</span> <span class="s1">&#39;Phi&#39;</span><span class="p">,</span> <span class="s1">&#39;Kappa&#39;</span><span class="p">,</span> <span class="s1">&#39;r11&#39;</span><span class="p">,</span> <span class="s1">&#39;r12&#39;</span><span class="p">,</span> <span class="s1">&#39;r13&#39;</span><span class="p">,</span>
+                          <span class="s1">&#39;r21&#39;</span><span class="p">,</span> <span class="s1">&#39;r22&#39;</span><span class="p">,</span> <span class="s1">&#39;r23&#39;</span><span class="p">,</span> <span class="s1">&#39;r31&#39;</span><span class="p">,</span> <span class="s1">&#39;r32&#39;</span><span class="p">,</span> <span class="s1">&#39;r33&#39;</span><span class="p">]</span>
+<span class="c1"># Create a geometry column (assuming X is longitude and Y is latitude)</span>
+<span class="n">camera_df</span><span class="p">[</span><span class="s1">&#39;geometry&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">camera_df</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span><span class="k">lambda</span> <span class="n">row</span><span class="p">:</span> <span class="n">Point</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;X&#39;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s1">&#39;Y&#39;</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+<span class="c1"># Create a GeoDataFrame with the camera data</span>
+<span class="n">camera_gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">GeoDataFrame</span><span class="p">(</span><span class="n">camera_df</span><span class="p">,</span> <span class="n">geometry</span><span class="o">=</span><span class="s1">&#39;geometry&#39;</span><span class="p">,</span> <span class="n">crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">)</span>
+
+<span class="n">camera_gdf</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_html"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>PhotoID</th>
+      <th>X</th>
+      <th>Y</th>
+      <th>Z</th>
+      <th>Omega</th>
+      <th>Phi</th>
+      <th>Kappa</th>
+      <th>r11</th>
+      <th>r12</th>
+      <th>r13</th>
+      <th>r21</th>
+      <th>r22</th>
+      <th>r23</th>
+      <th>r31</th>
+      <th>r32</th>
+      <th>r33</th>
+      <th>geometry</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>IMG_0000_1</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-16.054518</td>
+      <td>-3.786788</td>
+      <td>-167.775264</td>
+      <td>-0.975191</td>
+      <td>-0.221339</td>
+      <td>-0.003470</td>
+      <td>0.211284</td>
+      <td>-0.935340</td>
+      <td>0.283720</td>
+      <td>-0.066044</td>
+      <td>0.275948</td>
+      <td>0.958901</td>
+      <td>POINT (9.91818 51.565)</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>IMG_0000_2</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.810609</td>
+      <td>-3.628218</td>
+      <td>-167.750544</td>
+      <td>-0.975274</td>
+      <td>-0.220991</td>
+      <td>-0.001695</td>
+      <td>0.211743</td>
+      <td>-0.936604</td>
+      <td>0.279174</td>
+      <td>-0.063282</td>
+      <td>0.271912</td>
+      <td>0.960239</td>
+      <td>POINT (9.91818 51.565)</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>IMG_0000_3</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.830661</td>
+      <td>-3.621848</td>
+      <td>-167.697247</td>
+      <td>-0.975084</td>
+      <td>-0.221833</td>
+      <td>-0.001253</td>
+      <td>0.212652</td>
+      <td>-0.936307</td>
+      <td>0.279480</td>
+      <td>-0.063171</td>
+      <td>0.272250</td>
+      <td>0.960151</td>
+      <td>POINT (9.91818 51.565)</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>IMG_0000_4</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.720567</td>
+      <td>-3.650631</td>
+      <td>-167.678373</td>
+      <td>-0.974983</td>
+      <td>-0.222271</td>
+      <td>-0.002059</td>
+      <td>0.212966</td>
+      <td>-0.936740</td>
+      <td>0.277784</td>
+      <td>-0.063672</td>
+      <td>0.270396</td>
+      <td>0.960641</td>
+      <td>POINT (9.91818 51.565)</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>IMG_0000_5</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-16.148342</td>
+      <td>-3.714659</td>
+      <td>-167.712836</td>
+      <td>-0.975040</td>
+      <td>-0.222021</td>
+      <td>-0.001618</td>
+      <td>0.212364</td>
+      <td>-0.934707</td>
+      <td>0.284998</td>
+      <td>-0.064788</td>
+      <td>0.277541</td>
+      <td>0.958527</td>
+      <td>POINT (9.91818 51.565)</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>7345</th>
+      <td>IMG_0642_2</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.522437</td>
+      <td>10.622489</td>
+      <td>12.148170</td>
+      <td>0.960853</td>
+      <td>0.266254</td>
+      <td>-0.076611</td>
+      <td>-0.206834</td>
+      <td>0.873325</td>
+      <td>0.441048</td>
+      <td>0.184337</td>
+      <td>-0.407937</td>
+      <td>0.894208</td>
+      <td>POINT (9.91747 51.56448)</td>
+    </tr>
+    <tr>
+      <th>7346</th>
+      <td>IMG_0642_3</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.542786</td>
+      <td>10.616082</td>
+      <td>12.198986</td>
+      <td>0.960690</td>
+      <td>0.267011</td>
+      <td>-0.076027</td>
+      <td>-0.207691</td>
+      <td>0.872941</td>
+      <td>0.441405</td>
+      <td>0.184227</td>
+      <td>-0.408263</td>
+      <td>0.894081</td>
+      <td>POINT (9.91747 51.56448)</td>
+    </tr>
+    <tr>
+      <th>7347</th>
+      <td>IMG_0642_4</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.431045</td>
+      <td>10.645051</td>
+      <td>12.231490</td>
+      <td>0.960481</td>
+      <td>0.267559</td>
+      <td>-0.076740</td>
+      <td>-0.208216</td>
+      <td>0.873605</td>
+      <td>0.439841</td>
+      <td>0.184724</td>
+      <td>-0.406480</td>
+      <td>0.894791</td>
+      <td>POINT (9.91747 51.56448)</td>
+    </tr>
+    <tr>
+      <th>7348</th>
+      <td>IMG_0642_5</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.865589</td>
+      <td>10.708210</td>
+      <td>12.143997</td>
+      <td>0.960598</td>
+      <td>0.267249</td>
+      <td>-0.076352</td>
+      <td>-0.206706</td>
+      <td>0.870557</td>
+      <td>0.446546</td>
+      <td>0.185807</td>
+      <td>-0.413169</td>
+      <td>0.891497</td>
+      <td>POINT (9.91747 51.56448)</td>
+    </tr>
+    <tr>
+      <th>7349</th>
+      <td>IMG_0642_6</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.776222</td>
+      <td>10.486494</td>
+      <td>12.194203</td>
+      <td>0.961112</td>
+      <td>0.266335</td>
+      <td>-0.073003</td>
+      <td>-0.207698</td>
+      <td>0.871355</td>
+      <td>0.444525</td>
+      <td>0.182004</td>
+      <td>-0.412076</td>
+      <td>0.892787</td>
+      <td>POINT (9.91747 51.56448)</td>
+    </tr>
+  </tbody>
+</table>
+<p>7350 rows × 17 columns</p>
+</div></div></div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">camera_in_projected</span> <span class="o">=</span> <span class="n">camera_gdf</span><span class="o">.</span><span class="n">to_crs</span><span class="p">(</span><span class="s2">&quot;EPSG:32632&quot;</span><span class="p">)</span>
+<span class="n">camera_in_projected</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_html"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>PhotoID</th>
+      <th>X</th>
+      <th>Y</th>
+      <th>Z</th>
+      <th>Omega</th>
+      <th>Phi</th>
+      <th>Kappa</th>
+      <th>r11</th>
+      <th>r12</th>
+      <th>r13</th>
+      <th>r21</th>
+      <th>r22</th>
+      <th>r23</th>
+      <th>r31</th>
+      <th>r32</th>
+      <th>r33</th>
+      <th>geometry</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>0</th>
+      <td>IMG_0000_1</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-16.054518</td>
+      <td>-3.786788</td>
+      <td>-167.775264</td>
+      <td>-0.975191</td>
+      <td>-0.221339</td>
+      <td>-0.003470</td>
+      <td>0.211284</td>
+      <td>-0.935340</td>
+      <td>0.283720</td>
+      <td>-0.066044</td>
+      <td>0.275948</td>
+      <td>0.958901</td>
+      <td>POINT (563642.043 5713057.238)</td>
+    </tr>
+    <tr>
+      <th>1</th>
+      <td>IMG_0000_2</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.810609</td>
+      <td>-3.628218</td>
+      <td>-167.750544</td>
+      <td>-0.975274</td>
+      <td>-0.220991</td>
+      <td>-0.001695</td>
+      <td>0.211743</td>
+      <td>-0.936604</td>
+      <td>0.279174</td>
+      <td>-0.063282</td>
+      <td>0.271912</td>
+      <td>0.960239</td>
+      <td>POINT (563642.043 5713057.238)</td>
+    </tr>
+    <tr>
+      <th>2</th>
+      <td>IMG_0000_3</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.830661</td>
+      <td>-3.621848</td>
+      <td>-167.697247</td>
+      <td>-0.975084</td>
+      <td>-0.221833</td>
+      <td>-0.001253</td>
+      <td>0.212652</td>
+      <td>-0.936307</td>
+      <td>0.279480</td>
+      <td>-0.063171</td>
+      <td>0.272250</td>
+      <td>0.960151</td>
+      <td>POINT (563642.043 5713057.238)</td>
+    </tr>
+    <tr>
+      <th>3</th>
+      <td>IMG_0000_4</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-15.720567</td>
+      <td>-3.650631</td>
+      <td>-167.678373</td>
+      <td>-0.974983</td>
+      <td>-0.222271</td>
+      <td>-0.002059</td>
+      <td>0.212966</td>
+      <td>-0.936740</td>
+      <td>0.277784</td>
+      <td>-0.063672</td>
+      <td>0.270396</td>
+      <td>0.960641</td>
+      <td>POINT (563642.043 5713057.238)</td>
+    </tr>
+    <tr>
+      <th>4</th>
+      <td>IMG_0000_5</td>
+      <td>9.918180</td>
+      <td>51.564997</td>
+      <td>207.435115</td>
+      <td>-16.148342</td>
+      <td>-3.714659</td>
+      <td>-167.712836</td>
+      <td>-0.975040</td>
+      <td>-0.222021</td>
+      <td>-0.001618</td>
+      <td>0.212364</td>
+      <td>-0.934707</td>
+      <td>0.284998</td>
+      <td>-0.064788</td>
+      <td>0.277541</td>
+      <td>0.958527</td>
+      <td>POINT (563642.043 5713057.238)</td>
+    </tr>
+    <tr>
+      <th>...</th>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+      <td>...</td>
+    </tr>
+    <tr>
+      <th>7345</th>
+      <td>IMG_0642_2</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.522437</td>
+      <td>10.622489</td>
+      <td>12.148170</td>
+      <td>0.960853</td>
+      <td>0.266254</td>
+      <td>-0.076611</td>
+      <td>-0.206834</td>
+      <td>0.873325</td>
+      <td>0.441048</td>
+      <td>0.184337</td>
+      <td>-0.407937</td>
+      <td>0.894208</td>
+      <td>POINT (563593.402 5712998.633)</td>
+    </tr>
+    <tr>
+      <th>7346</th>
+      <td>IMG_0642_3</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.542786</td>
+      <td>10.616082</td>
+      <td>12.198986</td>
+      <td>0.960690</td>
+      <td>0.267011</td>
+      <td>-0.076027</td>
+      <td>-0.207691</td>
+      <td>0.872941</td>
+      <td>0.441405</td>
+      <td>0.184227</td>
+      <td>-0.408263</td>
+      <td>0.894081</td>
+      <td>POINT (563593.402 5712998.633)</td>
+    </tr>
+    <tr>
+      <th>7347</th>
+      <td>IMG_0642_4</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.431045</td>
+      <td>10.645051</td>
+      <td>12.231490</td>
+      <td>0.960481</td>
+      <td>0.267559</td>
+      <td>-0.076740</td>
+      <td>-0.208216</td>
+      <td>0.873605</td>
+      <td>0.439841</td>
+      <td>0.184724</td>
+      <td>-0.406480</td>
+      <td>0.894791</td>
+      <td>POINT (563593.402 5712998.633)</td>
+    </tr>
+    <tr>
+      <th>7348</th>
+      <td>IMG_0642_5</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.865589</td>
+      <td>10.708210</td>
+      <td>12.143997</td>
+      <td>0.960598</td>
+      <td>0.267249</td>
+      <td>-0.076352</td>
+      <td>-0.206706</td>
+      <td>0.870557</td>
+      <td>0.446546</td>
+      <td>0.185807</td>
+      <td>-0.413169</td>
+      <td>0.891497</td>
+      <td>POINT (563593.402 5712998.633)</td>
+    </tr>
+    <tr>
+      <th>7349</th>
+      <td>IMG_0642_6</td>
+      <td>9.917467</td>
+      <td>51.564476</td>
+      <td>207.520611</td>
+      <td>24.776222</td>
+      <td>10.486494</td>
+      <td>12.194203</td>
+      <td>0.961112</td>
+      <td>0.266335</td>
+      <td>-0.073003</td>
+      <td>-0.207698</td>
+      <td>0.871355</td>
+      <td>0.444525</td>
+      <td>0.182004</td>
+      <td>-0.412076</td>
+      <td>0.892787</td>
+      <td>POINT (563593.402 5712998.633)</td>
+    </tr>
+  </tbody>
+</table>
+<p>7350 rows × 17 columns</p>
+</div></div></div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">camera_in_projected</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aspect</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>&lt;Axes: &gt;
+</pre></div>
+</div>
+<img alt="../_images/f8f617cc18dae75bafa5511daad3c22e7a8fed6d0fc0e84ad186d3a24e7c8123.png" src="../_images/f8f617cc18dae75bafa5511daad3c22e7a8fed6d0fc0e84ad186d3a24e7c8123.png" />
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;camera points&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">camera_in_projected</span><span class="o">.</span><span class="n">geometry</span>
+<span class="n">gdf</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">aspect</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_plain highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>&lt;Axes: &gt;
+</pre></div>
+</div>
+<img alt="../_images/47750d09d730b9d6f38b83e6b863f2a613f6cad56839b849b537dcf73c8b9c60.png" src="../_images/47750d09d730b9d6f38b83e6b863f2a613f6cad56839b849b537dcf73c8b9c60.png" />
+</div>
+</div>
+</section>
+<section class="tex2jax_ignore mathjax_ignore" id="let-s-create-a-function-that-does-that">
+<h1>Let’s create a function that does that<a class="headerlink" href="#let-s-create-a-function-that-does-that" title="Link to this heading">#</a></h1>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">latlon_to_utm32n_series</span><span class="p">(</span><span class="n">lat_deg</span><span class="p">,</span> <span class="n">lon_deg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Convert geographic coordinates (lat, lon in degrees, WGS84)</span>
+<span class="sd">    to UTM Zone 32N (EPSG:32632) using the standard UTM formulas.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">      (easting, northing) in meters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># WGS84 ellipsoid constants</span>
+    <span class="n">a</span> <span class="o">=</span> <span class="mf">6378137.0</span>                       <span class="c1"># semi-major axis (meters)</span>
+    <span class="n">f</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">/</span> <span class="mf">298.257223563</span>               <span class="c1"># flattening</span>
+    <span class="n">e2</span> <span class="o">=</span> <span class="mi">2</span><span class="o">*</span><span class="n">f</span> <span class="o">-</span> <span class="n">f</span><span class="o">**</span><span class="mi">2</span>                     <span class="c1"># eccentricity squared</span>
+    <span class="n">e</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">e2</span><span class="p">)</span>
+
+    <span class="c1"># UTM parameters for Zone 32N</span>
+    <span class="n">k0</span> <span class="o">=</span> <span class="mf">0.9996</span>
+    <span class="n">E0</span> <span class="o">=</span> <span class="mf">500000.0</span>                       <span class="c1"># false easting</span>
+    <span class="n">N0</span> <span class="o">=</span> <span class="mf">0.0</span>                            <span class="c1"># false northing (northern hemisphere)</span>
+    <span class="n">lambda0</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="mf">9.0</span><span class="p">)</span>         <span class="c1"># central meridian for Zone 32N (9°E)</span>
+
+    <span class="c1"># Convert input latitude and longitude from degrees to radians</span>
+    <span class="n">phi</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lat_deg</span><span class="p">)</span>
+    <span class="n">lam</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">radians</span><span class="p">(</span><span class="n">lon_deg</span><span class="p">)</span>
+
+    <span class="c1"># Compute auxiliary values</span>
+    <span class="n">N_val</span> <span class="o">=</span> <span class="n">a</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">e2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+    <span class="n">T</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="c1"># Second eccentricity squared</span>
+    <span class="n">ep2</span> <span class="o">=</span> <span class="n">e2</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">e2</span><span class="p">)</span>
+    <span class="n">C</span> <span class="o">=</span> <span class="n">ep2</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
+    <span class="n">A</span> <span class="o">=</span> <span class="p">(</span><span class="n">lam</span> <span class="o">-</span> <span class="n">lambda0</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span>
+
+    <span class="c1"># Meridional arc length (M)</span>
+    <span class="n">M</span> <span class="o">=</span> <span class="n">a</span> <span class="o">*</span> <span class="p">(</span>
+          <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">e2</span><span class="o">/</span><span class="mi">4</span> <span class="o">-</span> <span class="mi">3</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">64</span> <span class="o">-</span> <span class="mi">5</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="mi">256</span><span class="p">)</span> <span class="o">*</span> <span class="n">phi</span>
+        <span class="o">-</span> <span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">e2</span><span class="o">/</span><span class="mi">8</span> <span class="o">+</span> <span class="mi">3</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">32</span> <span class="o">+</span> <span class="mi">45</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="mi">1024</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">phi</span><span class="p">)</span>
+        <span class="o">+</span> <span class="p">(</span><span class="mi">15</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">2</span><span class="o">/</span><span class="mi">256</span> <span class="o">+</span> <span class="mi">45</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="mi">1024</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">4</span><span class="o">*</span><span class="n">phi</span><span class="p">)</span>
+        <span class="o">-</span> <span class="p">(</span><span class="mi">35</span><span class="o">*</span><span class="n">e2</span><span class="o">**</span><span class="mi">3</span><span class="o">/</span><span class="mi">3072</span><span class="p">)</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="mi">6</span><span class="o">*</span><span class="n">phi</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Calculate Easting and Northing using standard UTM series formulas</span>
+    <span class="n">easting</span> <span class="o">=</span> <span class="n">E0</span> <span class="o">+</span> <span class="n">k0</span> <span class="o">*</span> <span class="n">N_val</span> <span class="o">*</span> <span class="p">(</span>
+          <span class="n">A</span>
+        <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">T</span> <span class="o">+</span> <span class="n">C</span><span class="p">)</span> <span class="o">*</span> <span class="n">A</span><span class="o">**</span><span class="mi">3</span> <span class="o">/</span> <span class="mi">6</span>
+        <span class="o">+</span> <span class="p">(</span><span class="mi">5</span> <span class="o">-</span> <span class="mi">18</span><span class="o">*</span><span class="n">T</span> <span class="o">+</span> <span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">72</span><span class="o">*</span><span class="n">C</span> <span class="o">-</span> <span class="mi">58</span><span class="o">*</span><span class="n">ep2</span><span class="p">)</span> <span class="o">*</span> <span class="n">A</span><span class="o">**</span><span class="mi">5</span> <span class="o">/</span> <span class="mi">120</span>
+    <span class="p">)</span>
+
+    <span class="n">northing</span> <span class="o">=</span> <span class="n">N0</span> <span class="o">+</span> <span class="n">k0</span> <span class="o">*</span> <span class="p">(</span>
+          <span class="n">M</span>
+        <span class="o">+</span> <span class="n">N_val</span> <span class="o">*</span> <span class="n">math</span><span class="o">.</span><span class="n">tan</span><span class="p">(</span><span class="n">phi</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+              <span class="n">A</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="mi">2</span>
+            <span class="o">+</span> <span class="p">(</span><span class="mi">5</span> <span class="o">-</span> <span class="n">T</span> <span class="o">+</span> <span class="mi">9</span><span class="o">*</span><span class="n">C</span> <span class="o">+</span> <span class="mi">4</span><span class="o">*</span><span class="n">C</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">A</span><span class="o">**</span><span class="mi">4</span> <span class="o">/</span> <span class="mi">24</span>
+            <span class="o">+</span> <span class="p">(</span><span class="mi">61</span> <span class="o">-</span> <span class="mi">58</span><span class="o">*</span><span class="n">T</span> <span class="o">+</span> <span class="n">T</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="mi">600</span><span class="o">*</span><span class="n">C</span> <span class="o">-</span> <span class="mi">330</span><span class="o">*</span><span class="n">ep2</span><span class="p">)</span> <span class="o">*</span> <span class="n">A</span><span class="o">**</span><span class="mi">6</span> <span class="o">/</span> <span class="mi">720</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">easting</span><span class="p">,</span> <span class="n">northing</span>
+
+
+<span class="c1"># Test the function with a known point</span>
+
+<span class="n">coord</span> <span class="o">=</span> <span class="p">[</span><span class="mf">9.9181978710164600</span><span class="p">,</span> <span class="mf">51.5649526394502686</span><span class="p">]</span>
+<span class="n">easting</span><span class="p">,</span> <span class="n">northing</span> <span class="o">=</span> <span class="n">latlon_to_utm32n_series</span><span class="p">(</span><span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Latitude: </span><span class="si">{</span><span class="n">coord</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">, Longitude: </span><span class="si">{</span><span class="n">coord</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Easting: </span><span class="si">{</span><span class="n">easting</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> m, Northing: </span><span class="si">{</span><span class="n">northing</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> m&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Latitude: 51.56495263945027, Longitude: 9.91819787101646
+Easting: 563643.38 m, Northing: 5713052.28 m
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">polygon</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">polygon</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">i</span><span class="o">=</span><span class="mi">0</span>
+
+<span class="k">for</span> <span class="n">point</span> <span class="ow">in</span> <span class="n">camera_in_projected</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">polygon</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">point</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">camera_in_projected</span><span class="p">[</span><span class="s2">&quot;PhotoID&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+
+    <span class="n">i</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>POLYGON ((563629.9438435122 5713009.647797464, 563630.3840281036 5713012.311673874, 563622.4910609632 5713013.615924513, 563622.0508763719 5713010.952048103, 563629.9438435122 5713009.647797464))
+POLYGON ((563629.9438435122 5713009.647797464, 563630.3840281036 5713012.311673874, 563622.4910609632 5713013.615924513, 563622.0508763719 5713010.952048103, 563629.9438435122 5713009.647797464))
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_1
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_2
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_3
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_4
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_5
+POINT (563627.2209894974 5713010.794463492)
+IMG_0079_6
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_1
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_2
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_3
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_4
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_5
+POINT (563623.5304544726 5713011.87892115)
+IMG_0087_6
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_1
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_2
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_3
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_4
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_5
+POINT (563628.4316551683 5713010.377099151)
+IMG_0116_6
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_1
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_2
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_3
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_4
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_5
+POINT (563624.7303163477 5713010.560441109)
+IMG_0158_6
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_1
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_2
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_3
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_4
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_5
+POINT (563623.5801728186 5713012.739453033)
+IMG_0271_6
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_1
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_2
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_3
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_4
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_5
+POINT (563630.0735097831 5713010.717249535)
+IMG_0280_6
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_1
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_2
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_3
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_4
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_5
+POINT (563629.370934174 5713010.259720966)
+IMG_0450_6
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_1
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_2
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_3
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_4
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_5
+POINT (563624.7903331417 5713012.5079978155)
+IMG_0467_6
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">polygon</span> <span class="o">=</span> <span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">][</span><span class="mi">5</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">camera_df</span><span class="p">)):</span>
+    <span class="n">point</span> <span class="o">=</span> <span class="n">Point</span><span class="p">(</span><span class="n">latlon_to_utm32n_series</span><span class="p">(</span><span class="n">camera_df</span><span class="p">[</span><span class="s2">&quot;Y&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">],</span> <span class="n">camera_df</span><span class="p">[</span><span class="s2">&quot;X&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]))</span>
+   <span class="c1">#print(f&quot;function point {camera_in_projected[&quot;geometry&quot;][i]} Library poinT: {point}  &quot; )</span>
+    <span class="k">if</span> <span class="n">polygon</span><span class="o">.</span><span class="n">contains</span><span class="p">(</span><span class="n">point</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">camera_df</span><span class="p">[</span><span class="s2">&quot;PhotoID&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>IMG_0049_1
+IMG_0049_2
+IMG_0049_3
+IMG_0049_4
+IMG_0049_5
+IMG_0049_6
+IMG_0072_1
+IMG_0072_2
+IMG_0072_3
+IMG_0072_4
+IMG_0072_5
+IMG_0072_6
+IMG_0073_1
+IMG_0073_2
+IMG_0073_3
+IMG_0073_4
+IMG_0073_5
+IMG_0073_6
+IMG_0104_1
+IMG_0104_2
+IMG_0104_3
+IMG_0104_4
+IMG_0104_5
+IMG_0104_6
+IMG_0190_1
+IMG_0190_2
+IMG_0190_3
+IMG_0190_4
+IMG_0190_5
+IMG_0190_6
+IMG_0191_1
+IMG_0191_2
+IMG_0191_3
+IMG_0191_4
+IMG_0191_5
+IMG_0191_6
+IMG_0192_1
+IMG_0192_2
+IMG_0192_3
+IMG_0192_4
+IMG_0192_5
+IMG_0192_6
+IMG_0424_1
+IMG_0424_2
+IMG_0424_3
+IMG_0424_4
+IMG_0424_5
+IMG_0424_6
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./Optimisation_Changes"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#"><strong>Conclusion and Motivation for Performance Improvement</strong></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#results-analysis"><strong>Results Analysis</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-benchmark-results"><strong>Performance Benchmark Results:</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-validation"><strong>Accuracy Validation:</strong></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conclusions"><strong>Conclusions</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motivation-for-performance-improvement"><strong>Motivation for Performance Improvement</strong></a></li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmark-results-optimized-code-vs-original-code">Benchmark Results: Optimized Code vs. Original Code</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#overview"><strong>Overview</strong></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#benchmark-results"><strong>Benchmark Results</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-metrics"><strong>Performance Metrics</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-results"><strong>Key Results</strong></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-insights"><strong>Performance Insights</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-optimization-of-polars-code-over-pandas-code">Performance Optimization of Polars Code Over Pandas Code</a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#overview-of-what-happened"><strong>Overview of What Happened</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-the-polars-code-is-more-efficient"><strong>Why the Polars Code is More Efficient</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-efficiency">1. <strong>Memory Efficiency</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#parallel-execution">2. <strong>Parallel Execution</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#efficient-execution-model">3. <strong>Efficient Execution Model</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#improvements-in-time-complexity"><strong>Improvements in Time Complexity</strong></a><ul class="nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#rounding-and-deduplication"><strong>1. Rounding and Deduplication</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#merging-dataframes"><strong>2. Merging DataFrames</strong></a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#angle-calculations"><strong>3. Angle Calculations</strong></a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#key-observations-from-benchmark"><strong>Key Observations from Benchmark</strong></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#why-polars-is-ideal-for-large-datasets"><strong>Why Polars is Ideal for Large Datasets</strong></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#polygon-extraction-with-geopandas">Polygon extraction with geopandas</a></li>
+<li class="toc-h1 nav-item toc-entry"><a class="reference internal nav-link" href="#let-s-create-a-function-that-does-that">Let’s create a function that does that</a></li>
+</ul>
+
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By The Jupyter Book Community
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2023.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

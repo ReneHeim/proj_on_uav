@@ -1,0 +1,25 @@
+base_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data"
+
+inputs:
+    date_time:
+        start: "2024-10-29T10:00:00"       # ISO format is clean and easy to parse
+        time_zone: "Europe/Berlin"         # Or UTC, etc. (used with datetime libs if needed)
+
+    paths:
+        cam_path: "{base_path}\\20241029_week8_cameras.txt"
+        dem_path: "{base_path}\\20241029_week8_dem.tif"
+        orthophoto_path: "{base_path}\\orthophotos\\*.tif"
+        ori: ["{base_path}\\orthophotos"]
+        mosaic_path: "{base_path}\\20241029_week8_orthomosaic.tif"
+        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv"
+        polygon_file_path: "{base_path}\\some_optional_polygon.shp"  # Optional
+
+    settings:
+        number_of_processor: -1
+        filter_radius: 1
+        file_name: "20241029_week8_project"
+        precision: 4
+
+outputs:
+    paths:
+        main_out: "{base_path}\\output"

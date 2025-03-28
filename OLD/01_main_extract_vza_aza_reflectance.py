@@ -255,7 +255,7 @@ for source in sources:
                     res = []
                     b1 = rst.read(counter)
                     arr = np.array(b1)
-                    Xp, Yp, val = xyval(arr) # this function is loaded from smac_functions.py
+                    Xp, Yp, val = xyval(arr) # this function is loaded from raster_functions.py
                     # Loop trhough pixels
                     for i, j in zip(Xp, Yp):
                         # coords2pixels = map_layer.index(235059.32,810006.31)  # input lon,lat

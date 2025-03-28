@@ -125,7 +125,7 @@ def process_orthomosaic(source):
             res = []
             b1 = rst.read(counter)
             arr = np.array(b1)
-            Xp, Yp, val = xyval(arr) # this function is loaded from smac_functions.py
+            Xp, Yp, val = xyval(arr) # this function is loaded from raster_functions.py
             for i, j in zip(Xp, Yp):
                 res.append(rst.xy(i, j))  # input px, py -> see rasterio documentation
             df = pd.DataFrame(res)

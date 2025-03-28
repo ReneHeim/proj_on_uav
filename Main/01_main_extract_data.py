@@ -15,19 +15,22 @@ from rasterio.warp import reproject, Resampling, calculate_default_transform
 from tqdm import tqdm
 
 from Main.functions.date_time_functions import convert_to_timezone
+from Main.functions.merge_analysis_functions import visualize_coordinate_alignment, analyze_kdtree_matching
+from Main.functions.polygon_filtering_functions import is_pos_inside_polygon, filter_df_by_polygon
 from Main.functions.raster_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
-from config_object import config
+from config_object import config_object
 import geopandas as gpd
 from shapely.geometry import Point
 import polars as pl
 import pysolar as solar
 
-def configure_logging():
+
+def config_objecture_logging():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler("process.log"),
+            logging.FileHandler("process.log", encoding='utf-8'),  # Note the encoding parameter
             logging.StreamHandler()
         ]
     )
@@ -70,9 +73,6 @@ def read_dem(dem_path, precision, transform_to_utm=True, target_crs="EPSG:32632"
             pl.col("Yw").round(precision)
         ]).unique()
 
-
-
-
         end = timer()
         logging.info(f"DEM read and processed in {end - start:.2f} seconds")
         return df_dem
@@ -111,7 +111,6 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
 
             band_values = b_all.reshape(num_bands, -1).T
 
-
             data = {
                 'Xw': pl.Series(Xw, dtype=pl.Float32),
                 'Yw': pl.Series(Yw, dtype=pl.Float32)
@@ -135,9 +134,15 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
 # ------------------------------
 # Merge DEM and Orthophoto Data on Coordinates
 # ------------------------------
-def merge_data(df_dem, df_allbands, precision):
+def merge_data(df_dem, df_allbands, precision, debug="verbose"):
     start_merge = timer()
     try:
+        # Store original sizes if debugging
+        if debug:
+            dem_size_original = len(df_dem)
+            bands_size_original = len(df_allbands)
+
+        # Existing processing code
         df_dem = df_dem.group_by(["Xw", "Yw"]).agg([
             pl.col("elev").mean().alias("elev")
         ])
@@ -149,11 +154,49 @@ def merge_data(df_dem, df_allbands, precision):
             pl.col("Xw").round(precision),
             pl.col("Yw").round(precision)
         ]).unique()
+
+        # Store sizes after uniquify if debugging
+        if debug:
+            dem_size_unique = len(df_dem)
+            bands_size_unique = len(df_allbands)
+
         df_dem_lazy = df_dem.lazy()
         df_allbands_lazy = df_allbands.lazy()
         df_merged = df_dem_lazy.join(df_allbands_lazy, on=["Xw", "Yw"], how="inner").collect()
+
         end_merge = timer()
-        logging.info(f"Merged DEM and band data in {end_merge - start_merge:.2f} seconds")
+        merge_time = end_merge - start_merge
+
+        # Add comprehensive debugging if enabled
+        if debug:
+            merged_size = len(df_merged)
+            # Calculate statistics
+            stats = {
+                "dem_original": dem_size_original,
+                "bands_original": bands_size_original,
+                "dem_unique": dem_size_unique,
+                "bands_unique": bands_size_unique,
+                "merged": merged_size,
+                "dem_reduction": 100 * (1 - dem_size_unique / dem_size_original),
+                "bands_reduction": 100 * (1 - bands_size_unique / bands_size_original),
+                "merge_retention": 100 * merged_size / min(dem_size_unique, bands_size_unique),
+                "points_per_second": merged_size / merge_time
+            }
+
+            logging.info(f"Merge Debug Statistics:")
+            logging.info(
+                f"  - Original DEM points: {stats['dem_original']:,}, After uniquify: {stats['dem_unique']:,} ({stats['dem_reduction']:.2f}% reduction)")
+            logging.info(
+                f"  - Original band points: {stats['bands_original']:,}, After uniquify: {stats['bands_unique']:,} ({stats['bands_reduction']:.2f}% reduction)")
+            logging.info(f"  - Merged points: {stats['merged']:,} ({stats['merge_retention']:.2f}% retention rate)")
+            logging.info(f"  - Processing speed: {stats['points_per_second']:.2f} points/second")
+
+            # For very detailed debugging, add spatial analysis
+            if debug == "verbose":
+                visualize_coordinate_alignment(df_dem, df_allbands, precision)
+                analyze_kdtree_matching(df_dem, df_allbands, precision)
+
+        logging.info(f"Merged DEM and band data in {merge_time:.2f} seconds")
         return df_merged
     except Exception as e:
         logging.error(f"Error merging data: {e}")
@@ -163,11 +206,6 @@ def merge_data(df_dem, df_allbands, precision):
 # ------------------------------
 # Calculate Viewing Angles
 # ------------------------------
-
-
-
-
-
 def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
     start_angles = timer()
     try:
@@ -222,6 +260,7 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         logging.error(f"Error calculating angles: {e}")
         logging.error(traceback.format_exc())
         raise
+
 
 def coregister_and_resample(input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest):
     """
@@ -343,6 +382,7 @@ def check_alignment(dem_path, ortho_path):
         logging.error(f"Error checking alignment: {e}")
         return False
 
+
 # ------------------------------
 # Save Output to Parquet
 # ------------------------------
@@ -413,11 +453,13 @@ def extract_sun_angles(name, lon, lat, datetime_str, timezone="UTC"):
         saa = solar_azimuth
 
         end = timer()
-        logging.info(f"Calculated sun angles for {name} using pysolar: elevation={sunelev:.2f}°, azimuth={saa:.2f}° in {end - start:.2f} seconds")
+        logging.info(
+            f"Calculated sun angles for {name} using pysolar: elevation={sunelev:.2f}°, azimuth={saa:.2f}° in {end - start:.2f} seconds")
     except Exception as e:
         logging.warning(f"Sun angle calculation with pysolar failed for {name}, skipping. Error: {e}")
 
     return sunelev, saa
+
 
 def get_camera_position(cam_path, name):
     start = timer()
@@ -433,7 +475,6 @@ def get_camera_position(cam_path, name):
         campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
         lon, lat, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
 
-
         end = timer()
         logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
         return float(lon), float(lat), float(zcam)
@@ -442,58 +483,13 @@ def get_camera_position(cam_path, name):
         raise
 
 
-def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", precision=2):
-    # Read the polygon file
-    gdf_poly = gpd.read_file(polygon_path)
-    points_before = len(df)
-
-    # *** IMPORTANT: Correct the CRS if needed ***
-    # If the coordinate values suggest a projected system (e.g., UTM) but the file is tagged as EPSG:4326,
-    # reassign the correct CRS:
-    if gdf_poly.crs.to_string() == "EPSG:4326":
-        # For example, if you know they should be UTM Zone 32N:
-        gdf_poly.crs = "EPSG:32632"
-
-    # Filter valid, non-empty geometries
-    valid_gdf = gdf_poly[gdf_poly.is_valid & (~gdf_poly.is_empty)]
-    if valid_gdf.empty:
-        raise ValueError("No valid polygons found in the file.")
-
-    # Convert to target CRS if needed
-    if valid_gdf.crs != target_crs:
-        valid_gdf = valid_gdf.to_crs(target_crs)
-
-    # Union all valid polygons into one geometry
-    # Use union_all() if available, else unary_union:
-    try:
-        union_poly = valid_gdf.union_all()  # Newer API
-    except AttributeError:
-        union_poly = valid_gdf.unary_union
-
-    print("Union polygon bounds:", union_poly.bounds)
-
-    # Convert the Polars DataFrame to Pandas
-    df_pd = df.to_pandas()
-
-    # Create shapely Points for each row
-    df_pd["geometry"] = df_pd.apply(lambda row: Point(row["Xw"], row["Yw"]), axis=1)
-    # Filter rows where the point is within the union polygon
-    gdf_points = gpd.GeoDataFrame(df_pd, geometry="geometry", crs=target_crs)
-    gdf_filtered = gdf_points[gdf_points["geometry"].within(union_poly)].copy()
-    points_after = len(df_pd)
-
-
-    logging.info("Points filtered:" + str(points_after - points_before))
-    # Drop the geometry column and convert back to Polars DataFrame
-    gdf_filtered = gdf_filtered.drop(columns=["geometry"])
-    return pl.from_pandas(gdf_filtered)
 
 
 # ------------------------------
 # Core Processing Function for an Orthophoto
 # ------------------------------
 def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
-                       polygon_filtering=False, alignment=False):
+                       polygon_filtering=False,polygon_filtering_cam_pos= True ,alignment=False):
     try:
         start_ortho = timer()
         path, file = os.path.split(each_ortho)
@@ -506,12 +502,8 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         print(f"longitude: {lon}, latitude: {lat}, zcam: {zcam}")
 
         # Optional: Check if the image is within a polygon
-        if polygon_filtering:
-            easting, northing = latlon_to_utm32n_series(lat, lon)
-            point = Point(easting, northing)
-            gdf = gpd.read_file(source["Polygon_path"])
-            inside = any(point.within(polygon) for polygon in gdf["geometry"])
-            logging.info(f"Point inside Polygon: {str(inside)}")
+        if polygon_filtering_cam_pos:
+            inside = is_pos_inside_polygon(lat, lon, source)
             if not inside:
                 raise ValueError(f"The Image {file} is not inside any polygon")
 
@@ -530,7 +522,6 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         # Read orthophoto bands (assumed to be transformed already if needed)
         df_allbands = read_orthophoto_bands(each_ortho, precision)
 
-
         # Merge DEM and orthophoto data on (Xw, Yw)
         df_merged = merge_data(df_dem, df_allbands, precision)
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
@@ -540,10 +531,9 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         if not all(col in df_merged.columns for col in required_columns):
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
 
-
         if polygon_filtering:
-         polygon_path = source["Polygon_path"]  # path to your polygon file
-         df_merged = filter_df_by_polygon(df_merged, polygon_path, target_crs="EPSG:32632", precision=2)
+            polygon_path = source["Polygon_path"]  # path to your polygon file
+            df_merged = filter_df_by_polygon(df_merged, polygon_path, target_crs="EPSG:32632")
 
         # Retrieve solar angles from position and time
         sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
@@ -553,30 +543,10 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         # Add file name column
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
 
-
-
-
         # Filter merged DataFrame by polygon
         # After merging, filter rows outside the polygon:
 
-
-        # For debugging: convert to pandas and plot distributions
-        import matplotlib.pyplot as plt
-        df_pd = df_merged.to_pandas()
-        print(df_pd.describe())
-        plt.figure(figsize=(8, 6))
-        plt.hist(df_pd['elev'], bins=50, color='skyblue', edgecolor='black')
-        plt.xlabel('Elevation')
-        plt.ylabel('Frequency')
-        plt.title('Elevation Distribution')
-        plt.show()
-        for band in [col for col in df_pd.columns if col.startswith('band')]:
-            plt.figure(figsize=(8, 6))
-            plt.hist(df_pd[band], bins=50, alpha=0.7, edgecolor='black')
-            plt.xlabel(f'{band} Values')
-            plt.ylabel('Frequency')
-            plt.title(f'Distribution of {band}')
-            plt.show()
+        plotting_raster(df_merged)
 
         # Save merged data as parquet
         save_parquet(df_merged, out, source, iteration, file)
@@ -588,6 +558,9 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         logging.error(traceback.format_exc())
 
 
+# ------------------------------
+# Images management for dataframe creation
+# ------------------------------
 def build_database(tuple_chunk, source, exiftool_path):
     iteration = tuple_chunk[0]
     images = tuple_chunk[1]
@@ -601,13 +574,15 @@ def build_database(tuple_chunk, source, exiftool_path):
     path_flat = retrieve_orthophoto_paths(ori)
     for each_ortho in tqdm(images, desc=f"Processing iteration {iteration}"):
         process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
-                           polygon_filtering=False)
+                           polygon_filtering=True)
     end_DEM_i = timer()
     logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
 
 
 def main():
-    configure_logging()
+    config_objecture_logging()
+    config = config_object("config_file.yaml")
+
     sources = [
         {
             'out': config.main_extract_out,
@@ -616,10 +591,10 @@ def main():
             'ori': config.main_extract_ori,
             'name': config.main_extract_name,
             'path_list_tag': config.main_extract_path_list_tag,
-            "precision": config.precision,
-            "Polygon_path": config.main_polygon_path,
-            "start date": config.start_date,
-            "time zone": config.time_zone,
+            'precision': config.precision,
+            'Polygon_path': config.main_polygon_path,
+            'start date': config.start_date,
+            'time zone': config.time_zone,
         }
     ]
     exiftool_path = r"exiftool"
@@ -629,11 +604,12 @@ def main():
 
         # Process each image directly without splitting into chunks
         for i, image_path in enumerate(path_list):
-            logging.info(f"Processing image {i+1}/{len(path_list)}: {os.path.basename(image_path)}")
+            logging.info(f"Processing image {i + 1}/{len(path_list)}: {os.path.basename(image_path)}")
             # Create a single-item list to maintain compatibility with build_database
             single_image = [image_path]
             # Process directly with the current iteration number
             build_database((i, single_image), source, exiftool_path)
+
 
 if __name__ == "__main__":
     main()

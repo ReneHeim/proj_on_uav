@@ -1,18 +1,25 @@
+base_path: "D:\\20241207_week5_products_uav_data"
+
 inputs:
+    date_time:
+        start: "2024-12-07T10:00:00"
+        time_zone: "Europe/Berlin"
+
     paths:
-        cam_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_cameras.txt" # Path to the camera position text file
-        dem_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_dem.tif" # Path to the DEM file
-        orthophoto_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos\\*.tif" # Path to the folder containing orthorectified photos
-        ori: ["D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\orthophotos"] # Folder containing original images for orthophotos
-        mosaic_path: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\20241029_products_uav_data\\20241029_week8_orthomosaic.tif" # Path to the orthomosaic file
-        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv" # Keep unchanged as it was not shown in the screenshot
+        cam_path: "{base_path}\\20241207_week5_cameras"
+        dem_path: "{base_path}\\20241207_week5_dem.tif"
+        orthophoto_path: "{base_path}\\20241207_week5_orthophotos\\*.tif"
+        ori: ["{base_path}\\20241207_week5_orthophotos"]
+        mosaic_path: "{base_path}\\20241210_week5_orthomosaic.tif"  # Picked the newer one
+        ground_truth_coordinates: "D:\\Github_repository\\Example_data\\Small_dataset\\gpscoords_plots.csv"
+        # polygon_file_path: "{base_path}\\optional_polygon.shp"  # Uncomment if needed
 
     settings:
-        number_of_processor: -1 # Use all available processors
-        filter_radius: 1 # Filtering radius around sampling points in meters
-        file_name: "20241029_week8_project" # Adjusted file prefix for Week 8 project
-        precision: 4  #To which number the coordinate are rounded to
+        number_of_processor: -1
+        filter_radius: 1
+        file_name: "20241207_week5_project"
+        precision: 4
 
 outputs:
     paths:
-        main_out: "D:\\ds_seminar_ws_2024_2025\\example_data_week8\\output" # Output folder path adjusted to match the dataset
+        main_out: "{base_path}\\output"
