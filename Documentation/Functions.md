@@ -2,7 +2,6 @@
 
 This document provides a detailed explanation of the processing pipeline for UAV-acquired orthophotos and digital elevation models (DEMs). The pipeline extracts pixel-level data, performs coordinate transformations, and calculates viewing geometry.
 
-
 ## Table of Contents
 
 1. [Overview and Workflow](#overview-and-workflow)
