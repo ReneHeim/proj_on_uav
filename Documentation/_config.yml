@@ -1,7 +1,7 @@
 # Book settings
 # Learn more at https://jupyterbook.org/customize/config.html
 
-title: multi-angular UAV reflectance data
+title: Multi-angular UAV Reflectance Extractor
 author: Rene Heim,  Nathan Okole , Davide Mattioli
 
 # Force re-execution of notebooks on each build.

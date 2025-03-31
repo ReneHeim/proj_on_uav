@@ -1,4 +1,4 @@
-# UAV Data Analyser
+# Multi-angular UAV Reflectance Extractor
 
 ## Why is this repository important to you?
 
