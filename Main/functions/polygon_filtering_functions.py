@@ -278,60 +278,131 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
         phase_time = time.time() - phase_start
         logging.info(f"Phase 4: Prepared for filtering in {phase_time:.2f}s")
 
-        # ----- PHASE 5: FILTER POINTS IN CHUNKS -----
+        # ----- PHASE 5: FILTER POINTS IN CHUNKS (PARALLELIZED) -----
         phase_start = time.time()
+        import concurrent.futures
+        from functools import partial
 
         # Function to process a chunk of points
-        def process_chunk(chunk_df, union_polygon, target_crs):
-            chunk_pd = chunk_df.to_pandas()
-            # Create points from coordinates
-            points = [Point(x, y) for x, y in zip(chunk_pd['Xw'], chunk_pd['Yw'])]
-            # Create GeoDataFrame
-            gdf = gpd.GeoDataFrame(chunk_pd, geometry=points, crs=target_crs)
-            # Filter points within polygon
-            return gdf[gdf.geometry.within(union_polygon)]
+        def process_chunk(chunk_indices, df, union_polygon, target_crs):
+            try:
+                start_idx, end_idx = chunk_indices
+                # Get chunk from the dataframe
+                chunk = df.slice(start_idx, end_idx - start_idx)
+                chunk_pd = chunk.to_pandas()
+
+                # Create points from coordinates
+                points = [Point(x, y) for x, y in zip(chunk_pd['Xw'], chunk_pd['Yw'])]
+
+                # Create GeoDataFrame
+                gdf = gpd.GeoDataFrame(chunk_pd, geometry=points, crs=target_crs)
+
+                # Filter points within polygon
+                result = gdf[gdf.geometry.within(union_polygon)]
+                return result if not result.empty else None
+            except Exception as e:
+                logging.error(f"Error processing chunk {start_idx}-{end_idx}: {e}")
+                return None
+
+        # Calculate total chunks
+        n_points = len(df)
+        points_per_chunk = min(1000000, max(10000, n_points // 10))  # Adaptive chunking
+        n_chunks = (n_points + points_per_chunk - 1) // points_per_chunk
+
+        # Prepare chunk indices
+        chunk_indices = [(i * points_per_chunk, min((i + 1) * points_per_chunk, n_points))
+                         for i in range(n_chunks)]
+
+        # Use a partial function with fixed arguments
+        process_func = partial(process_chunk, df=df, union_polygon=union_poly, target_crs=target_crs)
+
+        # Determine optimal number of workers
+        import os
+        if os.cpu_count() > n_chunks:
+            max_workers = n_chunks
+        else:
+            max_workers = os.cpu_count()  - 1
+
+
+        logging.info(f"Using {max_workers} workers for parallel processing of {n_chunks} chunks")
 
         filtered_chunks = []
+        processed_count = 0
 
-        # Process in chunks to avoid memory issues
-        for i in range(n_chunks):
-            # Check if we're approaching timeout
-            if time.time() - start_time > max_runtime_seconds * 0.9:
-                logging.warning(f"Approaching timeout. Processed {i}/{n_chunks} chunks. Returning original data.")
+        # Process chunks in parallel with timeout awareness
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_chunk = {executor.submit(process_func, chunk_idx): i
+                               for i, chunk_idx in enumerate(chunk_indices)}
+
+            # Process results as they complete
+            for future in concurrent.futures.as_completed(future_to_chunk):
+                # Check if we're approaching timeout
+                if time.time() - start_time > max_runtime_seconds * 0.9:
+                    logging.warning(
+                        f"Approaching timeout. Processed {processed_count}/{n_chunks} chunks. Cancelling remaining tasks.")
+                    # Cancel pending futures
+                    for f in future_to_chunk:
+                        f.cancel()
+                    break
+
+                chunk_idx = future_to_chunk[future]
+                processed_count += 1
+
+                try:
+                    result = future.result()
+                    if result is not None:
+                        filtered_chunks.append(result)
+                except Exception as e:
+                    logging.error(f"Chunk {chunk_idx} processing failed: {e}")
+
+                # Log progress periodically
+                if processed_count % max(1, n_chunks // 10) == 0:
+                    logging.info(
+                        f"Processed {processed_count}/{n_chunks} chunks ({(processed_count / n_chunks * 100):.1f}%)")
+
+        # Check if we processed anything
+        if processed_count == 0:
+            logging.warning("No chunks were processed successfully. Returning original data.")
+            return df
+
+        # Check if we need to return early due to timeout
+        if time.time() - start_time > max_runtime_seconds * 0.95:
+            if filtered_chunks:
+                logging.warning(f"Timeout approaching. Returning partial results from {len(filtered_chunks)} chunks.")
+                try:
+                    partial_result = pd.concat(filtered_chunks, ignore_index=True)
+                    return pl.from_pandas(partial_result.drop(columns=["geometry"]))
+                except Exception as e:
+                    logging.error(f"Error creating partial result: {e}")
+                    return df
+            else:
+                logging.warning("Timeout approaching with no filtered results. Returning original data.")
                 return df
 
-            # Get chunk
-            start_idx = i * points_per_chunk
-            end_idx = min((i + 1) * points_per_chunk, n_points)
-            chunk = df.slice(start_idx, end_idx - start_idx)
-
-            # Process chunk
-            filtered_chunk = process_chunk(chunk, union_poly, target_crs)
-            if not filtered_chunk.empty:
-                filtered_chunks.append(filtered_chunk)
-
-            # Log progress for long-running operations
-            if i % max(1, n_chunks // 10) == 0:
-                logging.info(f"Processed {i + 1}/{n_chunks} chunks ({((i + 1) / n_chunks * 100):.1f}%)")
-
-        # Combine results from all chunks
+        # Combine results from all chunks if we have any
         if not filtered_chunks:
             logging.warning("No points found inside polygons. Returning original data.")
             return df
 
-        gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
+        try:
+            gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
+            # Log completion
+            phase_time = time.time() - phase_start
+            points_after = len(gdf_filtered)
+            points_filtered = n_points - points_after
+            percentage_filtered = (points_filtered / n_points * 100) if n_points > 0 else 0
 
-        # Get stats on filtered data
-        points_after = len(gdf_filtered)
-        points_filtered = points_before - points_after
-        percentage_filtered = (points_filtered / points_before * 100) if points_before > 0 else 0
+            logging.info(f"Points inside polygons: {points_after:,} ({100 - percentage_filtered:.2f}%)")
+            logging.info(f"Points filtered out: {points_filtered:,} ({percentage_filtered:.2f}%)")
+            logging.info(f"Phase 5: Filtered points in {phase_time:.2f}s ({points_after / phase_time:.2f} points/s)")
 
-        logging.info(f"Points inside polygons: {points_after:,} ({100 - percentage_filtered:.2f}%)")
-        logging.info(f"Points filtered out: {points_filtered:,} ({percentage_filtered:.2f}%)")
-
-        # Log phase timing
-        phase_time = time.time() - phase_start
-        logging.info(f"Phase 5: Filtered points in {phase_time:.2f}s ({points_after / phase_time:.2f} points/s)")
+            # Clean up and convert back to Polars
+            gdf_filtered = gdf_filtered.drop(columns=["geometry"])
+            return pl.from_pandas(gdf_filtered)
+        except Exception as e:
+            logging.error(f"Error combining filtered results: {e}")
+            return df
 
         # ----- PHASE 6: PREPARE RESULTS AND DEBUG PLOTS -----
         phase_start = time.time()
