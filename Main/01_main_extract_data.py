@@ -90,7 +90,6 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
         with rio.open(each_ortho) as rst:
             num_bands = rst.count
             b_all = rst.read()  # Read all bands
-            print(max(b_all[0][0]))
             if b_all.dtype == np.float64:
                 b_all = b_all.astype(np.float32)
             rows, cols = np.indices((rst.height, rst.width))
@@ -391,7 +390,6 @@ def save_parquet(df, out, source, iteration, file):
     start_write = timer()
     try:
         output_path = Path(out) / f"{source['name']}_{iteration}_{file}.parquet"
-        print(output_path)
         df.write_parquet(str(output_path), compression='zstd', compression_level=2)
         end_write = timer()
         logging.info(f"Saved image result for {file} in {end_write - start_write:.2f} seconds")
@@ -500,7 +498,6 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         dem_path = source['dem_path']
         # Get camera position from the camera file
         lon, lat, zcam = get_camera_position(cam_path, name)
-        print(f"longitude: {lon}, latitude: {lat}, zcam: {zcam}")
 
         # Optional: Check if the image is within a polygon
         if polygon_filtering_cam_pos:
@@ -524,7 +521,7 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         df_allbands = read_orthophoto_bands(each_ortho, precision)
 
         # Merge DEM and orthophoto data on (Xw, Yw)
-        df_merged = merge_data(df_dem, df_allbands, precision)
+        df_merged = merge_data(df_dem, df_allbands, precision, debug=None)
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Check required columns exist
