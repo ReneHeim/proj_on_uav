@@ -167,6 +167,7 @@ def merge_data(df_dem, df_allbands, precision, debug="verbose"):
         end_merge = timer()
         merge_time = end_merge - start_merge
 
+
         # Add comprehensive debugging if enabled
         if debug:
             merged_size = len(df_merged)

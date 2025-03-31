@@ -1,6 +1,7 @@
 import logging
 from shapely.geometry import Point
 import geopandas as gpd
+import pandas as pd
 import os
 import polars as pl
 
@@ -67,7 +68,7 @@ def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
 
 
 def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.1,
-                         debug=True, max_runtime_seconds=60, sample_for_debug=5000):
+                         debug=True, max_runtime_seconds=600, sample_for_debug=5000):
     """
     Filter a Polars DataFrame to only include points that fall within polygons.
     Implements timeouts and performance optimizations.
@@ -223,13 +224,15 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
         phase_start = time.time()
 
         # Check if there could be an overlap (quick check before full spatial operation)
-        data_sample = df.select(pl.col("Xw").min(), pl.col("Xw").max(),
-                                pl.col("Yw").min(), pl.col("Yw").max()).collect()
+        print(df)
+        # Get bounds with individual operations
+        xmin = df.select(pl.min("Xw")).item()
+        xmax = df.select(pl.max("Xw")).item()
+        ymin = df.select(pl.min("Yw")).item()
+        ymax = df.select(pl.max("Yw")).item()
 
-        data_bounds = [
-            data_sample.item(0, 0), data_sample.item(0, 2),  # xmin, ymin
-            data_sample.item(0, 1), data_sample.item(0, 3)  # xmax, ymax
-        ]
+        # Create bounds array
+        data_bounds = [xmin, ymin, xmax, ymax]
 
         poly_bounds = union_poly.bounds  # (xmin, ymin, xmax, ymax)
 
