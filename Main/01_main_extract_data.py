@@ -15,7 +15,7 @@ from rasterio.warp import reproject, Resampling, calculate_default_transform
 from tqdm import tqdm
 
 from Main.functions.date_time_functions import convert_to_timezone
-from Main.functions.merge_analysis_functions import visualize_coordinate_alignment, analyze_kdtree_matching
+from Main.functions.merge_analysis_functions import visualize_coordinate_alignment, analyze_kdtree_matching, merge_data
 from Main.functions.polygon_filtering_functions import is_pos_inside_polygon, filter_df_by_polygon
 from Main.functions.raster_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
 from config_object import config_object
@@ -130,77 +130,6 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
         raise
 
 
-# ------------------------------
-# Merge DEM and Orthophoto Data on Coordinates
-# ------------------------------
-def merge_data(df_dem, df_allbands, precision, debug="verbose"):
-    start_merge = timer()
-    try:
-        # Store original sizes if debugging
-        if debug:
-            dem_size_original = len(df_dem)
-            bands_size_original = len(df_allbands)
-
-        # Existing processing code
-        df_dem = df_dem.group_by(["Xw", "Yw"]).agg([
-            pl.col("elev").mean().alias("elev")
-        ])
-        df_dem = df_dem.with_columns([
-            pl.col("Xw").round(precision),
-            pl.col("Yw").round(precision)
-        ]).unique()
-        df_allbands = df_allbands.with_columns([
-            pl.col("Xw").round(precision),
-            pl.col("Yw").round(precision)
-        ]).unique()
-
-        # Store sizes after uniquify if debugging
-        if debug:
-            dem_size_unique = len(df_dem)
-            bands_size_unique = len(df_allbands)
-
-        df_dem_lazy = df_dem.lazy()
-        df_allbands_lazy = df_allbands.lazy()
-        df_merged = df_dem_lazy.join(df_allbands_lazy, on=["Xw", "Yw"], how="inner").collect()
-
-        end_merge = timer()
-        merge_time = end_merge - start_merge
-
-
-        # Add comprehensive debugging if enabled
-        if debug:
-            merged_size = len(df_merged)
-            # Calculate statistics
-            stats = {
-                "dem_original": dem_size_original,
-                "bands_original": bands_size_original,
-                "dem_unique": dem_size_unique,
-                "bands_unique": bands_size_unique,
-                "merged": merged_size,
-                "dem_reduction": 100 * (1 - dem_size_unique / dem_size_original),
-                "bands_reduction": 100 * (1 - bands_size_unique / bands_size_original),
-                "merge_retention": 100 * merged_size / min(dem_size_unique, bands_size_unique),
-                "points_per_second": merged_size / merge_time
-            }
-
-            logging.info(f"Merge Debug Statistics:")
-            logging.info(
-                f"  - Original DEM points: {stats['dem_original']:,}, After uniquify: {stats['dem_unique']:,} ({stats['dem_reduction']:.2f}% reduction)")
-            logging.info(
-                f"  - Original band points: {stats['bands_original']:,}, After uniquify: {stats['bands_unique']:,} ({stats['bands_reduction']:.2f}% reduction)")
-            logging.info(f"  - Merged points: {stats['merged']:,} ({stats['merge_retention']:.2f}% retention rate)")
-            logging.info(f"  - Processing speed: {stats['points_per_second']:.2f} points/second")
-
-            # For very detailed debugging, add spatial analysis
-            if debug == "verbose":
-                visualize_coordinate_alignment(df_dem, df_allbands, precision)
-                analyze_kdtree_matching(df_dem, df_allbands, precision)
-
-        logging.info(f"Merged DEM and band data in {merge_time:.2f} seconds")
-        return df_merged
-    except Exception as e:
-        logging.error(f"Error merging data: {e}")
-        raise
 
 
 # ------------------------------
