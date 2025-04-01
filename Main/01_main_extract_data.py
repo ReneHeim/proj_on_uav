@@ -130,8 +130,6 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
         raise
 
 
-
-
 # ------------------------------
 # Calculate Viewing Angles
 # ------------------------------
@@ -411,43 +409,36 @@ def get_camera_position(cam_path, name):
         raise
 
 
-
-
 # ------------------------------
 # Core Processing Function for an Orthophoto
 # ------------------------------
-def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
-                       polygon_filtering=False,polygon_filtering_cam_pos= True ,alignment=False):
+def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
+                       polygon_filtering=False, alignment=False):
     try:
         start_ortho = timer()
-        path, file = os.path.split(each_ortho)
+        path, file = os.path.split(orthophoto)
         name, _ = os.path.splitext(file)
+
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
         dem_path = source['dem_path']
         # Get camera position from the camera file
         lon, lat, zcam = get_camera_position(cam_path, name)
 
-        # Optional: Check if the image is within a polygon
-        if polygon_filtering_cam_pos:
-            inside = is_pos_inside_polygon(lat, lon, source)
-            if not inside:
-                raise ValueError(f"The Image {file} is not inside any polygon")
-
         # Optional: Ensure DEM and orthophoto are aligned
         if alignment:
-            if not check_alignment(dem_path, each_ortho):
+            if not check_alignment(dem_path, orthophoto):
                 coreg_path = os.path.join(out, f"coreg_{file}")
-                each_ortho = coregister_and_resample(each_ortho, dem_path, coreg_path, target_resolution=None,
+                orthophoto = coregister_and_resample(orthophoto, dem_path, coreg_path, target_resolution=None,
                                                      resampling=Resampling.bilinear)
-                if not check_alignment(dem_path, each_ortho):
+                if not check_alignment(dem_path, orthophoto):
                     raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
 
         # Read DEM with transformation so that coordinates match the polygon system (UTM)
         df_dem = read_dem(dem_path, precision, transform_to_utm=True, target_crs="EPSG:32632")
 
         # Read orthophoto bands (assumed to be transformed already if needed)
-        df_allbands = read_orthophoto_bands(each_ortho, precision)
+        df_allbands = read_orthophoto_bands(orthophoto, precision)
 
         # Merge DEM and orthophoto data on (Xw, Yw)
         df_merged = merge_data(df_dem, df_allbands, precision, debug=None)
@@ -473,7 +464,7 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
         # Filter merged DataFrame by polygon
         # After merging, filter rows outside the polygon:
 
-        plotting_raster(df_merged)
+        plotting_raster(df_merged, source["plot out"], file)
 
         # Save merged data as parquet
         save_parquet(df_merged, out, source, iteration, file)
@@ -490,7 +481,7 @@ def process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, 
 # ------------------------------
 def build_database(tuple_chunk, source, exiftool_path):
     iteration = tuple_chunk[0]
-    images = tuple_chunk[1]
+    image = tuple_chunk[1]
     out = source['out']
     cam_path = source['cam_path']
     dem_path = source['dem_path']
@@ -499,9 +490,9 @@ def build_database(tuple_chunk, source, exiftool_path):
     logging.info(f"Starting DEM processing for iteration {iteration}")
     start_DEM_i = timer()
     path_flat = retrieve_orthophoto_paths(ori)
-    for each_ortho in tqdm(images, desc=f"Processing iteration {iteration}"):
-        process_orthophoto(each_ortho, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
-                           polygon_filtering=True)
+    process_orthophoto(image, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
+                       polygon_filtering=True)
+
     end_DEM_i = timer()
     logging.info(f"Total time for iteration {iteration}: {end_DEM_i - start_DEM_i:.2f} seconds")
 
@@ -510,32 +501,27 @@ def main():
     config_objecture_logging()
     config = config_object("config_file.yaml")
 
-    sources = [
-        {
-            'out': config.main_extract_out,
-            'cam_path': config.main_extract_cam_path,
-            'dem_path': config.main_extract_dem_path,
-            'ori': config.main_extract_ori,
-            'name': config.main_extract_name,
-            'path_list_tag': config.main_extract_path_list_tag,
-            'precision': config.precision,
-            'Polygon_path': config.main_polygon_path,
-            'start date': config.start_date,
-            'time zone': config.time_zone,
-        }
-    ]
-    exiftool_path = r"exiftool"
-    for source in sources:
-        path_list = glob.glob(source['path_list_tag'])
-        logging.info(f"Processing {len(path_list)} images sequentially")
+    source= {'out': config.main_extract_out,
+               'cam_path': config.main_extract_cam_path,
+               'dem_path': config.main_extract_dem_path,
+               'ori': config.main_extract_ori,
+               'name': config.main_extract_name,
+               'path_list_tag': config.main_extract_path_list_tag,
+               'precision': config.precision,
+               'Polygon_path': config.main_polygon_path,
+               'start date': config.start_date,
+               'time zone': config.time_zone,
+               'plot out': config.plot_out}
 
-        # Process each image directly without splitting into chunks
-        for i, image_path in enumerate(path_list):
-            logging.info(f"Processing image {i + 1}/{len(path_list)}: {os.path.basename(image_path)}")
-            # Create a single-item list to maintain compatibility with build_database
-            single_image = [image_path]
-            # Process directly with the current iteration number
-            build_database((i, single_image), source, exiftool_path)
+    exiftool_path = r"exiftool"
+    path_list = glob.glob(source['path_list_tag'])
+    logging.info(f"Processing {len(path_list)} images sequentially")
+
+    # Process each image directly without splitting into chunks
+    for i, image_path in tqdm(enumerate(path_list)):
+        logging.info(f"Processing image {i + 1}/{len(path_list)}: {os.path.basename(image_path)}")
+        # Create a single-item list to maintain compatibility with build_database
+        build_database((i, image_path), source, exiftool_path)
 
 
 if __name__ == "__main__":

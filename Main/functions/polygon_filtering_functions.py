@@ -11,7 +11,7 @@ from shapely.geometry import Point
 import geopandas as gpd
 import polars as pl
 from pyproj import CRS
-
+from shapely.geometry.geo import box
 
 
 def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
@@ -191,8 +191,19 @@ def create_union_polygon(gdf_poly):
     return union_poly
 
 
-def check_data_polygon_overlap(df, union_poly, debug=True, max_runtime_seconds=600):
-    """Check if data and polygon have overlapping extents."""
+def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds=600):
+    """
+    Check if the data points and polygons have overlapping extents.
+
+    Args:
+        df: Polars DataFrame with point data
+        polygons_gdf: GeoDataFrame containing polygons
+        debug: Whether to enable debug output
+        max_runtime_seconds: Maximum runtime for timeout warnings
+
+    Returns:
+        Tuple of (has_overlap, data_bounds)
+    """
     phase_start = time.time()
 
     # Get data bounds with individual operations
@@ -201,21 +212,39 @@ def check_data_polygon_overlap(df, union_poly, debug=True, max_runtime_seconds=6
     ymin = df.select(pl.min("Yw")).item()
     ymax = df.select(pl.max("Yw")).item()
 
-    # Create bounds arrays
+    # Create bounds array
     data_bounds = [xmin, ymin, xmax, ymax]
-    poly_bounds = union_poly.bounds  # (xmin, ymin, xmax, ymax)
 
-    # Check for potential overlap
+    # Get the total bounds of all polygons
+    poly_bounds = polygons_gdf.total_bounds  # [xmin, ymin, xmax, ymax]
+
+    # Check for potential overlap of bounding boxes
     overlap_x = min(data_bounds[2], poly_bounds[2]) - max(data_bounds[0], poly_bounds[0])
     overlap_y = min(data_bounds[3], poly_bounds[3]) - max(data_bounds[1], poly_bounds[1])
 
-    has_overlap = overlap_x > 0 and overlap_y > 0
+    # If bounding boxes don't overlap, no point in checking individual polygons
+    if overlap_x <= 0 or overlap_y <= 0:
+        has_overlap = False
+    else:
+        # For more precision, we could check each polygon individually
+        # This would be slower but more accurate for complex arrangements
+        # In most cases, the bounding box check is sufficient
+        has_overlap = True
+
+        # Optional: Count how many polygons actually overlap with data bounds
+        data_box = box(xmin, ymin, xmax, ymax)
+        overlapping_polygons = sum(1 for geom in polygons_gdf.geometry if geom.intersects(data_box))
+
+        if overlapping_polygons == 0:
+            has_overlap = False
+            logging.warning("Bounding boxes overlap, but no individual polygons intersect data extent")
+        else:
+            logging.info(f"Found {overlapping_polygons} polygons that may contain points")
 
     phase_time = time.time() - phase_start
     logging.info(f"Checked for overlap in {phase_time:.2f}s. Has overlap: {has_overlap}")
 
     return has_overlap, data_bounds
-
 
 def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds):
     """Generate a plot showing why there is no overlap."""
@@ -233,27 +262,50 @@ def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_run
         plt.close()
 
 
-def process_chunk(chunk_indices, df, union_polygon, target_crs):
-    """Process a chunk of points to check if they're inside a polygon."""
+def process_chunk(chunk_indices, df, polygons_gdf, target_crs, id_field="id"):
+    """
+    Process a chunk of points to check which polygon they fall within.
+
+    Args:
+        chunk_indices: Tuple of (start_idx, end_idx) for the chunk
+        df: The Polars dataframe containing all points
+        polygons_gdf: GeoDataFrame containing polygons with ID field
+        target_crs: Coordinate reference system
+        id_field: Field in the GeoJSON/shapefile containing the plot ID
+
+    Returns:
+        GeoDataFrame with points and their assigned plot IDs
+    """
     try:
         start_idx, end_idx = chunk_indices
         # Get chunk from the dataframe
         chunk = df.slice(start_idx, end_idx - start_idx)
         chunk_pd = chunk.to_pandas()
 
-        # Create points from coordinates
+        # Create points GeoDataFrame
         points = [Point(x, y) for x, y in zip(chunk_pd['Xw'], chunk_pd['Yw'])]
+        points_gdf = gpd.GeoDataFrame(chunk_pd, geometry=points, crs=target_crs)
 
-        # Create GeoDataFrame
-        gdf = gpd.GeoDataFrame(chunk_pd, geometry=points, crs=target_crs)
+        # Initialize plot_id column with None
+        points_gdf['plot_id'] = None
 
-        # Filter points within polygon
-        result = gdf[gdf.geometry.within(union_polygon)]
+        # For each polygon, find points within it and assign plot ID
+        for idx, polygon in polygons_gdf.iterrows():
+            # Points within this specific polygon
+            mask = points_gdf.geometry.within(polygon.geometry)
+            if mask.any():
+                # Get the ID from the polygon
+                plot_id = polygon[id_field] if id_field in polygon else f"plot_{idx}"
+                # Assign the ID to all points within this polygon
+                points_gdf.loc[mask, 'plot_id'] = plot_id
+
+        # Return only points that got assigned a plot_id (i.e., are in any polygon)
+        result = points_gdf[points_gdf['plot_id'].notna()]
         return result if not result.empty else None
+
     except Exception as e:
         logging.error(f"Error processing chunk {start_idx}-{end_idx}: {e}")
         return None
-
 
 def prepare_chunks(df):
     """Prepare chunk boundaries for parallel processing."""
@@ -280,13 +332,17 @@ def prepare_chunks(df):
     return chunk_indices, max_workers, n_points, n_chunks
 
 
-def process_chunks_parallel(df, chunk_indices, max_workers, union_poly, target_crs, n_chunks, start_time,
-                            max_runtime_seconds):
+def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target_crs, id_field,
+                            n_chunks, start_time, max_runtime_seconds):
     """Process chunks in parallel using ThreadPoolExecutor."""
     phase_start = time.time()
 
     # Use a partial function with fixed arguments
-    process_func = partial(process_chunk, df=df, union_polygon=union_poly, target_crs=target_crs)
+    process_func = partial(process_chunk,
+                           df=df,
+                           polygons_gdf=polygons_gdf,
+                           target_crs=target_crs,
+                           id_field=id_field)
 
     filtered_chunks = []
     processed_count = 0
@@ -382,15 +438,17 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_fo
     ax.set_title(title)
     ax.grid(True)
     ax.legend()
-
+    plt.show()
     # Save the plot
     plt.tight_layout()
+    print(gdf_filtered)
     plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=200)
     plt.close()
 
 
-def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.1,
-                         debug=True, max_runtime_seconds=600, sample_for_debug=5000):
+def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id",
+                         shrinkage=0.1, debug=True, max_runtime_seconds=600,
+                         sample_for_debug=5000):
     """
     Filter a Polars DataFrame to only include points that fall within polygons.
     Implements timeouts and performance optimizations.
@@ -427,42 +485,42 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
         logging.info(f"Points before filtering: {points_before:,}")
 
         # --- PHASE 1: Load and prepare polygons ---
-        gdf_poly = load_and_prepare_polygons(polygon_path, target_crs)
+        # Load and prepare polygons
+        polygons_gdf = load_and_prepare_polygons(polygon_path, target_crs)
 
-        if gdf_poly.empty:
+        if polygons_gdf.empty:
             logging.error(f"No valid polygons in {polygon_path}")
             return df
 
-        # --- PHASE 2: Apply polygon shrinkage if needed ---
-        gdf_poly = apply_polygon_shrinkage(gdf_poly, shrinkage)
+        # Apply polygon shrinkage if needed
+        polygons_gdf = apply_polygon_shrinkage(polygons_gdf, shrinkage)
 
-        if gdf_poly.empty:
+        if polygons_gdf.empty:
             logging.warning(f"All polygons empty after shrinkage. Returning original data.")
             return df
 
-        # --- PHASE 3: Create union polygon for faster containment checks ---
-        union_poly = create_union_polygon(gdf_poly)
-
-        # --- PHASE 4: Check for overlap between data and polygons ---
-        has_overlap, data_bounds = check_data_polygon_overlap(df, union_poly, debug, max_runtime_seconds)
+        # Check for overlap between data and polygons
+        has_overlap, data_bounds = check_data_polygon_overlap(df, polygons_gdf, debug, max_runtime_seconds)
 
         if not has_overlap:
             logging.warning("No overlap between data and polygons. Returning original data.")
             if debug:
-                plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds)
+                plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds)
             return df
+
 
         # Check if we've been running too long already
         if time.time() - start_time > max_runtime_seconds * 0.6:
             logging.warning(f"Already used > 60% of max runtime ({max_runtime_seconds}s). Returning original data.")
             return df
 
-        # --- PHASE 5: Prepare chunks for parallel processing ---
+        # --- PHASE 5: Prepare chunks for parallfel processing ---
         chunk_indices, max_workers, n_points, n_chunks = prepare_chunks(df)
 
         # --- PHASE 6: Process chunks in parallel ---
         filtered_chunks, processed_count, phase_time = process_chunks_parallel(
-            df, chunk_indices, max_workers, union_poly, target_crs,
+            df, chunk_indices, max_workers, polygons_gdf, target_crs,
+            id_field,  # This is the default id_field, you can make it a parameter
             n_chunks, start_time, max_runtime_seconds
         )
 
@@ -495,19 +553,16 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", shrinkage=0.
             logging.warning("No points after filtering. Returning original data.")
             return df
 
+
+        print(df)
+
         # --- PHASE 8: Debug visualization ---
         if debug and time.time() - start_time < max_runtime_seconds * 0.9:
             try:
                 gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
-                plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug)
+                plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug)
             except Exception as e:
                 logging.error(f"Error generating debug plot: {e}")
-
-        total_time = time.time() - start_time
-        logging.info(
-            f"Total runtime: {total_time:.2f}s for {points_before:,} points ({points_before / total_time:.2f} points/s)")
-
-        return result_df
 
     except TimeoutException:
         logging.warning(f"Function timed out after {max_runtime_seconds} seconds. Returning original data.")

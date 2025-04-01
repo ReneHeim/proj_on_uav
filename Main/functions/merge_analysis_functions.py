@@ -79,7 +79,7 @@ def merge_data(df_dem, df_allbands, precision, debug="verbose"):
 
 
 
-def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="coordinate_alignments"):
+def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="Plots/coordinate_alignments"):
     """Visualize how well the coordinates align between datasets
 
     Args:
@@ -108,10 +108,9 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
         match = pattern.match(file)
         if match:
             indices.append(int(match.group(1)))
-
+    IMAGE_NAME
     # Determine next index (0 if no files exist, otherwise max+1)
     next_index = 0 if not indices else max(indices) + 1
-
     # Round coordinates for analysis
     df_dem = df_dem.with_columns([
         pl.col("Xw").round(precision),

@@ -10,10 +10,14 @@
 This code copiles all functions that will be called later by other codes. For the sake of clarity
 these functions are defined in this separated piece of code.
 '''
+import os
 
+import matplotlib.pyplot as plt
 
 import numpy as np
 import math
+
+
 def pixelToWorldCoords(pX, pY, geoTransform):
     ''' Input image pixel coordinates and get world coordinates according to geotransform using gdal
     '''
@@ -145,21 +149,28 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
     return easting, northing
 
 
-def plotting_raster(df_merged):
-    import matplotlib.pyplot as plt
+def plotting_raster(df_merged,folder_name="Plots/bands_distribution", file="FILE"):
+
+
+
+    # Create the folder if it doesn't exist
+    os.makedirs(folder_name, exist_ok=True)
+
     # For debugging: convert to pandas and plot distributions
     df_pd = df_merged.to_pandas()
-    print(df_pd.describe())
     plt.figure(figsize=(8, 6))
     plt.hist(df_pd['elev'], bins=50, color='skyblue', edgecolor='black')
     plt.xlabel('Elevation')
     plt.ylabel('Frequency')
-    plt.title('Elevation Distribution')
+    plt.title('Elevation Distribution of {}'.format(file))
+    plt.savefig(os.path.join(folder_name, f'Elevation Distribution_{file}.png'), dpi=200)
     plt.show()
+
     for band in [col for col in df_pd.columns if col.startswith('band')]:
         plt.figure(figsize=(8, 6))
         plt.hist(df_pd[band], bins=50, alpha=0.7, edgecolor='black')
         plt.xlabel(f'{band} Values')
         plt.ylabel('Frequency')
-        plt.title(f'Distribution of {band}')
+        plt.title(f'Distribution of {band} Values in {file}')
+        plt.savefig(os.path.join(folder_name, f'{band}_distribution_{file}.png'), dpi=200)
         plt.show()

@@ -1,3 +1,4 @@
 config_file.yaml
 process.log
-coordinate_alignments
+Plots/coordinate_alignments
+/Plots/

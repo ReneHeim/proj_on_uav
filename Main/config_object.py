@@ -47,6 +47,7 @@ class config_object():
         self.filter_out = os.path.join(cfg.outputs.paths.main_out, "filter")
         self.filter_radius = cfg.inputs.settings.filter_radius
         self.filter_groung_truth_coordinates = cfg.inputs.paths.ground_truth_coordinates
+        self.plot_out = os.path.join(cfg.outputs.paths.main_out, "plots")
 
         self.merging_input_dir = self.filter_out
         self.merging_out = os.path.join(cfg.outputs.paths.main_out, "merge")
@@ -81,6 +82,14 @@ class config_object():
         self._validate_path(self.filter_groung_truth_coordinates, 'file')
         self._validate_path(self.orthomosaic_ortho_path, 'file')
         self._validate_path(self.main_extract_path_list_tag, allow_glob=True)
+        self._validate_path(self.main_polygon_path, 'file')
+
+        # Create output directories if they don't exist
+        os.makedirs(self.main_extract_out, exist_ok=True)
+        os.makedirs(self.filter_out, exist_ok=True)
+        os.makedirs(self.merging_out, exist_ok=True)
+        os.makedirs(self.plot_out, exist_ok=True)
+
 
         for ori_path in self.main_extract_ori:
             self._validate_path(ori_path, 'dir')
