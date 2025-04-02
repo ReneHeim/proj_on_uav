@@ -135,6 +135,7 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
 # ------------------------------
 def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
     start_angles = timer()
+    print(df_merged.shape)
     try:
         df_merged = df_merged.with_columns([
             (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
@@ -450,12 +451,13 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
 
         if polygon_filtering:
-            polygon_path = source["Polygon_path"]  # path to your polygon file
-            df_merged = filter_df_by_polygon(df_merged, polygon_path, target_crs="EPSG:32632")
+            df_merged = filter_df_by_polygon(df_merged,polygon_path = source["Polygon_path"],
+                                             plots_out= source["plot out"] ,target_crs="EPSG:32632",
+                                             img_name= file)
 
         # Retrieve solar angles from position and time
         sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
-
+        print(df_merged)
         # Calculate viewing angles
         df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)
         # Add file name column
@@ -464,7 +466,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         # Filter merged DataFrame by polygon
         # After merging, filter rows outside the polygon:
 
-        plotting_raster(df_merged, source["plot out"], file)
+        plotting_raster(df_merged, source["plot out"]+"/bands_data", file)
 
         # Save merged data as parquet
         save_parquet(df_merged, out, source, iteration, file)

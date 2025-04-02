@@ -149,7 +149,7 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
     return easting, northing
 
 
-def plotting_raster(df_merged,folder_name="Plots/bands_distribution", file="FILE"):
+def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
 
 
 

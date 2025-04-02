@@ -90,6 +90,13 @@ class config_object():
         os.makedirs(self.merging_out, exist_ok=True)
         os.makedirs(self.plot_out, exist_ok=True)
 
+        #Subplot Folders
+        os.makedirs(self.plot_out+ "/bands_data", exist_ok=True)
+        os.makedirs(self.plot_out+ "/merge_data", exist_ok=True)
+        os.makedirs(self.plot_out+ "/polygon_filtering_data", exist_ok=True)
+
+
+
 
         for ori_path in self.main_extract_ori:
             self._validate_path(ori_path, 'dir')

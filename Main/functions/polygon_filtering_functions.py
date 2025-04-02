@@ -246,7 +246,8 @@ def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds
 
     return has_overlap, data_bounds
 
-def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds):
+def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds,
+                    plots_out=None, img_name = None):
     """Generate a plot showing why there is no overlap."""
     plt.figure(figsize=(10, 8))
     gdf_poly.plot(alpha=0.5, edgecolor='red')
@@ -255,7 +256,11 @@ def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_run
              'b--', label='Data bounds')
     plt.title("No Overlap Between Data and Polygons")
     plt.legend()
-    plt.savefig('no_overlap_issue.png', dpi=200)
+
+    if plots_out != None:
+        plt.savefig(f'{plots_out}/polygon_filtering_data/no_overlap_{img_name}.png', dpi=200)
+    else:
+        plt.savefig(f'no_overlap_issue.png', dpi=200)
     if time.time() - start_time < max_runtime_seconds - 5:  # Only show if we have time
         plt.show()
     else:
@@ -405,7 +410,7 @@ def combine_chunk_results(filtered_chunks, n_points, phase_time):
         return None
 
 
-def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug=5000):
+def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug=5000, plots_out=None, img_name = None):
     """Generate a visualization of the filtered points within polygons."""
     fig, ax = plt.subplots(1, 1, figsize=(10, 8))
 
@@ -438,17 +443,22 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_fo
     ax.set_title(title)
     ax.grid(True)
     ax.legend()
-    plt.show()
+
     # Save the plot
     plt.tight_layout()
     print(gdf_filtered)
-    plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=200)
+    if plots_out != None:
+        os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
+        plt.savefig(f'{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png', dpi=200)
+    else:
+        plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=200)
     plt.close()
+    plt.show()
 
 
 def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id",
                          shrinkage=0.1, debug=True, max_runtime_seconds=600,
-                         sample_for_debug=5000):
+                         sample_for_debug=5000, plots_out=None, img_name = None):
     """
     Filter a Polars DataFrame to only include points that fall within polygons.
     Implements timeouts and performance optimizations.
@@ -505,7 +515,7 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
         if not has_overlap:
             logging.warning("No overlap between data and polygons. Returning original data.")
             if debug:
-                plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds)
+                plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds, img_name=img_name, plots_out=plots_out)
             return df
 
 
@@ -560,9 +570,11 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
         if debug and time.time() - start_time < max_runtime_seconds * 0.9:
             try:
                 gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
-                plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug)
+                plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug, plots_out, img_name )
             except Exception as e:
                 logging.error(f"Error generating debug plot: {e}")
+            return result_df
+
 
     except TimeoutException:
         logging.warning(f"Function timed out after {max_runtime_seconds} seconds. Returning original data.")
