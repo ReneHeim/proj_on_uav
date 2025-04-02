@@ -246,22 +246,155 @@ def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds
 
     return has_overlap, data_bounds
 
-def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds,
-                    plots_out=None, img_name = None):
-    """Generate a plot showing why there is no overlap."""
-    plt.figure(figsize=(10, 8))
-    gdf_poly.plot(alpha=0.5, edgecolor='red')
-    plt.plot([data_bounds[0], data_bounds[2], data_bounds[2], data_bounds[0], data_bounds[0]],
-             [data_bounds[1], data_bounds[1], data_bounds[3], data_bounds[3], data_bounds[1]],
-             'b--', label='Data bounds')
-    plt.title("No Overlap Between Data and Polygons")
-    plt.legend()
 
-    if plots_out != None:
-        plt.savefig(f'{plots_out}/polygon_filtering_data/no_overlap_{img_name}.png', dpi=200)
+def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds,
+                    plots_out=None, img_name=None):
+    """
+    Generate an enhanced plot showing why there is no overlap between data and polygons.
+
+    Args:
+        gdf_poly: GeoDataFrame containing polygons
+        data_bounds: List of [xmin, ymin, xmax, ymax] for data extent
+        polygon_basename: Base name for the plot file
+        start_time: Start time of the process
+        max_runtime_seconds: Maximum runtime allowed
+        plots_out: Output directory for plots
+        img_name: Optional name for the image file
+    """
+    # Create figure with two subplots - main plot and inset for context
+    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+
+    # Get total bounds of polygons
+    poly_bounds = gdf_poly.total_bounds  # [xmin, ymin, xmax, ymax]
+
+    # Create data bounding box as polygon for better visualization
+    data_box = box(data_bounds[0], data_bounds[1], data_bounds[2], data_bounds[3])
+    data_box_gdf = gpd.GeoDataFrame(geometry=[data_box], crs=gdf_poly.crs)
+
+    # Plot polygons
+    gdf_poly.plot(ax=ax, alpha=0.5, edgecolor='red', facecolor='lightcoral',
+                  label='Polygon Areas')
+
+    # Plot data bounds with distinct style
+    data_box_gdf.plot(ax=ax, facecolor='none', edgecolor='blue',
+                      linestyle='--', linewidth=2, label='Data Bounds')
+
+    # Add polygon IDs as text on each polygon
+    for idx, poly in gdf_poly.iterrows():
+        # Get the centroid of the polygon for label placement
+        centroid = poly.geometry.centroid
+
+        # Determine the polygon ID to display
+        if 'id' in poly:
+            poly_id = poly['id']
+        elif 'plot_id' in poly:
+            poly_id = poly['plot_id']
+        else:
+            poly_id = f"Plot {idx}"
+
+        # Add text annotation with the polygon ID
+        ax.text(
+            centroid.x, centroid.y,
+            poly_id,
+            fontsize=9,
+            ha='center', va='center',
+            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3')
+        )
+
+    # Calculate minimum distance between polygons and data bounds
+    min_distance = float('inf')
+    closest_poly_idx = None
+
+    for idx, poly in gdf_poly.iterrows():
+        distance = poly.geometry.distance(data_box)
+        if distance < min_distance:
+            min_distance = distance
+            closest_poly_idx = idx
+
+    # Create a line connecting closest points if we found a minimum distance
+    if closest_poly_idx is not None and min_distance < float('inf'):
+        # Get the closest polygon
+        closest_poly = gdf_poly.iloc[closest_poly_idx].geometry
+
+        # Get the closest points between data_box and closest_poly
+        # This is approximate - shapely doesn't have a direct "closest points" function
+        # We'll use interpolation on the boundary to find points
+
+        # Simple approximation: connect centroids with a line
+        data_centroid = data_box.centroid
+        poly_centroid = closest_poly.centroid
+
+        # Draw connection line
+        ax.plot([data_centroid.x, poly_centroid.x],
+                [data_centroid.y, poly_centroid.y],
+                'k-', alpha=0.6, linewidth=1.5, linestyle=':')
+
+        # Add distance text at midpoint
+        midpoint_x = (data_centroid.x + poly_centroid.x) / 2
+        midpoint_y = (data_centroid.y + poly_centroid.y) / 2
+
+        # Format distance nicely - show in kilometers if large, meters if small
+        distance_text = f"≈ {min_distance:.1f} m" if min_distance < 1000 else f"≈ {min_distance / 1000:.2f} km"
+
+        ax.text(midpoint_x, midpoint_y, distance_text,
+                fontsize=10, ha='center', va='center',
+                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+
+    # Determine axis limits to show both
+    x_min = min(data_bounds[0], poly_bounds[0])
+    y_min = min(data_bounds[1], poly_bounds[1])
+    x_max = max(data_bounds[2], poly_bounds[2])
+    y_max = max(data_bounds[3], poly_bounds[3])
+
+    # Add some padding
+    padding = 0.1  # 10% padding
+    x_range = x_max - x_min
+    y_range = y_max - y_min
+
+    x_min -= x_range * padding
+    x_max += x_range * padding
+    y_min -= y_range * padding
+    y_max += y_range * padding
+
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(y_min, y_max)
+
+    # Add a context inset if areas are far apart
+    # (Defined as: distance is more than 5x the average dimension of the boxes)
+    avg_data_dim = ((data_bounds[2] - data_bounds[0]) + (data_bounds[3] - data_bounds[1])) / 2
+    avg_poly_dim = ((poly_bounds[2] - poly_bounds[0]) + (poly_bounds[3] - poly_bounds[1])) / 2
+    avg_dim = (avg_data_dim + avg_poly_dim) / 2
+
+    if min_distance > 5 * avg_dim:
+        # Areas are far apart, add an inset with the global view
+        axins = ax.inset_axes([0.05, 0.05, 0.3, 0.3])
+        gdf_poly.plot(ax=axins, color='red', alpha=0.5)
+        data_box_gdf.plot(ax=axins, color='blue', alpha=0.5)
+        axins.set_title("Overview")
+        axins.set_xticks([])
+        axins.set_yticks([])
+
+
+    # Set title and labels
+    ax.set_title("No Overlap Between Data and Polygons", fontsize=14)
+    ax.set_xlabel('Easting (m)', fontsize=12)
+    ax.set_ylabel('Northing (m)', fontsize=12)
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='upper left')
+
+    # Save the plot
+    plt.tight_layout()
+
+    if plots_out is not None:
+        os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
+        output_path = f'{plots_out}/polygon_filtering_data/no_overlap_{img_name}.png'
+        plt.savefig(output_path, dpi=300)
+        logging.info(f"No overlap plot saved to {output_path}")
     else:
-        plt.savefig(f'no_overlap_issue.png', dpi=200)
-    if time.time() - start_time < max_runtime_seconds - 5:  # Only show if we have time
+        plt.savefig(f'no_overlap_issue.png', dpi=300)
+
+    # Only display if we have enough time remaining
+    if time.time() - start_time < max_runtime_seconds - 5:
         plt.show()
     else:
         plt.close()
@@ -410,26 +543,75 @@ def combine_chunk_results(filtered_chunks, n_points, phase_time):
         return None
 
 
-def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug=5000, plots_out=None, img_name = None):
-    """Generate a visualization of the filtered points within polygons."""
-    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug=5000, plots_out=None,
+                 img_name=None):
+    """
+    Generate a visualization of the filtered points within polygons.
+    Randomly samples points and displays polygon IDs on the map.
 
-    # Plot polygons
+    Args:
+        gdf_poly: GeoDataFrame containing polygons with ID field
+        gdf_filtered: GeoDataFrame containing filtered points
+        target_crs: Coordinate reference system
+        polygon_basename: Base name for the plot file
+        sample_for_debug: Maximum number of points to sample for visualization
+        plots_out: Output directory for plots
+        img_name: Optional name for the image file
+    """
+    fig, ax = plt.subplots(1, 1, figsize=(12, 10))
+
+    # Plot polygons with a semi-transparent fill
     gdf_poly.plot(ax=ax, alpha=0.3, edgecolor='black')
 
     points_after = len(gdf_filtered)
 
     # Sample points for visualization
     if points_after > sample_for_debug:
-        # Convert to pandas for easy sampling
-        sample_df = gdf_filtered.sample(sample_for_debug)
+        # Ensure truly random sampling by using numpy's random state
+        import numpy as np
+        np.random.seed()  # Use system time as seed for true randomness
+
+        # For pandas DataFrame
+        if isinstance(gdf_filtered, pd.DataFrame):
+            # Take a fully random sample (not sequential)
+            random_indices = np.random.choice(points_after, size=min(sample_for_debug, points_after), replace=False)
+            sample_df = gdf_filtered.iloc[random_indices]
+
+        # For GeoDataFrame
+        elif isinstance(gdf_filtered, gpd.GeoDataFrame):
+            # Use GeoDataFrame's sample method with random_state=None for true randomness
+            sample_df = gdf_filtered.sample(min(sample_for_debug, points_after), random_state=None)
+
+        # For Polars DataFrame
+        elif hasattr(gdf_filtered, 'sample') and callable(getattr(gdf_filtered, 'sample')):
+            # If it's a Polars DataFrame with sample method
+            sample_df = gdf_filtered.sample(n=min(sample_for_debug, points_after))
+            # Convert to pandas for the rest of the processing
+            if hasattr(sample_df, 'to_pandas'):
+                sample_df = sample_df.to_pandas()
+
+        # Fallback to manual random sampling
+        else:
+            logging.info(f"Using manual random sampling for {type(gdf_filtered)}")
+            # Convert to pandas first if needed
+            if hasattr(gdf_filtered, 'to_pandas'):
+                temp_df = gdf_filtered.to_pandas()
+            else:
+                temp_df = pd.DataFrame(gdf_filtered)
+
+            random_indices = np.random.choice(len(temp_df), size=min(sample_for_debug, len(temp_df)), replace=False)
+            sample_df = temp_df.iloc[random_indices]
+
+        # Create GeoDataFrame from the sampled points
         sample_points = gpd.GeoDataFrame(
             sample_df,
             geometry=[Point(x, y) for x, y in zip(sample_df['Xw'], sample_df['Yw'])],
             crs=target_crs
         )
-        sample_points.plot(ax=ax, markersize=2, color='green', alpha=0.5, label='Points Inside')
-        title = f"Points Inside Polygons (Sample of {sample_for_debug:,} from {points_after:,})"
+
+        # Plot sampled points
+        sample_points.plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Points Inside')
+        title = f"Points Inside Polygons (Random Sample of {len(sample_points):,} from {points_after:,})"
     else:
         # Plot all points if few enough
         inside_points = gpd.GeoDataFrame(
@@ -437,24 +619,71 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_fo
             geometry=[Point(x, y) for x, y in zip(gdf_filtered['Xw'], gdf_filtered['Yw'])],
             crs=target_crs
         )
-        inside_points.plot(ax=ax, markersize=2, color='green', alpha=0.5, label='Points Inside')
+        inside_points.plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Points Inside')
         title = f"All {points_after:,} Points Inside Polygons"
 
+    # Add polygon IDs as text on each polygon
+    for idx, poly in gdf_poly.iterrows():
+        # Get the centroid of the polygon for label placement
+        centroid = poly.geometry.centroid
+
+        # Determine the polygon ID to display
+        if 'id' in poly:
+            poly_id = poly['id']
+        elif 'plot_id' in poly:
+            poly_id = poly['plot_id']
+        else:
+            poly_id = f"plot {idx}"
+
+        # Add text annotation with the polygon ID
+        plt.text(
+            centroid.x, centroid.y,
+            poly_id,
+            fontsize=10,
+            ha='center', va='center',
+            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3')
+        )
+
+    # Add a color-coded point count per polygon if we have points
+    if points_after > 0 and 'plot_id' in gdf_filtered.columns:
+        # Get count by polygon
+        polygon_counts = gdf_filtered.groupby('plot_id').size()
+
+        # Add a table with counts to the figure
+        if len(polygon_counts) > 0:
+            cell_text = [[f"{id}", f"{count}"] for id, count in polygon_counts.items()]
+            count_table = plt.table(
+                cellText=cell_text,
+                colLabels=['Polygon ID', 'Point Count'],
+                loc='lower right',
+                cellLoc='center',
+                bbox=[0.65, 0.02, 0.3, min(0.3, 0.02 * len(polygon_counts))]
+            )
+            count_table.auto_set_font_size(False)
+            count_table.set_fontsize(9)
+            for key, cell in count_table.get_celld().items():
+                if key[0] == 0:  # Header row
+                    cell.set_text_props(weight='bold')
+
     ax.set_title(title)
-    ax.grid(True)
-    ax.legend()
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc='upper left')
+
+    # Improve axis appearance
+    ax.set_xlabel('Easting (m)')
+    ax.set_ylabel('Northing (m)')
 
     # Save the plot
     plt.tight_layout()
-    print(gdf_filtered)
-    if plots_out != None:
+    if plots_out is not None:
         os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
-        plt.savefig(f'{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png', dpi=200)
+        plt.savefig(f'{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png', dpi=300)
     else:
-        plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=200)
-    plt.close()
-    plt.show()
+        plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=300)
 
+    # Show plot first, then close
+    plt.show()
+    plt.close()
 
 def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id",
                          shrinkage=0.1, debug=True, max_runtime_seconds=600,
