@@ -1,82 +1,166 @@
+import os
+
 import polars as pl
 import logging
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio as rio
+from rasterio.enums import Resampling
+from rasterio.warp import calculate_default_transform, reproject
 from scipy.stats import gaussian_kde
 from timeit import default_timer as timer
 
-# ------------------------------
-# Merge DEM and Orthophoto Data on Coordinates
-# ------------------------------
-def merge_data(df_dem, df_allbands, precision, debug="verbose"):
+
+def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
+    """
+    Merges the DEM and orthophoto (band) data by reprojecting the DEM onto the band grid
+    and then sampling the DEM at each band pixel center. This assigns each band pixel the correct DEM value.
+
+    Parameters:
+        df_allbands: Polars DataFrame with orthophoto band data.
+        band_path: Path to the orthophoto raster.
+        dem_path: Path to the DEM raster.
+        debug: Debug flag.
+
+    Returns:
+        df_merged: Polars DataFrame with band data and the assigned 'elev' column.
+    """
     start_merge = timer()
     try:
-        # Store original sizes if debugging
+        logging.info("Starting merge_data: Reprojecting DEM to band grid...")
+        # Define a temporary file path for the reprojected DEM
+        temp_dem_path = os.path.join(os.path.dirname(band_path), "temp_reprojected_dem.tif")
+
+        # Reproject DEM to match the band image grid
+        reproject_dem_to_band_grid(dem_path, band_path, temp_dem_path, resampling_method=Resampling.bilinear)
+        logging.info(f"Reprojected DEM saved to {temp_dem_path}")
+
+        logging.info("Sampling reprojected DEM at band pixel centers...")
+        # Sample the reprojected DEM at band pixel centers
+        dem_sampled = sample_dem_at_band_pixels(band_path, temp_dem_path)
+        logging.info("Sampling complete.")
+
+        # Add the sampled DEM values to the band DataFrame.
+        # Since the reprojected DEM is forced to match the band grid, its flattened array
+        # will have the same number of pixels as the DataFrame rows.
+        df_merged = df_allbands.with_columns(pl.Series("elev", dem_sampled.flatten(), dtype=pl.Float32))
+
         if debug:
-            dem_size_original = len(df_dem)
-            bands_size_original = len(df_allbands)
+            merged_size = len(df_merged)
+            logging.info(f"Reproject and sample merge: {merged_size} points merged.")
 
-        # Existing processing code
-        df_dem = df_dem.group_by(["Xw", "Yw"]).agg([
-            pl.col("elev").mean().alias("elev")
-        ])
-        df_dem = df_dem.with_columns([
-            pl.col("Xw").round(precision),
-            pl.col("Yw").round(precision)
-        ]).unique()
-        df_allbands = df_allbands.with_columns([
-            pl.col("Xw").round(precision),
-            pl.col("Yw").round(precision)
-        ]).unique()
-
-        # Store sizes after uniquify if debugging
-        if debug:
-            dem_size_unique = len(df_dem)
-            bands_size_unique = len(df_allbands)
-
-        df_dem_lazy = df_dem.lazy()
-        df_allbands_lazy = df_allbands.lazy()
-        df_merged = df_dem_lazy.join(df_allbands_lazy, on=["Xw", "Yw"], how="inner").collect()
+        # Optionally remove the temporary file
+        if os.path.exists(temp_dem_path):
+            os.remove(temp_dem_path)
+            logging.info(f"Temporary reprojected DEM file {temp_dem_path} removed.")
 
         end_merge = timer()
         merge_time = end_merge - start_merge
-
-
-        # Add comprehensive debugging if enabled
-        if debug:
-            merged_size = len(df_merged)
-            # Calculate statistics
-            stats = {
-                "dem_original": dem_size_original,
-                "bands_original": bands_size_original,
-                "dem_unique": dem_size_unique,
-                "bands_unique": bands_size_unique,
-                "merged": merged_size,
-                "dem_reduction": 100 * (1 - dem_size_unique / dem_size_original),
-                "bands_reduction": 100 * (1 - bands_size_unique / bands_size_original),
-                "merge_retention": 100 * merged_size / min(dem_size_unique, bands_size_unique),
-                "points_per_second": merged_size / merge_time
-            }
-
-            logging.info(f"Merge Debug Statistics:")
-            logging.info(
-                f"  - Original DEM points: {stats['dem_original']:,}, After uniquify: {stats['dem_unique']:,} ({stats['dem_reduction']:.2f}% reduction)")
-            logging.info(
-                f"  - Original band points: {stats['bands_original']:,}, After uniquify: {stats['bands_unique']:,} ({stats['bands_reduction']:.2f}% reduction)")
-            logging.info(f"  - Merged points: {stats['merged']:,} ({stats['merge_retention']:.2f}% retention rate)")
-            logging.info(f"  - Processing speed: {stats['points_per_second']:.2f} points/second")
-
-            # For very detailed debugging, add spatial analysis
-            if debug == "verbose":
-                visualize_coordinate_alignment(df_dem, df_allbands, precision)
-                analyze_kdtree_matching(df_dem, df_allbands, precision)
-
-        logging.info(f"Merged DEM and band data in {merge_time:.2f} seconds")
+        logging.info(f"Merged DEM and band data by sampling in {merge_time:.2f} seconds")
+        logging.info(f"Processing speed: {df_merged.height / merge_time:.2f} points/second")
         return df_merged
     except Exception as e:
         logging.error(f"Error merging data: {e}")
         raise
 
+def reproject_dem_to_band_grid(dem_path, band_path, output_dem_path, resampling_method=Resampling.bilinear):
+    """
+    Reprojects and resamples the DEM to the grid of the band image by forcing the output
+    grid to match the band image's transform, width, and height exactly.
+
+    Parameters:
+        dem_path: Path to the input DEM raster.
+        band_path: Path to the band (orthophoto) raster to use as reference.
+        output_dem_path: Path where the reprojected DEM will be saved.
+        resampling_method: Resampling method (default bilinear for smoother values).
+
+    Returns:
+        output_dem_path (str): Path to the reprojected DEM.
+    """
+    start_reproj = timer()
+    logging.info("Starting DEM reprojection using band grid parameters...")
+
+    # Use the band image's grid parameters directly.
+    with rio.open(band_path) as band_src:
+        band_crs = band_src.crs
+        dst_transform = band_src.transform
+        dst_width = band_src.width
+        dst_height = band_src.height
+        logging.info(f"Band image parameters: CRS: {band_crs}, width: {dst_width}, height: {dst_height}")
+
+    with rio.open(dem_path) as dem_src:
+        logging.info(f"DEM source CRS: {dem_src.crs}")
+        dst_kwargs = dem_src.meta.copy()
+        dst_kwargs.update({
+            'crs': band_crs,
+            'transform': dst_transform,
+            'width': dst_width,
+            'height': dst_height
+        })
+
+        with rio.open(output_dem_path, 'w', **dst_kwargs) as dst:
+            for i in range(1, dem_src.count + 1):
+                logging.info(f"Reprojecting DEM band {i}...")
+                reproject(
+                    source=rio.band(dem_src, i),
+                    destination=rio.band(dst, i),
+                    src_transform=dem_src.transform,
+                    src_crs=dem_src.crs,
+                    dst_transform=dst_transform,
+                    dst_crs=band_crs,
+                    resampling=resampling_method
+                )
+    end_reproj = timer()
+    logging.info(f"DEM reprojection completed in {end_reproj - start_reproj:.2f} seconds.")
+    return output_dem_path
+
+
+def sample_dem_at_band_pixels(band_path, dem_reprojected_path):
+    """
+    Samples the reprojected DEM at the band image's pixel centers by reading the entire DEM array.
+    If the DEM array shape doesn't match the band image shape, it is padded or cropped to match.
+
+    Parameters:
+        band_path: Path to the band (orthophoto) raster.
+        dem_reprojected_path: Path to the DEM reprojected onto the band grid.
+
+    Returns:
+        dem_values (np.ndarray): An array of DEM values with the same shape as the band image.
+    """
+    start_sample = timer()
+    logging.info("Starting DEM sampling by reading the full array...")
+
+    # Read the band image to get its dimensions
+    with rio.open(band_path) as band_src:
+        band_array = band_src.read(1)
+    band_shape = band_array.shape
+    logging.info(f"Band image shape: {band_shape}")
+
+    # Read the DEM reprojected file
+    with rio.open(dem_reprojected_path) as dem_src:
+        logging.info(f"Reprojected DEM dimensions: width={dem_src.width}, height={dem_src.height}")
+        dem_values = dem_src.read(1)
+    dem_shape = dem_values.shape
+    logging.info(f"Reprojected DEM shape: {dem_shape}")
+
+    # If there is a shape mismatch, pad or crop the DEM array to match the band image.
+    if dem_shape != band_shape:
+        logging.warning(f"Mismatch in shapes: DEM shape {dem_shape} vs Band shape {band_shape}. "
+                        f"Attempting to adjust DEM array to match the band image.")
+        new_dem = np.full(band_shape, 0, dtype=dem_values.dtype)  # fill with 0 (or np.nan)
+        # Determine the overlapping region dimensions
+        h = min(dem_shape[0], band_shape[0])
+        w = min(dem_shape[1], band_shape[1])
+        new_dem[:h, :w] = dem_values[:h, :w]
+        dem_values = new_dem
+        logging.info(f"Adjusted DEM shape: {dem_values.shape}")
+
+    end_sample = timer()
+    num_pixels = band_shape[0] * band_shape[1]
+    sample_time = end_sample - start_sample
+    logging.info(f"DEM sampling completed in {sample_time:.2f} seconds for {num_pixels} pixels "
+                 f"({num_pixels / sample_time:.2f} pixels/second).")
+    return dem_values
 
 
 def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="Plots/coordinate_alignments"):

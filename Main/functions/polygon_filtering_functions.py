@@ -207,6 +207,7 @@ def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds
     phase_start = time.time()
 
     # Get data bounds with individual operations
+
     xmin = df.select(pl.min("Xw")).item()
     xmax = df.select(pl.max("Xw")).item()
     ymin = df.select(pl.min("Yw")).item()
@@ -217,6 +218,7 @@ def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds
 
     # Get the total bounds of all polygons
     poly_bounds = polygons_gdf.total_bounds  # [xmin, ymin, xmax, ymax]
+
 
     # Check for potential overlap of bounding boxes
     overlap_x = min(data_bounds[2], poly_bounds[2]) - max(data_bounds[0], poly_bounds[0])

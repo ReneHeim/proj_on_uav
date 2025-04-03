@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
+
+import numpy as np
 import pytz
 import glob
 import os
@@ -95,32 +97,32 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
             rows, cols = np.indices((rst.height, rst.width))
             rows_flat, cols_flat = rows.flatten(), cols.flatten()
             Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset='center')
-            Xw = np.array(Xw, dtype=np.float32)
-            Yw = np.array(Yw, dtype=np.float32)
 
-            # Transform coordinates if needed to match DEM (e.g., UTM)
             if transform_to_utm:
                 transformer = Transformer.from_crs(rst.crs, target_crs, always_xy=True)
                 x_trans, y_trans = transformer.transform(Xw, Yw)
-                Xw = np.array(x_trans, dtype=np.float32).round(precision)
-                Yw = np.array(y_trans, dtype=np.float32).round(precision)
+                Xw = np.array(x_trans).round(precision+4)
+                Yw = np.array(y_trans).round(precision+4)
             else:
-                Xw = np.array(Xw, dtype=np.float32).round(precision)
-                Yw = np.array(Yw, dtype=np.float32).round(precision)
+                Xw = np.array(Xw).round(precision)
+                Yw = np.array(Yw).round(precision)
 
             band_values = b_all.reshape(num_bands, -1).T
 
             data = {
-                'Xw': pl.Series(Xw, dtype=pl.Float32),
-                'Yw': pl.Series(Yw, dtype=pl.Float32)
+                'Xw': pl.Series(Xw),
+                'Yw': pl.Series(Yw)
             }
             for idx in range(num_bands):
                 data[f'band{idx + 1}'] = pl.Series(band_values[:, idx], dtype=pl.Float32)
             df_allbands = pl.DataFrame(data)
+            # Remove uniqueness to see if that preserves the correct pixel values
             df_allbands = df_allbands.with_columns([
                 pl.col("Xw").round(precision),
                 pl.col("Yw").round(precision)
-            ]).unique()
+            ])
+            # Optionally, if duplicates are problematic, reconsider the rounding precision.
+            print(f"Uniques before removal of .unique(): Yw: {len(np.unique(Yw))}, Xw: {len(np.unique(Xw))}")
         end_bands = timer()
         logging.info(
             f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds")
@@ -435,14 +437,13 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
                 if not check_alignment(dem_path, orthophoto):
                     raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
 
-        # Read DEM with transformation so that coordinates match the polygon system (UTM)
-        df_dem = read_dem(dem_path, precision, transform_to_utm=True, target_crs="EPSG:32632")
 
         # Read orthophoto bands (assumed to be transformed already if needed)
         df_allbands = read_orthophoto_bands(orthophoto, precision)
 
         # Merge DEM and orthophoto data on (Xw, Yw)
-        df_merged = merge_data(df_dem, df_allbands, precision, debug=None)
+
+        df_merged = merge_data(df_allbands, orthophoto, dem_path, debug="verbose")
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Check required columns exist
@@ -457,7 +458,10 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
         # Retrieve solar angles from position and time
         sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
-        print(df_merged)
+        print("Uniques: Yw")
+        print(len(df_merged["Yw"].unique()))
+        print("Uniques: Xw")
+        print(len(df_merged["Xw"].unique()))
         # Calculate viewing angles
         df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)
         # Add file name column
