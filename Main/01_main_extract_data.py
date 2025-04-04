@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
+from types import NoneType
 
 import numpy as np
 import pytz
@@ -453,6 +454,8 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
             df_merged = filter_df_by_polygon(df_merged,polygon_path = source["Polygon_path"],
                                              plots_out= source["plot out"] ,target_crs="EPSG:32632",
                                              img_name= file)
+            if type(df_merged) == NoneType:
+                raise ValueError("No Points are inside the polygon, skipping this image.")
 
         #Part 4: Retrieve solar angles from position and time and filter
         sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])

@@ -744,7 +744,7 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
         has_overlap, data_bounds = check_data_polygon_overlap(df, polygons_gdf, debug, max_runtime_seconds)
 
         if not has_overlap:
-            logging.warning("No overlap between data and polygons. Returning original data.")
+            logging.warning("No overlap between data and polygons. Returning None.")
             if debug:
                 plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds, img_name=img_name, plots_out=plots_out)
             return None
@@ -786,8 +786,8 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
 
         # --- PHASE 7: Combine results ---
         if not filtered_chunks:
-            logging.warning("No points found inside polygons. Returning original data.")
-            return df
+            logging.warning("No points found inside polygons. Returning None.")
+            return None
 
         result_df = combine_chunk_results(filtered_chunks, n_points, phase_time)
         if result_df is None or len(result_df) == 0:
