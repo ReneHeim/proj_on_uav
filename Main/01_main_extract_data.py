@@ -12,6 +12,8 @@ from timeit import default_timer as timer
 from pathlib import PureWindowsPath, Path
 import traceback
 import re
+
+from numpy.ma.core import masked
 from pyproj import Transformer
 from rasterio.warp import reproject, Resampling, calculate_default_transform
 from tqdm import tqdm
@@ -91,9 +93,8 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
     try:
         with rio.open(each_ortho) as rst:
             num_bands = rst.count
-            b_all = rst.read()  # Read all bands
-            if b_all.dtype == np.float64:
-                b_all = b_all.astype(np.float32)
+            b_all = rst.read(masked=True)  # Read all bands
+
             rows, cols = np.indices((rst.height, rst.width))
             rows_flat, cols_flat = rows.flatten(), cols.flatten()
             Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset='center')
@@ -101,11 +102,11 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
             if transform_to_utm:
                 transformer = Transformer.from_crs(rst.crs, target_crs, always_xy=True)
                 x_trans, y_trans = transformer.transform(Xw, Yw)
-                Xw = np.array(x_trans).round(precision+4)
-                Yw = np.array(y_trans).round(precision+4)
+                Xw = np.array(x_trans)
+                Yw = np.array(y_trans)
             else:
-                Xw = np.array(Xw).round(precision)
-                Yw = np.array(Yw).round(precision)
+                Xw = np.array(Xw)
+                Yw = np.array(Yw)
 
             band_values = b_all.reshape(num_bands, -1).T
 
@@ -114,15 +115,10 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
                 'Yw': pl.Series(Yw)
             }
             for idx in range(num_bands):
-                data[f'band{idx + 1}'] = pl.Series(band_values[:, idx], dtype=pl.Float32)
+                data[f'band{idx + 1}'] = pl.Series(band_values[:, idx])
             df_allbands = pl.DataFrame(data)
-            # Remove uniqueness to see if that preserves the correct pixel values
-            df_allbands = df_allbands.with_columns([
-                pl.col("Xw").round(precision),
-                pl.col("Yw").round(precision)
-            ])
-            # Optionally, if duplicates are problematic, reconsider the rounding precision.
-            print(f"Uniques before removal of .unique(): Yw: {len(np.unique(Yw))}, Xw: {len(np.unique(Xw))}")
+
+
         end_bands = timer()
         logging.info(
             f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds")
@@ -137,7 +133,6 @@ def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_c
 # ------------------------------
 def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
     start_angles = timer()
-    print(df_merged.shape)
     try:
         df_merged = df_merged.with_columns([
             (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
@@ -418,32 +413,33 @@ def get_camera_position(cam_path, name):
 def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
                        polygon_filtering=False, alignment=False):
     try:
+
+        #PART 1: Read the Raster
         start_ortho = timer()
         path, file = os.path.split(orthophoto)
         name, _ = os.path.splitext(file)
 
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
-        dem_path = source['dem_path']
         # Get camera position from the camera file
         lon, lat, zcam = get_camera_position(cam_path, name)
 
         # Optional: Ensure DEM and orthophoto are aligned
         if alignment:
-            if not check_alignment(dem_path, orthophoto):
+            if not check_alignment(source['dem_path'], orthophoto):
                 coreg_path = os.path.join(out, f"coreg_{file}")
-                orthophoto = coregister_and_resample(orthophoto, dem_path, coreg_path, target_resolution=None,
+                orthophoto = coregister_and_resample(orthophoto, source['dem_path'], coreg_path, target_resolution=None,
                                                      resampling=Resampling.bilinear)
-                if not check_alignment(dem_path, orthophoto):
+                if not check_alignment(source['dem_path'], orthophoto):
                     raise ValueError("Co-registration failed: orthophoto and DEM are still not aligned.")
 
 
         # Read orthophoto bands (assumed to be transformed already if needed)
         df_allbands = read_orthophoto_bands(orthophoto, precision)
 
-        # Merge DEM and orthophoto data on (Xw, Yw)
+        #PART 2: Merge orthophoto bands with DEM data
 
-        df_merged = merge_data(df_allbands, orthophoto, dem_path, debug="verbose")
+        df_merged = merge_data(df_allbands, orthophoto, source['dem_path'], debug="verbose")
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Check required columns exist
@@ -451,25 +447,27 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         if not all(col in df_merged.columns for col in required_columns):
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
 
+
+        #Paert 3: Filter by polygon if specified
         if polygon_filtering:
             df_merged = filter_df_by_polygon(df_merged,polygon_path = source["Polygon_path"],
                                              plots_out= source["plot out"] ,target_crs="EPSG:32632",
                                              img_name= file)
 
-        # Retrieve solar angles from position and time
+        #Part 4: Retrieve solar angles from position and time and filter
         sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
-        print("Uniques: Yw")
-        print(len(df_merged["Yw"].unique()))
-        print("Uniques: Xw")
-        print(len(df_merged["Xw"].unique()))
+
         # Calculate viewing angles
         df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)
         # Add file name column
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
+        # Filter black pixels
+        len_before = len(df_merged)
+        df_merged = df_merged.filter(pl.col("band1") != 0)
+        logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )
 
-        # Filter merged DataFrame by polygon
-        # After merging, filter rows outside the polygon:
 
+        #PART 5: Save the merged data
         plotting_raster(df_merged, source["plot out"]+"/bands_data", file)
 
         # Save merged data as parquet
