@@ -747,7 +747,7 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
             logging.warning("No overlap between data and polygons. Returning original data.")
             if debug:
                 plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds, img_name=img_name, plots_out=plots_out)
-            return df
+            return None
 
 
         # Check if we've been running too long already
@@ -794,8 +794,6 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
             logging.warning("No points after filtering. Returning original data.")
             return df
 
-
-        print(df)
 
         # --- PHASE 8: Debug visualization ---
         if debug and time.time() - start_time < max_runtime_seconds * 0.9:
