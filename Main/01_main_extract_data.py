@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from Main.functions.date_time_functions import convert_to_timezone
 from Main.functions.merge_analysis_functions import visualize_coordinate_alignment, analyze_kdtree_matching, merge_data
-from Main.functions.polygon_filtering_functions import is_pos_inside_polygon, filter_df_by_polygon
+from Main.functions.polygon_filtering_functions import  filter_df_by_polygon
 from Main.functions.raster_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
 from config_object import config_object
 import geopandas as gpd

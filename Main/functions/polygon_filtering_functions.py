@@ -15,7 +15,7 @@ import polars as pl
 from pyproj import CRS
 from shapely.geometry.geo import box
 
-
+# Not used
 def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
     """
     Check if a geographical point is inside any polygon in a GeoDataFrame.
@@ -158,7 +158,7 @@ def apply_polygon_shrinkage(gdf_poly, shrinkage):
     # Calculate buffer distance and store in a numpy array for vectorized operation
     buffer_distances = -1 * np.sqrt(gdf_poly['area'].values) * shrinkage
 
-    # Apply buffer with parallel processing
+    # Apply buffer with parallel processing | Exclude small areas to avoid too muh shrinkage
     gdf_poly['geometry'] = [
         geom.buffer(dist) if dist > -area ** 0.4 else geom
         for geom, dist, area in zip(gdf_poly.geometry, buffer_distances, gdf_poly['area'])
@@ -193,16 +193,13 @@ def create_union_polygon(gdf_poly):
     return union_poly
 
 
-def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds=600):
+def check_data_polygon_overlap(df, polygons_gdf):
     """
     Check if the data points and polygons have overlapping extents.
 
     Args:
         df: Polars DataFrame with point data
         polygons_gdf: GeoDataFrame containing polygons
-        debug: Whether to enable debug output
-        max_runtime_seconds: Maximum runtime for timeout warnings
-
     Returns:
         Tuple of (has_overlap, data_bounds)
     """
@@ -251,17 +248,16 @@ def check_data_polygon_overlap(df, polygons_gdf, debug=True, max_runtime_seconds
     return has_overlap, data_bounds
 
 
-def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_runtime_seconds,
-                    plots_out=None, img_name=None):
+def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=False):
     """
-    Generate an enhanced plot showing why there is no overlap between data and polygons.
+    Generate a plot showing why there is no overlap between data and polygons.
+    also shows the approximate closest distance between data and polygons.
 
     Args:
         gdf_poly: GeoDataFrame containing polygons
         data_bounds: List of [xmin, ymin, xmax, ymax] for data extent
         polygon_basename: Base name for the plot file
         start_time: Start time of the process
-        max_runtime_seconds: Maximum runtime allowed
         plots_out: Output directory for plots
         img_name: Optional name for the image file
     """
@@ -398,10 +394,9 @@ def plot_no_overlap(gdf_poly, data_bounds, polygon_basename, start_time, max_run
         plt.savefig(f'no_overlap_issue.png', dpi=300)
 
     # Only display if we have enough time remaining
-    if time.time() - start_time < max_runtime_seconds - 5:
+    if debug == True:
         plt.show()
-    else:
-        plt.close()
+    plt.close()
 
 
 def process_chunk(chunk_indices, df, polygons_gdf, target_crs, id_field="id"):
@@ -479,7 +474,7 @@ def prepare_chunks(df):
 
 
 def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target_crs, id_field,
-                            n_chunks, start_time, max_runtime_seconds):
+                            n_chunks):
     """Process chunks in parallel using ThreadPoolExecutor."""
     phase_start = time.time()
 
@@ -501,14 +496,6 @@ def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target
 
         # Process results as they complete
         for future in concurrent.futures.as_completed(future_to_chunk):
-            # Check if we're approaching timeout
-            if time.time() - start_time > max_runtime_seconds * 0.9:
-                logging.warning(
-                    f"Approaching timeout. Processed {processed_count}/{n_chunks} chunks. Cancelling remaining tasks.")
-                # Cancel pending futures
-                for f in future_to_chunk:
-                    f.cancel()
-                break
 
             chunk_idx = future_to_chunk[future]
             processed_count += 1
@@ -694,7 +681,7 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_fo
     plt.close()
 
 def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id",
-                         shrinkage=0.1, debug=True, max_runtime_seconds=600,
+                         shrinkage=0.1, debug=True,
                          sample_for_debug=5000, plots_out=None, img_name = None):
     """
     Filter a Polars DataFrame to only include points that fall within polygons.
@@ -728,7 +715,6 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
 
     # Set up timeout handler
     try:
-        setup_timeout(max_runtime_seconds)
         logging.info(f"Points before filtering: {points_before:,}")
 
         # --- PHASE 1: Load and prepare polygons ---
@@ -747,19 +733,13 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
             return df
 
         # Check for overlap between data and polygons
-        has_overlap, data_bounds = check_data_polygon_overlap(df, polygons_gdf, debug, max_runtime_seconds)
+        has_overlap, data_bounds = check_data_polygon_overlap(df, polygons_gdf)
 
         if not has_overlap:
             logging.warning("No overlap between data and polygons. Returning None.")
             if debug:
-                plot_no_overlap(polygons_gdf, data_bounds, polygon_basename, start_time, max_runtime_seconds, img_name=img_name, plots_out=plots_out)
+                plot_no_overlap(polygons_gdf, data_bounds, img_name=img_name, plots_out=plots_out, debug=debug)
             return None
-
-
-        # Check if we've been running too long already
-        if time.time() - start_time > max_runtime_seconds * 0.6:
-            logging.warning(f"Already used > 60% of max runtime ({max_runtime_seconds}s). Returning original data.")
-            return df
 
         # --- PHASE 5: Prepare chunks for parallfel processing ---
         chunk_indices, max_workers, n_points, n_chunks = prepare_chunks(df)
@@ -768,27 +748,13 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
         filtered_chunks, processed_count, phase_time = process_chunks_parallel(
             df, chunk_indices, max_workers, polygons_gdf, target_crs,
             id_field,  # This is the default id_field, you can make it a parameter
-            n_chunks, start_time, max_runtime_seconds
+            n_chunks
         )
 
         # Check if we processed anything
         if processed_count == 0:
             logging.warning("No chunks were processed successfully. Returning original data.")
             return df
-
-        # Check if we need to return early due to timeout
-        if time.time() - start_time > max_runtime_seconds * 0.95:
-            if filtered_chunks:
-                logging.warning(f"Timeout approaching. Returning partial results from {len(filtered_chunks)} chunks.")
-                try:
-                    partial_result = pd.concat(filtered_chunks, ignore_index=True)
-                    return pl.from_pandas(partial_result.drop(columns=["geometry"]))
-                except Exception as e:
-                    logging.error(f"Error creating partial result: {e}")
-                    return df
-            else:
-                logging.warning("Timeout approaching with no filtered results. Returning original data.")
-                return df
 
         # --- PHASE 7: Combine results ---
         if not filtered_chunks:
@@ -802,18 +768,13 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
 
 
         # --- PHASE 8: Debug visualization ---
-        if debug and time.time() - start_time < max_runtime_seconds * 0.9:
-            try:
-                gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
-                plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug, plots_out, img_name )
-            except Exception as e:
-                logging.error(f"Error generating debug plot: {e}")
-            return result_df
+        try:
+            gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
+            plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug, plots_out, img_name )
+        except Exception as e:
+            logging.error(f"Error generating debug plot: {e}")
+        return result_df
 
-
-    except TimeoutException:
-        logging.warning(f"Function timed out after {max_runtime_seconds} seconds. Returning original data.")
-        return df
 
     except Exception as e:
         logging.error(f"Error in polygon filtering: {str(e)}")

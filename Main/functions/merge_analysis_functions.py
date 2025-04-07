@@ -150,6 +150,7 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
         logging.error(f"Error merging data: {e}")
         raise
 
+#TODO: Revise the following functions
 
 def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="Plots/coordinate_alignments"):
     """Visualize how well the coordinates align between datasets
