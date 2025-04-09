@@ -766,8 +766,9 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
             logging.warning("No points after filtering. Returning original data.")
             return df
 
+            #TODO: Add dashed line
 
-        # --- PHASE 8: Debug visualization ---
+            # --- PHASE 8: Debug visualization ---
         try:
             gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
             plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug, plots_out, img_name )

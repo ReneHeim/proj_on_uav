@@ -46,6 +46,7 @@ def reproject_dem_to_band_grid_single(dem_path, band_path, output_dem_path, resa
         })
         logging.info(f"DEM parameters: CRS: {dem_src.crs}, width: {dem_src.width}, height: {dem_src.height}")
 
+        # TODO: look at rioxarray
         with rio.open(output_dem_path, 'w', **dst_kwargs) as dst:
             for i in range(1, dem_src.count + 1):
                 logging.info(f"Reprojecting DEM band {i}...")

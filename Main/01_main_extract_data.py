@@ -444,6 +444,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Check required columns exist
+        # TODO: ask the user for band number
         required_columns = ["Xw", "Yw", "band1", "band2", "band3"]
         if not all(col in df_merged.columns for col in required_columns):
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
@@ -466,6 +467,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
         # Filter black pixels
         len_before = len(df_merged)
+        #TODO: SET NAN
         df_merged = df_merged.filter(pl.col("band1") != 0)
         logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )
 
