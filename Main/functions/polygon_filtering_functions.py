@@ -605,7 +605,14 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bound
         )
 
         # Plot sampled points
-        sample_points.plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Points Inside')
+
+
+        sample_points[sample_points.band1 != 0 ].plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Valid Points')
+        sample_points[sample_points.band1 == 0 ].plot(ax=ax, markersize=3, color='grey', alpha=0.6, label='Null Points')
+
+
+
+
         title = f"Points Inside Polygons (Random Sample of {len(sample_points):,} from {points_after:,})"
     else:
         # Plot all points if few enough
