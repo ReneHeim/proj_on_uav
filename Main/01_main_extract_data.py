@@ -41,55 +41,11 @@ def config_objecture_logging():
     )
 
 
-# ------------------------------
-# DEM Reading: True Elevation Data with CRS Transformation
-# ------------------------------
-def read_dem(dem_path, precision, transform_to_utm=True, target_crs="EPSG:32632"):
-    start = timer()
-    try:
-        with rio.open(dem_path) as dem:
-            arr_dem = dem.read(1)  # elevation data
-            if arr_dem.dtype != np.float32:
-                arr_dem = arr_dem.astype(np.float32)
-            transform = dem.transform
-            rows, cols = np.indices(arr_dem.shape)
-            rows_flat, cols_flat = rows.flatten(), cols.flatten()
-            # Get native (pixel center) coordinates in DEM's CRS
-            x_coords, y_coords = rio.transform.xy(transform, rows_flat, cols_flat, offset='center')
-
-            # Transform to target CRS if requested (e.g., UTM for polygons)
-            if transform_to_utm:
-                from pyproj import Transformer
-                transformer = Transformer.from_crs(dem.crs, target_crs, always_xy=True)
-                x_trans, y_trans = transformer.transform(x_coords, y_coords)
-                x_coords = np.array(x_trans, dtype=np.float32).round(precision)
-                y_coords = np.array(y_trans, dtype=np.float32).round(precision)
-            else:
-                x_coords = np.array(x_coords, dtype=np.float32).round(precision)
-                y_coords = np.array(y_coords, dtype=np.float32).round(precision)
-
-        df_dem = pl.DataFrame({
-            "Xw": pl.Series(x_coords, dtype=pl.Float32),
-            "Yw": pl.Series(y_coords, dtype=pl.Float32),
-            "elev": pl.Series(arr_dem.ravel(), dtype=pl.Float32)
-        })
-        df_dem = df_dem.with_columns([
-            pl.col("Xw").round(precision),
-            pl.col("Yw").round(precision)
-        ]).unique()
-
-        end = timer()
-        logging.info(f"DEM read and processed in {end - start:.2f} seconds")
-        return df_dem
-    except Exception as e:
-        logging.error(f"Error reading DEM: {e}")
-        raise
-
 
 # ------------------------------
 # Orthophoto Reading: Reflectance Bands
 # ------------------------------
-def read_orthophoto_bands(each_ortho, precision, transform_to_utm=True, target_crs="EPSG:32632"):
+def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32632"):
     start_bands = timer()
     try:
         with rio.open(each_ortho) as rst:
@@ -340,10 +296,6 @@ def retrieve_orthophoto_paths(ori):
         raise
 
 
-def fix_path(path_str):
-    return re.sub(r"\\+", "/", path_str)
-
-
 def extract_sun_angles(name, lon, lat, datetime_str, timezone="UTC"):
     """
     Calculate sun angles using pysolar library based on timestamp and position.
@@ -411,7 +363,7 @@ def get_camera_position(cam_path, name):
 # ------------------------------
 # Core Processing Function for an Orthophoto
 # ------------------------------
-def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
+def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, exiftool_path,
                        polygon_filtering=False, alignment=False):
     try:
 
@@ -436,7 +388,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
 
         # Read orthophoto bands (assumed to be transformed already if needed)
-        df_allbands = read_orthophoto_bands(orthophoto, precision)
+        df_allbands = read_orthophoto_bands(orthophoto)
 
         #PART 2: Merge orthophoto bands with DEM data
 
@@ -444,8 +396,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         logging.info(f"df_merged columns before angle calculation: {df_merged.columns}")
 
         # Check required columns exist
-        # TODO: ask the user for band number
-        required_columns = ["Xw", "Yw", "band1", "band2", "band3"]
+        required_columns = ["Xw", "Yw","elev"] + [f'band{x}' for x in range(1,source['bands']+1)]
         if not all(col in df_merged.columns for col in required_columns):
             raise ValueError(f"Missing required columns in df_merged: {required_columns}")
 
@@ -467,8 +418,12 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
         # Filter black pixels
         len_before = len(df_merged)
-        #TODO: SET NAN
-        df_merged = df_merged.filter(pl.col("band1") != 0)
+        for column in df_merged.columns:
+            if "band" in column:
+                df_merged = df_merged.with_columns([pl.col(column).replace(0,np.NAN)])
+        print(df_merged)
+
+
         logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )
 
 
@@ -495,11 +450,10 @@ def build_database(tuple_chunk, source, exiftool_path):
     cam_path = source['cam_path']
     dem_path = source['dem_path']
     ori = source['ori']
-    precision = source['precision']
     logging.info(f"Starting DEM processing for iteration {iteration}")
     start_DEM_i = timer()
     path_flat = retrieve_orthophoto_paths(ori)
-    process_orthophoto(image, cam_path, path_flat, out, source, iteration, exiftool_path, precision,
+    process_orthophoto(image, cam_path, path_flat, out, source, iteration, exiftool_path,
                        polygon_filtering=True)
 
     end_DEM_i = timer()
@@ -516,7 +470,7 @@ def main():
                'ori': config.main_extract_ori,
                'name': config.main_extract_name,
                'path_list_tag': config.main_extract_path_list_tag,
-               'precision': config.precision,
+               'bands': config.bands,
                'Polygon_path': config.main_polygon_path,
                'start date': config.start_date,
                'time zone': config.time_zone,

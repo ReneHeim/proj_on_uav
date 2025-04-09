@@ -538,7 +538,7 @@ def combine_chunk_results(filtered_chunks, n_points, phase_time):
         return None
 
 
-def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_for_debug=5000, plots_out=None,
+def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bounds, sample_for_debug=5000, plots_out=None,
                  img_name=None):
     """
     Generate a visualization of the filtered points within polygons.
@@ -668,6 +668,14 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename, sample_fo
     ax.set_xlabel('Easting (m)')
     ax.set_ylabel('Northing (m)')
 
+    # Create data bounding box as polygon for better visualization
+    data_box = box(data_bounds[0], data_bounds[1], data_bounds[2], data_bounds[3])
+    data_box_gdf = gpd.GeoDataFrame(geometry=[data_box], crs=gdf_poly.crs)
+
+    data_box_gdf.plot(ax=ax, facecolor='none', edgecolor='blue',
+                      linestyle='--', linewidth=2, label='Data Bounds')
+
+
     # Save the plot
     plt.tight_layout()
     if plots_out is not None:
@@ -766,12 +774,10 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
             logging.warning("No points after filtering. Returning original data.")
             return df
 
-            #TODO: Add dashed line
-
             # --- PHASE 8: Debug visualization ---
         try:
             gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
-            plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename, sample_for_debug, plots_out, img_name )
+            plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename,data_bounds, sample_for_debug, plots_out, img_name )
         except Exception as e:
             logging.error(f"Error generating debug plot: {e}")
         return result_df

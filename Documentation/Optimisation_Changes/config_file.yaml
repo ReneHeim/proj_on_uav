@@ -18,7 +18,7 @@ inputs:
         number_of_processor: -1
         filter_radius: 1
         file_name: "20241207_week5_project"
-        precision: 4
+        bands: 5
 
 outputs:
     paths:

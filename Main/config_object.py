@@ -58,7 +58,7 @@ class config_object():
         self.orthomosaic_name = self.main_extract_name + "_for_classification_mosaic"
         self.orthomosaic_out = self.merging_out
         self.orthomosaic_radius = self.filter_radius
-        self.precision = cfg.inputs.settings.precision
+        self.bands = cfg.inputs.settings.bands
 
     def _validate_path(self, path, path_type='file', allow_glob=False):
         if allow_glob:
