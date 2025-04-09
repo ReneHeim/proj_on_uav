@@ -59,6 +59,7 @@ class config_object():
         self.orthomosaic_out = self.merging_out
         self.orthomosaic_radius = self.filter_radius
         self.bands = cfg.inputs.settings.bands
+        self.target_crs = cfg.inputs.settings.target_crs
 
     def _validate_path(self, path, path_type='file', allow_glob=False):
         if allow_glob:

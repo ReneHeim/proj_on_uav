@@ -14,9 +14,10 @@ from pathlib import PureWindowsPath, Path
 import traceback
 import re
 
+from numpy.lib.utils import source
 from numpy.ma.core import masked
 from pyproj import Transformer
-from rasterio.warp import reproject, Resampling, calculate_default_transform
+from rasterio.warp import reproject, Resampling, calculate_default_transform, transform
 from tqdm import tqdm
 
 from Main.functions.date_time_functions import convert_to_timezone
@@ -338,7 +339,7 @@ def extract_sun_angles(name, lon, lat, datetime_str, timezone="UTC"):
     return sunelev, saa
 
 
-def get_camera_position(cam_path, name):
+def get_camera_position(cam_path, name, target_crs=None ):
     start = timer()
     try:
         campos = pl.read_csv(cam_path, separator='\t', skip_rows=2, has_header=False)
@@ -351,6 +352,10 @@ def get_camera_position(cam_path, name):
         ])
         campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
         lon, lat, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+
+        if target_crs is not None:
+            lon , lat = transform('EPSG:4326', target_crs, [lon], [lat])
+            lon , lat = lon[0], lat[0]
 
         end = timer()
         logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
@@ -375,7 +380,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
         # Get camera position from the camera file
-        lon, lat, zcam = get_camera_position(cam_path, name)
+        lon, lat, zcam = get_camera_position(cam_path, name, source["target_crs"])
 
         # Optional: Ensure DEM and orthophoto are aligned
         if alignment:
@@ -404,7 +409,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         #Paert 3: Filter by polygon if specified
         if polygon_filtering:
             df_merged = filter_df_by_polygon(df_merged,polygon_path = source["Polygon_path"],
-                                             plots_out= source["plot out"] ,target_crs="EPSG:32632",
+                                             plots_out= source["plot out"] ,target_crs=source["target_crs"],
                                              img_name= file)
             if type(df_merged) == NoneType:
                 raise ValueError("No Points are inside the polygon, skipping this image.")
@@ -446,14 +451,11 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 def build_database(tuple_chunk, source, exiftool_path):
     iteration = tuple_chunk[0]
     image = tuple_chunk[1]
-    out = source['out']
-    cam_path = source['cam_path']
-    dem_path = source['dem_path']
     ori = source['ori']
     logging.info(f"Starting DEM processing for iteration {iteration}")
     start_DEM_i = timer()
     path_flat = retrieve_orthophoto_paths(ori)
-    process_orthophoto(image, cam_path, path_flat, out, source, iteration, exiftool_path,
+    process_orthophoto(image,  source['cam_path'], path_flat, source['out'], source, iteration, exiftool_path,
                        polygon_filtering=True)
 
     end_DEM_i = timer()
@@ -474,7 +476,9 @@ def main():
                'Polygon_path': config.main_polygon_path,
                'start date': config.start_date,
                'time zone': config.time_zone,
-               'plot out': config.plot_out}
+               'plot out': config.plot_out,
+                'target_crs': config.target_crs
+                }
 
     exiftool_path = r"exiftool"
     path_list = glob.glob(source['path_list_tag'])
