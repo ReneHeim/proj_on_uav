@@ -613,7 +613,7 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bound
 
 
 
-        title = f"Points Inside Polygons (Random Sample of {len(sample_points):,} from {points_after:,})"
+        title = f"Points Inside Polygons (Random Sample of {len(sample_points):,} from {points_after:,} total)   "
     else:
         # Plot all points if few enough
         inside_points = gpd.GeoDataFrame(
@@ -649,14 +649,17 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bound
     # Add a color-coded point count per polygon if we have points
     if points_after > 0 and 'plot_id' in gdf_filtered.columns:
         # Get count by polygon
+
+        gdf_filtered = gdf_filtered[gdf_filtered.band1 != 0 ]
         polygon_counts = gdf_filtered.groupby('plot_id').size()
+
 
         # Add a table with counts to the figure
         if len(polygon_counts) > 0:
             cell_text = [[f"{id}", f"{count}"] for id, count in polygon_counts.items()]
             count_table = plt.table(
                 cellText=cell_text,
-                colLabels=['Polygon ID', 'Point Count'],
+                colLabels=['Polygon ID', 'Valid Point Count'],
                 loc='lower right',
                 cellLoc='center',
                 bbox=[0.65, 0.02, 0.3, min(0.3, 0.02 * len(polygon_counts))]
