@@ -10,12 +10,21 @@
 This code copiles all functions that will be called later by other codes. For the sake of clarity
 these functions are defined in this separated piece of code.
 '''
+import logging
 import os
 
+import affine
 import matplotlib.pyplot as plt
 
 import numpy as np
 import math
+
+from timeit import default_timer as timer
+import polars as pl
+import rasterio as rio
+from pyproj import Transformer
+from rasterio.enums import Resampling
+from rasterio.warp import reproject, calculate_default_transform
 
 
 def pixelToWorldCoords(pX, pY, geoTransform):
@@ -89,6 +98,176 @@ def xy_np(transform, rows, cols, offset='center'):
     _translt = to_numpy2(transform.translation(coff, roff))
     locs = _transnp @ _translt @ pts
     return locs[0].tolist(), locs[1].tolist()
+
+
+# ------------------------------
+# Orthophoto Reading: Reflectance Bands
+# ------------------------------
+def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32632"):
+    start_bands = timer()
+    try:
+        with rio.open(each_ortho) as rst:
+            num_bands = rst.count
+            b_all = rst.read(masked=True)  # Read all bands
+
+            rows, cols = np.indices((rst.height, rst.width))
+            rows_flat, cols_flat = rows.flatten(), cols.flatten()
+            Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset='center')
+
+            if transform_to_utm:
+                transformer = Transformer.from_crs(rst.crs, target_crs, always_xy=True)
+                x_trans, y_trans = transformer.transform(Xw, Yw)
+                Xw = np.array(x_trans)
+                Yw = np.array(y_trans)
+            else:
+                Xw = np.array(Xw)
+                Yw = np.array(Yw)
+
+            band_values = b_all.reshape(num_bands, -1).T
+
+            data = {
+                'Xw': pl.Series(Xw),
+                'Yw': pl.Series(Yw)
+            }
+            for idx in range(num_bands):
+                data[f'band{idx + 1}'] = pl.Series(band_values[:, idx])
+            df_allbands = pl.DataFrame(data)
+
+
+        end_bands = timer()
+        logging.info(
+            f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds")
+        return df_allbands
+    except Exception as e:
+        logging.error(f"Error reading bands from {each_ortho}: {e}")
+        raise
+
+
+
+def coregister_and_resample(input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest):
+    """
+    Reproject and resample the input raster (orthophoto) to match the reference raster (DEM).
+    If target_resolution is provided (e.g., (10, 10)), the output will be resampled to that resolution.
+    """
+    try:
+        with rio.open(ref_path) as ref_src:
+            ref_crs = ref_src.crs
+            ref_transform = ref_src.transform
+            ref_width = ref_src.width
+            ref_height = ref_src.height
+            ref_bounds = ref_src.bounds
+
+        with rio.open(input_path) as src:
+            # Compute the transform, width, and height of the output raster
+            if target_resolution:
+                # If a target resolution is provided, recalculate transform for the new resolution
+                # We'll use calculate_default_transform but override the resolution
+                dst_transform, dst_width, dst_height = calculate_default_transform(
+                    src.crs,
+                    ref_crs,
+                    ref_width,
+                    ref_height,
+                    *ref_bounds
+                )
+
+                # Now adjust the transform for the target resolution
+                # The calculate_default_transform gives a transform that matches the reference image,
+                # We just need to scale it if we want a different resolution.
+                xres, yres = target_resolution
+                # We know dst_transform:
+                # dst_transform = | xres, 0, x_min|
+                #                 | 0, -yres, y_max|
+                #                 | 0, 0, 1       |
+                # If we want a different resolution, we can recompute width/height
+                x_min, y_min, x_max, y_max = ref_bounds
+                dst_width = int((x_max - x_min) / xres)
+                dst_height = int((y_max - y_min) / abs(yres))
+                dst_transform = rio.transform.from_bounds(x_min, y_min, x_max, y_max, dst_width, dst_height)
+            else:
+                # Use the reference transform and size directly
+                dst_transform, dst_width, dst_height = ref_transform, ref_width, ref_height
+
+            dst_kwargs = src.meta.copy()
+            dst_kwargs.update({
+                "crs": ref_crs,
+                "transform": dst_transform,
+                "width": dst_width,
+                "height": dst_height,
+            })
+
+            # Create output directory if it doesn't exist
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+            with rio.open(output_path, "w", **dst_kwargs) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rio.band(src, i),
+                        destination=rio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=dst_transform,
+                        dst_crs=ref_crs,
+                        resampling=resampling
+                    )
+
+        logging.info(f"Co-registration and resampling completed. Output saved to {output_path}")
+        return output_path
+    except Exception as e:
+        logging.error(f"Error in co-registration: {e}")
+        raise
+
+
+def check_alignment(dem_path, ortho_path):
+    """
+    Check if the DEM and orthophoto are aligned:
+    - Same CRS
+    - Same pixel size
+    - Same alignment of pixel boundaries
+
+    Returns True if aligned, False otherwise.
+    """
+    try:
+        with rio.open(dem_path) as dem_src, rio.open(ortho_path) as ortho_src:
+            # Check CRS
+            if dem_src.crs != ortho_src.crs:
+                logging.info(f"CRS mismatch: DEM={dem_src.crs}, Ortho={ortho_src.crs}")
+                return False
+
+            # Extract transforms
+            dem_transform = dem_src.transform
+            ortho_transform = ortho_src.transform
+
+            # Check pixel sizes
+            dem_res = (dem_transform.a, dem_transform.e)  # (xres, yres)
+            ortho_res = (ortho_transform.a, ortho_transform.e)
+            if not (abs(dem_res[0]) == abs(ortho_res[0]) and abs(dem_res[1]) == abs(ortho_res[1])):
+                logging.info(f"Resolution mismatch: DEM={dem_res}, Ortho={ortho_res}")
+                return False
+
+            # Check alignment: We must ensure that the pixel grid aligns.
+            # We'll check if the difference in the origins aligns with a multiple of the pixel size.
+            # For alignment: (ortho_transform.c - dem_transform.c) should be an integer multiple of the xres
+            # and (ortho_transform.f - dem_transform.f) should be an integer multiple of the yres.
+
+            x_offset = (ortho_transform.c - dem_transform.c) / dem_res[0]
+            y_offset = (ortho_transform.f - dem_transform.f) / dem_res[1]
+
+            # If x_offset and y_offset are close to integers, we consider them aligned
+            if not (abs(x_offset - round(x_offset)) < 1e-6 and abs(y_offset - round(y_offset)) < 1e-6):
+                logging.info(f"Pixel alignment mismatch: x_offset={x_offset}, y_offset={y_offset}")
+                return False
+
+            # If we reach here, DEM and orthophoto are aligned
+            logging.info(f" DEM and orthophoto are aligned: x_offset={x_offset}, y_offset={y_offset}")
+            return True
+    except Exception as e:
+        logging.error(f"Error checking alignment: {e}")
+        return False
+
+
+
+
+
 
 def latlon_to_utm32n_series(lat_deg, lon_deg):
     """
@@ -174,3 +353,4 @@ def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
         plt.title(f'Distribution of {band} Values in {file}')
         plt.savefig(os.path.join(folder_name, f'{band}_distribution_{file}.png'), dpi=200)
         plt.show()
+
