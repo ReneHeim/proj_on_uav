@@ -330,8 +330,6 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
 
 def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
 
-
-
     # Create the folder if it doesn't exist
     os.makedirs(folder_name, exist_ok=True)
 

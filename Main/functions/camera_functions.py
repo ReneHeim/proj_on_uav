@@ -1,8 +1,10 @@
 import logging
+import os
 import traceback
 from timeit import default_timer as timer
 import polars as pl
 import numpy as np
+from matplotlib import pyplot as plt
 from rasterio.warp import transform
 
 # ------------------------------
@@ -90,3 +92,74 @@ def get_camera_position(cam_path, name, target_crs=None ):
     except Exception as e:
         logging.error(f"Error retrieving camera position for {name}: {e}")
         raise
+
+def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
+    """
+    Plot the angles and camera position.
+    """
+
+    # --------------------
+    # TOP-DOWN VIEW
+    # --------------------
+
+    plt.figure(figsize=(8, 8))
+    plt.scatter(df_merged["Xw"], df_merged["Yw"], s=10, alpha=0.5, label="Ground Points")
+    plt.scatter([xcam], [ycam], c='red', label="Drone")
+
+    # Draw view vectors
+    #for i in range(0, len(df_merged), 1000):  # Use step to avoid clutter
+    #    plt.plot([xcam, df_merged["Xw"][i]], [ycam, df_merged["Yw"][i]], alpha=0.3)
+
+    plt.legend()
+    plt.title("Top-Down Projection of Drone to Ground Points")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.axis("equal")
+    plt.savefig(os.path.join(path, f"top_down/angle_data_{file_name}.png"), dpi=200)
+
+    # --------------------
+    # SIDE VIEW
+    # --------------------
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(df_merged["Yw"], df_merged["elev"], label="Ground Elevation", alpha=0.5)
+
+    #for i in range(0, len(df_merged), 1000):
+    #    plt.plot([0, df_merged["distance_xy"][i]], [zcam, df_merged["elev"][i]], alpha=0.3)
+
+    plt.scatter([ycam], [zcam], c='red', label="Drone")
+    plt.xlabel("Horizontal Distance")
+    plt.ylabel("Elevation")
+    plt.title("Side View: Drone Viewing Geometry")
+    plt.legend()
+    plt.savefig(os.path.join(path, f"side_view/angle_data_{file_name}.png"), dpi=200)
+
+    # --------------------
+    # 3D VIEW
+    # --------------------
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # Ground points
+    ax.scatter(df_merged["Xw"], df_merged["Yw"], df_merged["elev"], s=5, alpha=0.6, label="Ground Points")
+
+    # Drone position
+    ax.scatter([xcam], [ycam], [zcam], c='red', label="Drone")
+
+    # Viewing rays
+    for i in range(0, len(df_merged), 10000):
+        ax.plot(
+            [xcam, df_merged["Xw"][i]],
+            [ycam, df_merged["Yw"][i]],
+            [zcam, df_merged["elev"][i]],
+            alpha=0.2
+        )
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Elevation (Z)")
+    ax.set_title("3D Visualization of Drone Viewing Geometry")
+    plt.savefig(os.path.join(path, f"3d_view/angle_data_{file_name}.png"), dpi=200)
+
+    ax.legend()
+

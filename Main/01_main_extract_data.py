@@ -6,7 +6,7 @@ import glob
 from pathlib import PureWindowsPath, Path
 import traceback
 from tqdm import tqdm
-from Main.functions.camera_functions import get_camera_position, calculate_angles
+from Main.functions.camera_functions import get_camera_position, calculate_angles, plot_angles
 from Main.functions.date_time_functions import convert_to_timezone
 from Main.functions.merge_analysis_functions import merge_data
 from Main.functions.polygon_filtering_functions import  filter_df_by_polygon
@@ -165,8 +165,9 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )
 
 
-        #PART 5: Save the merged data
+        #PART 5: plot and save the merged data
         plotting_raster(df_merged, source["plot out"]+"/bands_data", file)
+        plot_angles(df_merged, lon, lat, zcam, source["plot out"]+"/angles_data", file)
 
         # Save merged data as parquet
         save_parquet(df_merged, out, source, iteration, file)

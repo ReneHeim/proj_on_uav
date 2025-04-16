@@ -96,6 +96,15 @@ class config_object():
         os.makedirs(self.plot_out+ "/merge_data", exist_ok=True)
         os.makedirs(self.plot_out+ "/polygon_filtering_data", exist_ok=True)
 
+        #Angular Data Subfolders
+        os.makedirs(self.plot_out+ "/angles_data", exist_ok=True)
+        os.makedirs(self.plot_out + "/angles_data/top_down", exist_ok=True)
+        os.makedirs(self.plot_out + "/angles_data/side_view", exist_ok=True)
+        os.makedirs(self.plot_out + "/angles_data/3d_view", exist_ok=True)
+
+
+
+
 
 
 
