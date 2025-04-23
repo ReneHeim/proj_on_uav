@@ -16,7 +16,7 @@ import polars as pl
 import pysolar as solar
 
 
-def config_objecture_logging():
+def logging_config():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -180,7 +180,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
 
 def main():
-    config_objecture_logging()
+    logging_config()
     config = config_object("config_file.yaml")
 
     source= {'out': config.main_extract_out,
@@ -207,11 +207,12 @@ def main():
         # Create a single-item list to maintain compatibility with build_database
         ori = source['ori']
         logging.info(f"Starting DEM processing for iteration {i}")
+
+
         start_DEM_i = timer()
         path_flat = retrieve_orthophoto_paths(ori)
         process_orthophoto(image_path, source['cam_path'], path_flat, source['out'], source, i, exiftool_path,
                            polygon_filtering=True)
-
         end_DEM_i = timer()
         logging.info(f"Total time for iteration {i}: {end_DEM_i - start_DEM_i:.2f} seconds")
 
