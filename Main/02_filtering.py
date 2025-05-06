@@ -1,7 +1,8 @@
 import logging
 
-from Main.functions.filters_functions import add_mask_and_plot
-from functions.filters_functions import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
+from Main.functions.data_loader import data_loader_from_file_lists
+from Main.functions.filters import add_mask_and_plot
+from functions.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
 from functions.config_object import config_object
 import polars as pl
 import os
@@ -28,26 +29,31 @@ def main():
 
     paths = glob.glob(os.path.join(config.main_extract_out, "*.parquet"))
 
-    df = pl.read_parquet(paths[3])
+    df = pl.read_parquet(paths[12])
 
-    print(paths[3])
 
 
     ## Apply OSAVI index filtering
     df = OSAVI_index_filtering(df)
     df = excess_green_filter(df)
+    print(df)
 
     #Plot heatmaps
-    plot_heatmap(df, "OSAVI", config.main_extract_out)
-    plot_heatmap(df, "ExcessGreen", config.main_extract_out)
+    # plot_heatmap(df, "OSAVI", config.main_extract_out)
+    # plot_heatmap(df, "ExcessGreen", config.main_extract_out)
 
 
     #Plot Spectrograms
     bands_wavelength_list = [475, 560, 668, 717, 842]
 
-    plot_spectrogram(df,bands_wavelength_list=bands_wavelength_list,n_bands=5)
-    add_mask_and_plot(df,"OSAVI",0.4)
-    add_mask_and_plot(df,"ExcessGreen",0.03)
+    # plot_spectrogram(df,bands_wavelength_list=bands_wavelength_list,n_bands=5)
+
+    # add_mask_and_plot(df,"OSAVI",0.4)
+    # add_mask_and_plot(df,"ExcessGreen",0.03)
+
+    data_loader = data_loader_from_file_lists(config.main_extract_out, polygon="plot_8")
+    print(len(data_loader))
+
 
 
 

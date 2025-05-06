@@ -6,11 +6,11 @@ import glob
 from pathlib import PureWindowsPath, Path
 import traceback
 from tqdm import tqdm
-from Main.functions.camera_functions import get_camera_position, calculate_angles, plot_angles
-from Main.functions.date_time_functions import convert_to_timezone
-from Main.functions.merge_analysis_functions import merge_data
-from Main.functions.polygon_filtering_functions import  filter_df_by_polygon
-from Main.functions.raster_functions import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
+from Main.functions.camera import get_camera_position, calculate_angles, plot_angles
+from Main.functions.date_time import convert_to_timezone
+from Main.functions.merge_analysis import merge_data
+from Main.functions.polygon_filtering import  filter_df_by_polygon
+from Main.functions.raster import *  # Your helper functions, e.g., xyval, latlon_to_utm32n_series, etc.
 from Main.functions.config_object import config_object
 import polars as pl
 import pysolar as solar
