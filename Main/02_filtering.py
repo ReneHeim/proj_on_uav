@@ -1,6 +1,6 @@
 import logging
 
-from Main.functions.data_loader import data_loader_from_file_lists
+from Main.functions.data_loader import data_loader_from_file_lists, load_by_polygon
 from Main.functions.filters import add_mask_and_plot
 from functions.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
 from functions.config_object import config_object
@@ -51,9 +51,8 @@ def main():
     # add_mask_and_plot(df,"OSAVI",0.4)
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
-    data_loader = data_loader_from_file_lists(config.main_extract_out, polygon="plot_8")
-    print(len(data_loader))
-
+    dfs =  load_by_polygon(config.main_extract_out)
+    print(dfs)
 
 
 
