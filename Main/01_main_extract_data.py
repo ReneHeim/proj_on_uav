@@ -166,8 +166,9 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
 
         #PART 5: plot and save the merged data
-        plotting_raster(df_merged, source["plot out"]+"/bands_data", file)
-        plot_angles(df_merged, lon, lat, zcam, source["plot out"]+"/angles_data", file)
+        plotting_raster(df_merged, source["plot out"] / "bands_data", file)
+
+        plot_angles(df_merged, lon, lat, zcam, source["plot out"] / "angles_data", file)
 
         # Save merged data as parquet
         save_parquet(df_merged, out, source, iteration, file)

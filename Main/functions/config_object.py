@@ -82,7 +82,7 @@ class Config:
             orthos  = inp.paths.orthophoto_path,
             polygon = inp.paths.get("polygon_file_path")
         )
-        # keep legacy field names -------------------------------------------------
+        #legacy field names -------------------------------------------------
         self.main_extract_cam_path  = paths.cam
         self.main_extract_dem_path  = paths.dem
         self.main_extract_ori       = paths.ori
@@ -96,12 +96,10 @@ class Config:
         self.plot_out         = base_out / "plots"
 
         self.filter_groung_truth_coordinates = inp.paths.ground_truth_coordinates
-        config_settings = Settings(**inp.settings.to_dict())
         self.main_extract_name = settings.file_name
         self.filter_radius  = inp.settings.filter_radius
         self.bands          = inp.settings.bands
         self.target_crs     = inp.settings.target_crs
-        # add the rest exactly as you do now …
 
     # ── validation & mkdirs ─────────
     def _validate(self) -> None:
