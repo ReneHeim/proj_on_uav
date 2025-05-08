@@ -159,7 +159,6 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         for column in df_merged.columns:
             if "band" in column:
                 df_merged = df_merged.with_columns([pl.col(column).replace(0,np.NAN)])
-        print(df_merged)
 
 
         logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )

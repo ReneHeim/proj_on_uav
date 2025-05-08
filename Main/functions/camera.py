@@ -101,14 +101,12 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     # --------------------
     # TOP-DOWN VIEW
     # --------------------
+    df_merged_sample = df_merged.sample(n=10000, with_replacement=False)
 
     plt.figure(figsize=(8, 8))
-    plt.scatter(df_merged["Xw"], df_merged["Yw"], s=10, alpha=0.5, label="Ground Points")
+    plt.scatter(df_merged_sample["Xw"], df_merged_sample["Yw"], s=10, alpha=0.5, label="Ground Points")
     plt.scatter([xcam], [ycam], c='red', label="Drone")
 
-    # Draw view vectors
-    #for i in range(0, len(df_merged), 1000):  # Use step to avoid clutter
-    #    plt.plot([xcam, df_merged["Xw"][i]], [ycam, df_merged["Yw"][i]], alpha=0.3)
 
     plt.legend()
     plt.title("Top-Down Projection of Drone to Ground Points")
@@ -122,7 +120,7 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     # --------------------
 
     plt.figure(figsize=(10, 5))
-    plt.scatter(df_merged["Yw"], df_merged["elev"], label="Ground Elevation", alpha=0.5)
+    plt.scatter(df_merged_sample["Yw"], df_merged_sample["elev"], label="Ground Elevation", alpha=0.5)
 
     #for i in range(0, len(df_merged), 1000):
     #    plt.plot([0, df_merged["distance_xy"][i]], [zcam, df_merged["elev"][i]], alpha=0.3)
@@ -141,17 +139,17 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     ax = fig.add_subplot(111, projection='3d')
 
     # Ground points
-    ax.scatter(df_merged["Xw"], df_merged["Yw"], df_merged["elev"], s=5, alpha=0.6, label="Ground Points")
+    ax.scatter(df_merged_sample["Xw"], df_merged_sample["Yw"], df_merged_sample["elev"], s=5, alpha=0.6, label="Ground Points")
 
     # Drone position
     ax.scatter([xcam], [ycam], [zcam], c='red', label="Drone")
 
     # Viewing rays
-    for i in range(0, len(df_merged), 10000):
+    for i in range(0, len(df_merged_sample), 10000):
         ax.plot(
-            [xcam, df_merged["Xw"][i]],
-            [ycam, df_merged["Yw"][i]],
-            [zcam, df_merged["elev"][i]],
+            [xcam, df_merged_sample["Xw"][i]],
+            [ycam, df_merged_sample["Yw"][i]],
+            [zcam, df_merged_sample["elev"][i]],
             alpha=0.2
         )
 
