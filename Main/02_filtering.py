@@ -1,6 +1,6 @@
 import logging
 
-from Main.functions.data_loader import data_loader_from_file_lists, load_by_polygon
+from Main.functions.data_loader import load_by_polygon
 from Main.functions.filters import add_mask_and_plot
 from functions.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
 from functions.config_object import config_object
@@ -36,7 +36,6 @@ def main():
     ## Apply OSAVI index filtering
     df = OSAVI_index_filtering(df)
     df = excess_green_filter(df)
-    print(df)
 
     #Plot heatmaps
     # plot_heatmap(df, "OSAVI", config.main_extract_out)
@@ -52,8 +51,9 @@ def main():
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
     dfs =  load_by_polygon(config.main_extract_out)
-    print(dfs)
 
+    for key, value in dfs.items():
+        print(f"Polygon: {key}")
 
 
     ##glob files

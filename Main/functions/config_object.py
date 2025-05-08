@@ -103,9 +103,8 @@ class config_object():
         os.makedirs(self.plot_out + "/angles_data/3d_view", exist_ok=True)
 
 
-
-
-
+        #Polygon Data Subfolders (analysis
+        os.makedirs(self.main_extract_out + "/polygon_df", exist_ok=True)
 
 
         for ori_path in self.main_extract_ori:
