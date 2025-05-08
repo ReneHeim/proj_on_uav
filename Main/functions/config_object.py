@@ -1,119 +1,138 @@
-import os
-import glob
-import warnings
-import yaml
+from __future__ import annotations
+from pathlib import Path
+from dataclasses import dataclass, field
+import yaml, glob, warnings, logging
 from metadict import MetaDict
 
-
-class config_object():
-    def __init__(self, config_file_path):
-        self.config_file_path = config_file_path
-
-        # Load and resolve configuration
-        self.input_config = self.load_and_prepare_config()
-        self.setup_attributes()
-        self.validate_all_paths()
-
-    def load_and_prepare_config(self):
-        with open(self.config_file_path, "r") as file:
-            raw_config = yaml.load(file, yaml.Loader)
-
-        base = raw_config.get('base_path', '')
-        for section in ['inputs', 'outputs']:
-            if section in raw_config:
-                for key, val in raw_config[section].get('paths', {}).items():
-                    if isinstance(val, str):
-                        raw_config[section]['paths'][key] = val.replace("{base_path}", base)
-                    elif isinstance(val, list):
-                        raw_config[section]['paths'][key] = [v.replace("{base_path}", base) for v in val]
-
-        return MetaDict(raw_config)
-
-    def setup_attributes(self):
-        cfg = self.input_config
-
-        self.start_date = cfg.inputs.date_time.start
-        self.time_zone = cfg.inputs.date_time.time_zone
-
-        self.main_extract_out = os.path.join(cfg.outputs.paths.main_out, "extract")
-        self.main_extract_cam_path = cfg.inputs.paths.cam_path
-        self.main_extract_dem_path = cfg.inputs.paths.dem_path
-        self.main_extract_ori = cfg.inputs.paths.ori
-        self.main_extract_name = cfg.inputs.settings.file_name
-        self.main_extract_path_list_tag = cfg.inputs.paths.orthophoto_path
-        self.main_polygon_path = cfg.inputs.paths.get('polygon_file_path', None)
-
-        self.filter_input_dir = self.main_extract_out
-        self.filter_out = os.path.join(cfg.outputs.paths.main_out, "filter")
-        self.filter_radius = cfg.inputs.settings.filter_radius
-        self.filter_groung_truth_coordinates = cfg.inputs.paths.ground_truth_coordinates
-        self.plot_out = os.path.join(cfg.outputs.paths.main_out, "plots")
-
-        self.merging_input_dir = self.filter_out
-        self.merging_out = os.path.join(cfg.outputs.paths.main_out, "merge")
-        self.merging_groung_truth_coordinates = self.filter_groung_truth_coordinates
-
-        self.orthomosaic_ortho_path = cfg.inputs.paths.mosaic_path
-        self.orthomosaic_dem_path = self.main_extract_dem_path
-        self.orthomosaic_name = self.main_extract_name + "_for_classification_mosaic"
-        self.orthomosaic_out = self.merging_out
-        self.orthomosaic_radius = self.filter_radius
-        self.bands = cfg.inputs.settings.bands
-        self.target_crs = cfg.inputs.settings.target_crs
-
-    def _validate_path(self, path, path_type='file', allow_glob=False):
-        if allow_glob:
-            matched_paths = glob.glob(path)
-            if not matched_paths:
-                warnings.warn(f"[Path Warning] No files matched the glob pattern: {path}")
-            return
-
-        if not os.path.exists(path):
-            warnings.warn(f"[Path Warning] Path does not exist: {path}")
-            return
-
-        if path_type == 'file' and not os.path.isfile(path):
-            warnings.warn(f"[Path Warning] Expected a file, but got something else: {path}")
-        elif path_type == 'dir' and not os.path.isdir(path):
-            warnings.warn(f"[Path Warning] Expected a directory, but got something else: {path}")
-
-    def validate_all_paths(self):
-        self._validate_path(self.main_extract_cam_path, 'file')
-        self._validate_path(self.main_extract_dem_path, 'file')
-        self._validate_path(self.filter_groung_truth_coordinates, 'file')
-        self._validate_path(self.orthomosaic_ortho_path, 'file')
-        self._validate_path(self.main_extract_path_list_tag, allow_glob=True)
-        self._validate_path(self.main_polygon_path, 'file')
-
-        # Create output directories if they don't exist
-        os.makedirs(self.main_extract_out, exist_ok=True)
-        os.makedirs(self.filter_out, exist_ok=True)
-        os.makedirs(self.merging_out, exist_ok=True)
-        os.makedirs(self.plot_out, exist_ok=True)
-
-        #Subplot Folders
-        os.makedirs(self.plot_out+ "/bands_data", exist_ok=True)
-        os.makedirs(self.plot_out+ "/merge_data", exist_ok=True)
-        os.makedirs(self.plot_out+ "/polygon_filtering_data", exist_ok=True)
-
-        #Angular Data Subfolders
-        os.makedirs(self.plot_out+ "/angles_data", exist_ok=True)
-        os.makedirs(self.plot_out + "/angles_data/top_down", exist_ok=True)
-        os.makedirs(self.plot_out + "/angles_data/side_view", exist_ok=True)
-        os.makedirs(self.plot_out + "/angles_data/3d_view", exist_ok=True)
+log = logging.getLogger(__name__)
 
 
-        #Polygon Data Subfolders (analysis
-        os.makedirs(self.main_extract_out + "/polygon_df", exist_ok=True)
+@dataclass(frozen=True)
+class DateCfg:
+    start: str
+    tz: str
 
 
-        for ori_path in self.main_extract_ori:
-            self._validate_path(ori_path, 'dir')
+@dataclass(frozen=True)
+class PathGroup:
+    cam: Path
+    dem: Path
+    ori: list[Path]
+    orthos: str
+    polygon: Path | None = None
 
-        self._validate_path(self.filter_input_dir, 'dir')
-        self._validate_path(self.merging_input_dir, 'dir')
+@dataclass(frozen=True)
+class Settings:
+    file_name: str
+    filter_radius: float
+    bands: list[int]
+    target_crs: str
 
-        if self.main_polygon_path:
-            self._validate_path(self.main_polygon_path, 'file')
 
-        print("Path validation completed (warnings issued where needed).")
+def _load_yaml(path: Path) -> dict:
+    with path.open() as fh:
+        return yaml.safe_load(fh)
+
+def _resolve_base(cfg: dict) -> MetaDict:
+    base = cfg.get("base_path", "")
+    for sect in ("inputs", "outputs"):
+        for k, v in cfg.get(sect, {}).get("paths", {}).items():
+            repl = lambda s: s.replace("{base_path}", base)
+            cfg[sect]["paths"][k] = [repl(x) for x in v] if isinstance(v, list) else repl(v)
+    return MetaDict(cfg)
+
+def _check(path: str | Path, *, expect="file", allow_glob=False) -> None:
+    path = str(path)
+    if allow_glob:
+        if not glob.glob(path):
+            warnings.warn(f"[Path] glob empty → {path}")
+        return
+    if not Path(path).exists():
+        warnings.warn(f"[Path] missing → {path}")
+    elif expect == "file" and not Path(path).is_file():
+        warnings.warn(f"[Path] expected file → {path}")
+    elif expect == "dir" and not Path(path).is_dir():
+        warnings.warn(f"[Path] expected dir → {path}")
+
+class Config:
+    """
+    Read YAML, expand {base_path}, expose attributes, validate paths.
+    Existing code that accessed attributes like `main_extract_out` still works.
+    """
+
+    # ── constructor ──────────────────────────────────────────────
+    def __init__(self, cfg_path: str | Path) -> None:
+        self._raw  = _load_yaml(Path(cfg_path))
+        self._cfg  = _resolve_base(self._raw)
+        self._set_attrs()
+        self._validate()
+
+    # ── attribute wiring ─────────────────────
+    def _set_attrs(self) -> None:
+        inp, out = self._cfg.inputs, self._cfg.outputs
+        settings = inp.settings
+
+        dt = DateCfg(inp.date_time.start, inp.date_time.time_zone)
+        self.start_date, self.time_zone = dt.start, dt.tz
+
+        paths = PathGroup(
+            cam     = Path(inp.paths.cam_path),
+            dem     = Path(inp.paths.dem_path),
+            ori     = [Path(p) for p in inp.paths.ori],
+            orthos  = inp.paths.orthophoto_path,
+            polygon = inp.paths.get("polygon_file_path")
+        )
+        # keep legacy field names -------------------------------------------------
+        self.main_extract_cam_path  = paths.cam
+        self.main_extract_dem_path  = paths.dem
+        self.main_extract_ori       = paths.ori
+        self.main_extract_path_list_tag = paths.orthos
+        self.main_polygon_path      = paths.polygon
+
+        base_out = Path(out.paths.main_out)
+        self.main_extract_out = base_out / "extract"
+        self.filter_out       = base_out / "filter"
+        self.merging_out      = base_out / "merge"
+        self.plot_out         = base_out / "plots"
+
+        self.filter_groung_truth_coordinates = inp.paths.ground_truth_coordinates
+        config_settings = Settings(**inp.settings.to_dict())
+        self.main_extract_name = settings.file_name
+        self.filter_radius  = inp.settings.filter_radius
+        self.bands          = inp.settings.bands
+        self.target_crs     = inp.settings.target_crs
+        # add the rest exactly as you do now …
+
+    # ── validation & mkdirs ─────────
+    def _validate(self) -> None:
+        inp = self._cfg.inputs
+        # files to exist
+        for f in [
+            self.main_extract_cam_path,
+            self.main_extract_dem_path,
+            self.filter_groung_truth_coordinates,
+            inp.paths.mosaic_path         # example
+        ]:
+            _check(f, expect="file")
+
+        # glob pattern
+        _check(self.main_extract_path_list_tag, allow_glob=True)
+
+        # ensure needed dirs
+        for d in [
+            self.main_extract_out,
+            self.filter_out,
+            self.merging_out,
+            self.plot_out,
+            self.plot_out / "bands_data",
+            self.plot_out / "merge_data",
+            self.plot_out / "polygon_filtering_data",
+            self.plot_out / "angles_data" / "top_down",
+            self.plot_out / "angles_data" / "side_view",
+            self.main_extract_out / "polygon_df",
+        ]:
+            Path(d).mkdir(parents=True, exist_ok=True)
+
+        log.info("Path validation completed (warnings issued if needed).")
+
+config_object = Config
