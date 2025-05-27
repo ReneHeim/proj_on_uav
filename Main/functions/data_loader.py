@@ -64,6 +64,19 @@ def split_by_polygon(dataframes: list[pl.DataFrame],
     }
 
 
+def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
+    out_dir.mkdir(exist_ok=True)
+
+    for p in polygons:
+        (pl.scan_parquet(src / "*.parquet")          # glob *once per id*
+           .filter(pl.col("plot_id") == p)
+           .sink_parquet(out_dir / f"{p}.parquet"))  # create / overwrite
+
+
+def unique_plot_ids_scan(folder: Path) -> set[str]:
+    ids_lf = pl.scan_parquet(folder / "*.parquet") \
+        .select("plot_id").unique()
+    return set(ids_lf.collect()["plot_id"].to_list())
 
 
 def load_by_polygon(folder: str,
@@ -82,12 +95,9 @@ def load_by_polygon(folder: str,
     --------
     A dictionary mapping plot_id to DataFrames containing only that polygon's data.
     """
-    dfs = _read_folder(Path(folder))
-    print(f"Loaded {len(dfs)} DataFrames from {folder}")
-
-    polygons = {specific} if specific else unique_plot_ids(dfs)
-    return split_by_polygon(dfs, polygons)
-
+    polygons = {specific} if specific else unique_plot_ids_scan(folder)
+    stream_to_parquet(Path(folder), polygons, Path("split_output"))
+    return {p: pl.scan_parquet(f"split_output/{p}.parquet") for p in polygons}
 
 
 def create_polygon_dict(datarame_dict, polygon_list):
@@ -102,7 +112,7 @@ def create_polygon_dict(datarame_dict, polygon_list):
     """
     polygon_dict = {}
 
-    #Fill the dict with polygons and empty dataframes
+    # Fill the dict with polygons and empty dataframes
     for polygon in polygon_list:
         polygon_dict[polygon] = pl.DataFrame()
 
@@ -120,6 +130,4 @@ def create_polygon_dict(datarame_dict, polygon_list):
             print(f"'plot_id' column not found in DataFrame {file_name}. Skipping filtering.")
 
         return polygon_dict
-
-
-
+    return None
