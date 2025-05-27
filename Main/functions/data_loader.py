@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from typing import Optional
 import polars as pl
@@ -65,13 +66,16 @@ def split_by_polygon(dataframes: list[pl.DataFrame],
 
 
 def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
-    out_dir.mkdir(exist_ok=True)
+    out_dir = out_dir.resolve()           # guarantees absolute path
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logging.info(f"Writing to {str(out_dir)}" )          # tells you once, up front
 
     for p in polygons:
-        (pl.scan_parquet(src / "*.parquet")          # glob *once per id*
-           .filter(pl.col("plot_id") == p)
-           .sink_parquet(out_dir / f"{p}.parquet"))  # create / overwrite
-
+        target = out_dir / f"{p}.parquet"
+        (pl.scan_parquet(src / "*.parquet")
+             .filter(pl.col("plot_id") == p)
+             .sink_parquet(target))
+        logging.info(f"  • wrote {str(target)}")
 
 def unique_plot_ids_scan(folder: Path) -> set[str]:
     ids_lf = pl.scan_parquet(folder / "*.parquet") \
@@ -79,15 +83,18 @@ def unique_plot_ids_scan(folder: Path) -> set[str]:
     return set(ids_lf.collect()["plot_id"].to_list())
 
 
-def load_by_polygon(folder: str,
+def load_by_polygon(df_folder: str,
+                    df_polygon_folder: set[str],
                     specific: Optional[str] = None) -> dict[str, pl.DataFrame]:
     """
     Loads all .parquet files from a folder and groups data by polygon (plot_id).
-
+    and writes them in a folder
     Parameters:
     -----------
     folder : str
         Path to the folder containing parquet files.
+    polygons : str
+         the folder where the df get saved at
     specific : str, optional
         If provided, only data for this polygon will be returned.
 
@@ -95,9 +102,9 @@ def load_by_polygon(folder: str,
     --------
     A dictionary mapping plot_id to DataFrames containing only that polygon's data.
     """
-    polygons = {specific} if specific else unique_plot_ids_scan(folder)
-    stream_to_parquet(Path(folder), polygons, Path("split_output"))
-    return {p: pl.scan_parquet(f"split_output/{p}.parquet") for p in polygons}
+    polygons = {specific} if specific else unique_plot_ids_scan(df_folder)
+    stream_to_parquet(Path(df_folder), polygons, df_polygon_folder )
+    return {p: pl.scan_parquet(f"{df_polygon_folder}/{p}.parquet") for p in polygons}
 
 
 def create_polygon_dict(datarame_dict, polygon_list):
@@ -127,7 +134,7 @@ def create_polygon_dict(datarame_dict, polygon_list):
                     # Append the filtered DataFrame to the corresponding polygon
                     polygon_dict[polygon] = pl.concat([polygon_dict[polygon], filtered_df])
         else:
-            print(f"'plot_id' column not found in DataFrame {file_name}. Skipping filtering.")
+            logging.warning(f"'plot_id' column not found in DataFrame {file_name}. Skipping filtering.")
 
         return polygon_dict
     return None

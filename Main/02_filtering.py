@@ -50,10 +50,11 @@ def main():
     # add_mask_and_plot(df,"OSAVI",0.4)
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
-    dfs =  load_by_polygon(config.main_extract_out)
+    dfs =  load_by_polygon(config.main_extract_out, config.main_extract_out_polygons_df)
 
     for key, value in dfs.items():
         print(f"Polygon: {key}")
+        print(f"Dataframe: {value}")
 
 
     ##glob files

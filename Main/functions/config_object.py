@@ -94,6 +94,7 @@ class Config:
         self.filter_out       = base_out / "filter"
         self.merging_out      = base_out / "merge"
         self.plot_out         = base_out / "plots"
+        self.main_extract_out_polygons_df = self.main_extract_out / "polygon_df"
 
         self.filter_groung_truth_coordinates = inp.paths.ground_truth_coordinates
         self.main_extract_name = settings.file_name
