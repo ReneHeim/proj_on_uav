@@ -157,7 +157,7 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     ax.set_ylabel("Y")
     ax.set_zlabel("Elevation (Z)")
     ax.set_title("3D Visualization of Drone Viewing Geometry")
-    plt.savefig(os.path.join(path, f"3d_view/angle_data_{file_name}.png"), dpi=200)
+    plt.savefig(os.path.join(path, r"3d_view\\angle_data_{file_name}.png"), dpi=200)
 
     ax.legend()
 

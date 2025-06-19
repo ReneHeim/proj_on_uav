@@ -21,7 +21,7 @@ def logging_config():
 
 
 def main():
-    config = config_object("config_file.yaml")
+    config = config_object("config_file.yml")
     logging_config()
 
     ## Import dataframe

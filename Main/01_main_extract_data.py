@@ -158,7 +158,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
         len_before = len(df_merged)
         for column in df_merged.columns:
             if "band" in column:
-                df_merged = df_merged.with_columns([pl.col(column).replace(0,np.NAN)])
+                df_merged = df_merged.with_columns([pl.col(column).replace(0,np.nan)])
 
 
         logging.info(f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%" )
@@ -181,7 +181,7 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
 def main():
     logging_config()
-    config = config_object("config_file.yaml")
+    config = config_object("config_file.yml")
 
     source= {'out': config.main_extract_out,
                'cam_path': config.main_extract_cam_path,
