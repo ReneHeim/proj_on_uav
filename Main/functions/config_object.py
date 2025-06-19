@@ -128,6 +128,7 @@ class Config:
             self.plot_out / "polygon_filtering_data",
             self.plot_out / "angles_data" / "top_down",
             self.plot_out / "angles_data" / "side_view",
+            self.plot_out / "angles_data" / "3d_view",
             self.main_extract_out / "polygon_df",
         ]:
             Path(d).mkdir(parents=True, exist_ok=True)
