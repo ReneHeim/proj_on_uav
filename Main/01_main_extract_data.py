@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import re
 from datetime import datetime
 from types import NoneType
 import glob
@@ -43,18 +44,28 @@ def save_parquet(df, out, source, iteration, file):
 # ------------------------------
 # Check Images done
 # ------------------------------
-def check_already_processed(out):
-    try:
-        paths = glob.glob(out + "*.parquet")
-        images = []
-        for path in paths:
-            _ = path.split("\\\\")[-1]
-            _ = _.split('_')
-            if _[-3] == 'IMG' and int(_[-2]) > 0:
-                images.append(int(_[-2]))
-        return images
-    except Exception as e:
-        logging.error(f"Error Loading Paths: {e}")
+def check_already_processed(out_dir):
+    processed = set()                                       # use a set for O(1) look-ups
+    for p in Path(out_dir).glob("*.parquet"):
+        m = re.match(r".*IMG_(\d+)_\d+\.tif\.parquet$", p.name)
+        if m:                                               # accept only valid filenames
+            processed.add(int(m.group(1)))                  # capture the image number
+    return processed
+
+
+def remove_images_already_processed(inp_dir, out_dir):
+    processed = check_already_processed(out_dir)
+    inp_dir = inp_dir.replace("*.tif","")
+    imgs = list(Path(inp_dir).glob("*.tif"))
+    nums = [int(re.match(r".*IMG_(\d+)_\d+\.tif$", p.name).group(1))
+            for p in imgs if re.match(r".*IMG_(\d+)_\d+\.tif$", p.name)]
+    to_drop = [i for i, n in enumerate(nums) if n in processed]
+    for i in sorted(to_drop, reverse=True):                 # delete back-to-front
+        del imgs[i]
+
+    logging.info(f"Images To Process: {len(imgs)}, Images Already Processed:{len(processed)}, Total number of images: {len(glob.glob(inp_dir + "*.tif"))}")
+    return imgs                                             # remaining *.tif* paths
+
 
 # ------------------------------
 # Utility Functions for Paths and EXIF
@@ -213,7 +224,13 @@ def main():
                 }
 
     exiftool_path = r"exiftool"
-    path_list = glob.glob(source['path_list_tag'])
+    try:
+        print(source['path_list_tag'])
+        path_list = remove_images_already_processed(source['path_list_tag'],source['out'])
+    except Exception as e:
+        logging.error(f"Error Loading Last checkpoint: {e}, e")
+        path_list = glob.glob(source['path_list_tag'])
+
     logging.info(f"Processing {len(path_list)} images sequentially")
 
     # Process each image directly without splitting into chunks
