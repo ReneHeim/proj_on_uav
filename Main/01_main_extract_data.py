@@ -40,6 +40,21 @@ def save_parquet(df, out, source, iteration, file):
         logging.error(f"Error saving parquet for {file}: {e}")
         raise
 
+# ------------------------------
+# Check Images done
+# ------------------------------
+def check_already_processed(out):
+    try:
+        paths = glob.glob(out + "*.parquet")
+        images = []
+        for path in paths:
+            _ = path.split("\\\\")[-1]
+            _ = _.split('_')
+            if _[-3] == 'IMG' and int(_[-2]) > 0:
+                images.append(int(_[-2]))
+        return images
+    except Exception as e:
+        logging.error(f"Error Loading Paths: {e}")
 
 # ------------------------------
 # Utility Functions for Paths and EXIF
