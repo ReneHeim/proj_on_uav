@@ -1,0 +1,68 @@
+# ------------------------------------------------------------------
+# project configuration – WEEK 4  (06 Dec 2024 base products)
+# ------------------------------------------------------------------
+
+base_path: "D:\\20240708_week4\\metashape\\20241206_week4_products_uav_data"
+
+inputs:
+  date_time:
+    start: "2024-07-08 12:00:00"          # Week 4 acquisition day
+    time_zone: "Europe/Berlin"
+
+  paths:
+    # ► raw Metashape exports
+    cam_path:         "{base_path}/20241206_week4_cameras.txt"
+    dem_path:         "{base_path}/20241206_week4_dem.tif"
+    orthophoto_path:  "{base_path}/20241211_week4_orthophotos/*.tif"
+    ori:              ["{base_path}/20241211_week4_orthophotos"]
+    mosaic_path:      "{base_path}/20241211_week4_orthomosaic.tif"   # newer/larger mosaic
+
+    # ► ancillary data
+    ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
+    polygon_file_path:        "D:\\2024_oncerco_plot_polygons.gpkg"
+
+  settings:
+    number_of_processor: -1
+    filter_radius:      1
+    file_name:          "20241206_week4_project"
+    bands:              5
+    target_crs:         "EPSG:32632"
+
+outputs:
+  paths:
+    main_out: "{base_path}/output"
+    plot_out: "{base_path}/output/plots"
+# ------------------------------------------------------------------
+# project configuration – WEEK 4  (06 Dec 2024 base products)
+# ------------------------------------------------------------------
+
+base_path: "D:\\20240708_week4\\metashape\\20241206_week4_products_uav_data"
+
+inputs:
+  date_time:
+    start: "2024-07-08 12:00:00"          # Week 4 acquisition day
+    time_zone: "Europe/Berlin"
+
+  paths:
+    # ► raw Metashape exports
+    cam_path:         "{base_path}/20241206_week4_cameras.txt"
+    dem_path:         "{base_path}/20241206_week4_dem.tif"
+    orthophoto_path:  "{base_path}/20241211_week4_orthophotos/*.tif"
+    ori:              ["{base_path}/20241211_week4_orthophotos"]
+    mosaic_path:      "{base_path}/20241211_week4_orthomosaic.tif"   # newer/larger mosaic
+
+    # ► ancillary data
+    ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
+    polygon_file_path:        "D:\\2024_oncerco_plot_polygons.gpkg"
+
+  settings:
+    number_of_processor: -1
+    filter_radius:      1
+    file_name:          "20241206_week4_project"
+    bands:              5
+    target_crs:         "EPSG:32632"
+
+outputs:
+  paths:
+    main_out: "{base_path}/output"
+    plot_out: "{base_path}/output/plots"

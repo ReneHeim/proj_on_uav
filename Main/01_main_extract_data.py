@@ -64,7 +64,7 @@ def remove_images_already_processed(inp_dir, out_dir):
         del imgs[i]
 
     logging.info(f"Images To Process: {len(imgs)}, Images Already Processed:{len(processed)}, Total number of images: {len(glob.glob(inp_dir + "*.tif"))}")
-    return imgs                                             # remaining *.tif* paths
+    return imgs                                           # remaining *.tif* paths
 
 
 # ------------------------------
