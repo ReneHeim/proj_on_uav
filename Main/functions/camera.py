@@ -11,60 +11,92 @@ from rasterio.warp import transform
 # Calculate Viewing Angles
 # ------------------------------
 def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
+    """
+    Same column names as the legacy version, but with corrected geometry.
+
+    • delta_x / delta_y / delta_z : camera – ground (east, north, up)
+    • angle_rad                  : arctan2(distance_xy , delta_z)  (radians)
+    • vza                        : angle_rad converted to degrees (0° at nadir)
+    • vaa_rad                    : arctan2(delta_x , delta_y)      (radians)
+    • vaa_temp / vaa             : same relative-azimuth logic as before
+    """
     start_angles = timer()
     try:
+        # ------------------------------------------------------------------
+        # 1. components of the view vector (camera  minus  ground point)
+        # ------------------------------------------------------------------
         df_merged = df_merged.with_columns([
             (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
             (pl.lit(xcam, dtype=pl.Float32) - pl.col("Xw")).alias("delta_x"),
             (pl.lit(ycam, dtype=pl.Float32) - pl.col("Yw")).alias("delta_y")
         ])
-        df_merged = df_merged.with_columns([
-            ((pl.col("delta_x").pow(2) + pl.col("delta_y").pow(2)).sqrt()).alias("distance_xy")
-        ])
-        df_merged = df_merged.with_columns([
-            pl.arctan2(pl.col("delta_z"), pl.col("distance_xy")).alias("angle_rad")
-        ])
-        df_merged = df_merged.with_columns([
-            (90 - (pl.col("angle_rad") * (180 / np.pi))).round(2).alias("vza")
-        ])
-        df_merged = df_merged.with_columns([
+
+        # horizontal distance
+        df_merged = df_merged.with_columns(
+            ((pl.col("delta_x")**2 + pl.col("delta_y")**2).sqrt()).alias("distance_xy")
+        )
+
+        # ------------------------------------------------------------------
+        # 2. View-Zenith Angle  (0° at nadir, 90° at horizon)
+        #    angle_rad kept for backward compatibility
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
+            pl.arctan2(pl.col("distance_xy"),            # NOTE: distance first,
+                       pl.col("delta_z"))                #       height second
+              .alias("angle_rad")
+        ).with_columns(
+            (pl.col("angle_rad") * 180 / np.pi)          # radians → degrees
+              .round(2)
+              .alias("vza")
+        )
+
+        # ------------------------------------------------------------------
+        # 3. View-Azimuth Angle  (absolute, radians)
+        #    Note the argument order (east, north)
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
             pl.arctan2(pl.col("delta_x"), pl.col("delta_y")).alias("vaa_rad")
-        ])
+        )
+
+        # same relative-azimuth logic, preserving vaa_temp → vaa
         df_merged = df_merged.with_columns([
-            ((pl.col("vaa_rad") * (180 / np.pi)) - saa).alias("vaa_temp")
-        ])
-        df_merged = df_merged.with_columns([
-            ((pl.col("vaa_temp") + 360) % 360).alias("vaa")
+            ((pl.col("vaa_rad") * 180 / np.pi) - saa).alias("vaa_temp"),
+            (((pl.col("vaa_temp") + 360) % 360)).alias("vaa")
         ])
 
-        # Compute the lower and upper bounds for the central 90%
+        # ------------------------------------------------------------------
+        # 4. masking logic (unchanged)
+        # ------------------------------------------------------------------
         p05 = df_merged.select(pl.col("elev").quantile(0.02)).item()
         p95 = df_merged.select(pl.col("elev").quantile(0.98)).item()
 
-        # Use these bounds to mask out values outside the central 90%
         df_merged = df_merged.with_columns([
             pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
             pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa"),
             pl.when((pl.col("elev") < p05) | (pl.col("elev") > p95))
-            .then(None)
-            .otherwise(pl.col("elev"))
-            .alias("elev")
+              .then(None)
+              .otherwise(pl.col("elev"))
+              .alias("elev")
         ])
 
+        # ------------------------------------------------------------------
+        # 5. Stash constants (unchanged)
+        # ------------------------------------------------------------------
         df_merged = df_merged.with_columns([
             pl.lit(xcam, dtype=pl.Float32).alias("xcam"),
             pl.lit(ycam, dtype=pl.Float32).alias("ycam"),
             pl.lit(sunelev, dtype=pl.Float32).alias("sunelev"),
-            pl.lit(saa, dtype=pl.Float32).alias("saa")
+            pl.lit(saa,     dtype=pl.Float32).alias("saa")
         ])
+
         end_angles = timer()
         logging.info(f"Calculated angles in {end_angles - start_angles:.2f} seconds")
         return df_merged
+
     except Exception as e:
         logging.error(f"Error calculating angles: {e}")
         logging.error(traceback.format_exc())
         raise
-
 
 
 
