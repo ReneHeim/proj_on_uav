@@ -332,20 +332,19 @@ def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
 
     # Create the folder if it doesn't exist
     os.makedirs(folder_name, exist_ok=True)
-
+    df_merged = df_merged.drop_nans()
     # For debugging: convert to pandas and plot distributions
-    df_pd = df_merged.to_pandas()
     plt.figure(figsize=(8, 6))
-    plt.hist(df_pd['elev'], bins=50, color='skyblue', edgecolor='black')
+    plt.hist(df_merged['elev'], bins=50, color='skyblue', edgecolor='black')
     plt.xlabel('Elevation')
     plt.ylabel('Frequency')
     plt.title('Elevation Distribution of {}'.format(file))
     plt.savefig(os.path.join(folder_name, f'Elevation Distribution_{file}.png'), dpi=200)
     plt.show()
 
-    for band in [col for col in df_pd.columns if col.startswith('band')]:
+    for band in [col for col in df_merged.columns if col.startswith('band')]:
         plt.figure(figsize=(8, 6))
-        plt.hist(df_pd[band], bins=50, alpha=0.7, edgecolor='black')
+        plt.hist(df_merged[band], bins=50, alpha=0.7, edgecolor='black')
         plt.xlabel(f'{band} Values')
         plt.ylabel('Frequency')
         plt.title(f'Distribution of {band} Values in {file}')

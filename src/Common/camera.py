@@ -59,10 +59,12 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         )
 
         # same relative-azimuth logic, preserving vaa_temp → vaa
-        df_merged = df_merged.with_columns([
-            ((pl.col("vaa_rad") * 180 / np.pi) - saa).alias("vaa_temp"),
+        df_merged = df_merged.with_columns(
+            ((pl.col("vaa_rad") * 180 / np.pi) - saa).alias("vaa_temp")
+        )
+        df_merged = df_merged.with_columns(
             (((pl.col("vaa_temp") + 360) % 360)).alias("vaa")
-        ])
+        )
 
         # ------------------------------------------------------------------
         # 4. masking logic (unchanged)
@@ -133,7 +135,11 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     # --------------------
     # TOP-DOWN VIEW
     # --------------------
-    df_merged_sample = df_merged.sample(n=10000, with_replacement=False)
+    if df_merged.shape()[0] < 10000:
+        df_merged_sample = df_merged
+    else:
+        df_merged_sample = df_merged.sample(n=10000, with_replacement=False)
+
 
     plt.figure(figsize=(8, 8))
     plt.scatter(df_merged_sample["Xw"], df_merged_sample["Yw"], s=10, alpha=0.5, label="Ground Points")
