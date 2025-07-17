@@ -1,7 +1,7 @@
 import logging
 
-from Main.Common.data_loader import load_by_polygon
-from Main.Common.filters import add_mask_and_plot
+from src.Common.data_loader import load_by_polygon
+from src.Common.filters import add_mask_and_plot
 from Common.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
 from Common.config_object import config_object
 import polars as pl
