@@ -1,9 +1,9 @@
 import logging
 
-from Main.functions.data_loader import load_by_polygon
-from Main.functions.filters import add_mask_and_plot
-from functions.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
-from functions.config_object import config_object
+from Main.Common.data_loader import load_by_polygon
+from Main.Common.filters import add_mask_and_plot
+from Common.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
+from Common.config_object import config_object
 import polars as pl
 import os
 import glob
@@ -52,11 +52,11 @@ def main():
 
     dfs =  load_by_polygon(config.main_extract_out, config.main_extract_out_polygons_df)
 
+
     for key, value in dfs.items():
         print(f"Polygon: {key}")
         print(f"Dataframe: {value}")
 
 
-    ##glob files
 if __name__ == "__main__":
     main()

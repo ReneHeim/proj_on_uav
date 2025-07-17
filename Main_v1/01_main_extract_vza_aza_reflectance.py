@@ -267,7 +267,7 @@ for source in sources:
                     # outputs and original raster files.
                     bands[f"band{counter}"] = df_ortho
             my_reduce = partial(pd.merge, on=["Xw", "Yw"], how='outer') # define a function to merge bands together
-            df_allbands = reduce(my_reduce, bands.values()) # iterates functions for all 11 bands
+            df_allbands = reduce(my_reduce, bands.values()) # iterates Common for all 11 bands
             end4 = timer()
             print('Break all ortho bands into pixel: ', end4 - start4, 'seconds')
     

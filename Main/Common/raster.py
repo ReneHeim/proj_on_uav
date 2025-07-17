@@ -7,8 +7,8 @@
 # ---------------------------------------------------------------------------
 
 '''
-This code copiles all functions that will be called later by other codes. For the sake of clarity
-these functions are defined in this separated piece of code.
+This code copiles all Common that will be called later by other codes. For the sake of clarity
+these Common are defined in this separated piece of code.
 '''
 import logging
 import os

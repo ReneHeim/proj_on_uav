@@ -134,7 +134,7 @@ def process_orthomosaic(source):
             df_ortho = df_ortho.round({'Xw': 2, 'Yw': 2})  # rounding coords for matches; careful when aligning raster
             bands[f"band{counter}"] = df_ortho
     my_reduce = partial(pd.merge, on=["Xw", "Yw"], how='outer') # define a function to merge bands together
-    df_ortho = reduce(my_reduce, bands.values()) # iterates functions for all 11 bands
+    df_ortho = reduce(my_reduce, bands.values()) # iterates Common for all 11 bands
     end4 = timer()
     print('Break orthomosaic into pixel: ', end4 - start4, 'seconds')
     

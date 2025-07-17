@@ -41,7 +41,7 @@ const Documentation = {
   PLURAL_EXPR: (n) => (n === 1 ? 0 : 1),
   LOCALE: "unknown",
 
-  // gettext and ngettext don't access this so that the functions
+  // gettext and ngettext don't access this so that the Common
   // can safely bound to a different name (_ = Documentation.gettext)
   gettext: (string) => {
     const translated = Documentation.TRANSLATIONS[string];

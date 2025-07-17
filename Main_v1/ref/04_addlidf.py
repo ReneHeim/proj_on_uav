@@ -14,7 +14,7 @@ gap fractions and the projections of the leaf towards the sun.
 
 
 The way we measured our leaf angles, we yielded angle values above 90° when measuring the hanging 
-leaf tips segments. To generate leaf angle distributions and their functions, we need to restrict 
+leaf tips segments. To generate leaf angle distributions and their Common, we need to restrict
 this between 0° and 90°. 
 """
 
@@ -40,7 +40,7 @@ df_d = pd.read_csv(os.path.join(out, "03_addgreenness.csv"), index_col=[0])
 # <editor-fold desc="02_restricting leaf angles between 0° and 90°">
 """
 The way we measured our leaf angles, we yielded angle values above 90° when measuring the hanging leaf tips segments.
-To generate leaf angle distributions and their functions, we need to restrict this between 0° and 90°. 
+To generate leaf angle distributions and their Common, we need to restrict this between 0° and 90°. 
 """
 
 df_e1 = df_d.loc[:, ['plot',
@@ -200,8 +200,8 @@ plt.savefig(os.path.join(out, "e_test2.png"))
 '''
 We are using a LUT approach to find the LIDF for our LADs. Using SCOPE in MATLAB, we are creating a 
 LUT of LIDF a/b combination and the according cumulative frequency values. The we can calculate the 
-cumulative frequencies of our data plot by plot. Now, we can iterate over the plot level functions 
-and LUT functions to find the best match for each plot and note LIDF a/b for each plot.
+cumulative frequencies of our data plot by plot. Now, we can iterate over the plot level Common 
+and LUT Common to find the best match for each plot and note LIDF a/b for each plot.
 '''
 
 range_df = pd.read_csv(os.path.join(dat, "LIDFData_Range_analysis.csv"), sep=',', header=None)
