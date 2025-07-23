@@ -135,7 +135,7 @@ def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     # --------------------
     # TOP-DOWN VIEW
     # --------------------
-    if df_merged.shape()[0] < 10000:
+    if df_merged.shape[0] < 10000:
         df_merged_sample = df_merged
     else:
         df_merged_sample = df_merged.sample(n=10000, with_replacement=False)

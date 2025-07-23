@@ -8,16 +8,7 @@ import polars as pl
 import os
 import glob
 
-def logging_config():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler("process.log", encoding='utf-8'),  # Note the encoding parameter
-            logging.StreamHandler()
-        ]
-    )
-
+from src.Util.logging import logging_config
 
 
 def main():
@@ -52,10 +43,6 @@ def main():
 
     dfs =  load_by_polygon(config.main_extract_out, config.main_extract_out_polygons_df)
 
-
-    for key, value in dfs.items():
-        print(f"Polygon: {key}")
-        print(f"Dataframe: {value}")
 
 
 if __name__ == "__main__":

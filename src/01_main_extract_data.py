@@ -15,17 +15,8 @@ from src.Common.raster import *  # Your helper Common, e.g., xyval, latlon_to_ut
 from src.Common.config_object import config_object
 import polars as pl
 import pysolar as solar
+from src.Util.logging import logging_config
 
-
-def logging_config():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler("process.log", encoding='utf-8'),  # Note the encoding parameter
-            logging.StreamHandler()
-        ]
-    )
 
 # ------------------------------
 # Save Output to Parquet
