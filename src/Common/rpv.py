@@ -66,6 +66,7 @@ def rpv_df_preprocess(df):
         if col in df.columns:
             if not np.allclose(df[col], formula, atol=EPS):
                 print(f"Column '{col}' values do not match formula!")
+                df = df.with_columns(pl.Series(col, formula))
         else:
             df = df.with_columns(pl.Series(col, formula))
     return df

@@ -48,7 +48,7 @@ def main():
                 print(row)
                 dg = pl.read_parquet(row['paths'])
                 dg = rpv_df_preprocess(dg)
-                print(rpv_fit(dg, band='band5'))
+                print(rpv_fit(dg, band='band2'))
 
 
 
