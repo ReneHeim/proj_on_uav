@@ -12,13 +12,28 @@ from rasterio.warp import transform
 # ------------------------------
 def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
     """
-    Same column names as the legacy version, but with corrected geometry.
+    Calculate view zenith and azimuth angles for each point in a point cloud
+    relative to a camera (e.g., drone) position.
 
-    • delta_x / delta_y / delta_z : camera – ground (east, north, up)
-    • angle_rad                  : arctan2(distance_xy , delta_z)  (radians)
-    • vza                        : angle_rad converted to degrees (0° at nadir)
-    • vaa_rad                    : arctan2(delta_x , delta_y)      (radians)
-    • vaa_temp / vaa             : same relative-azimuth logic as before
+    Args:
+        df_merged (pl.DataFrame): Point cloud, must contain columns: 'elev', 'Xw', 'Yw', 'band1'.
+        xcam, ycam, zcam (float): Camera coordinates (projected).
+        sunelev (float): Sun elevation (deg), stashed in output for reference.
+        saa (float): Solar azimuth angle (deg), used for relative azimuth calculation.
+
+    Returns:
+        pl.DataFrame: Original DataFrame with new columns:
+            - delta_x, delta_y, delta_z: Vector from ground point to camera (meters)
+            - distance_xy: Horizontal distance ground↔camera
+            - angle_rad, vza: View zenith angle (rad, deg)
+            - vaa_rad, vaa_temp, vaa: View azimuth angles (deg, radians), relative to solar azimuth
+            - xcam, ycam, sunelev, saa: Repeated as constants for reference
+
+    Notes:
+        - Sets vza/vaa to None where band1==65535 (masked).
+        - Masks out points outside 2nd-98th elev percentile.
+        - If input columns missing, will raise; not validated.
+        - No file IO; no data is removed.
     """
     start_angles = timer()
     try:
@@ -103,6 +118,25 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
 
 
 def get_camera_position(cam_path, name, target_crs=None ):
+    """
+    Extract the 3D position of a specific camera/image from a text file.
+
+    Args:
+        cam_path (str or Path): Path to camera position file (tab-separated, no header, skip 2 rows).
+        name (str): Substring to match the 'PhotoID' of the image/camera.
+        target_crs (str, optional): EPSG code (e.g., 'EPSG:32632'). If set, position is reprojected.
+
+    Returns:
+        tuple (float, float, float): (x, y, z) camera coordinates. May be lon/lat or projected.
+
+    Raises:
+        - Any file or parsing errors will be logged and re-raised.
+        - If name not found, may raise IndexError.
+
+    Notes:
+        - Assumes file structure and delimiters are correct.
+        - Uses rasterio.transform for CRS change (if needed).
+    """
     start = timer()
     try:
         campos = pl.read_csv(cam_path, separator='\t', skip_rows=2, has_header=False)
@@ -129,8 +163,27 @@ def get_camera_position(cam_path, name, target_crs=None ):
 
 def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
     """
-    Plot the angles and camera position.
+    Generate and save 2D and 3D plots of drone-camera geometry and ground points.
+
+    Args:
+        df_merged (pl.DataFrame): Data with 'Xw', 'Yw', 'elev' columns at minimum.
+        xcam, ycam, zcam (float): Camera position for plotting.
+        path (str): Base directory where figures are saved. Subfolders must exist.
+        file_name (str): Used to name saved files.
+
+    Returns:
+        None. Saves three PNG files:
+            - top_down/angle_data_{file_name}.png   (XY projection)
+            - side_view/angle_data_{file_name}.png  (Y vs. elev)
+            - 3d_view/angle_data_{file_name}.png    (3D scatter)
+
+    Notes:
+        - If df_merged has >10,000 rows, randomly samples for plotting.
+        - Will throw if output directories do not exist.
+        - Does not delete or overwrite any data; only adds plots.
+        - Relies on matplotlib and polars DataFrame interface.
     """
+
 
     # --------------------
     # TOP-DOWN VIEW

@@ -7,7 +7,23 @@ from shapely.geometry.point import Point
 
 def OSAVI_index_filtering(df, removal_threshold=None):
     """
-    Apply the OSAVI index filtering to the DataFrame.
+    Compute the OSAVI index for each row and optionally filter out rows
+    below a threshold.
+
+    Args:
+        df (polars.DataFrame): Input with 'band5' and 'band3' columns.
+        removal_threshold (float, optional): If set, only keep rows with OSAVI > threshold.
+
+    Returns:
+        polars.DataFrame: DataFrame with new 'OSAVI' column, possibly filtered.
+
+    Raises:
+        ValueError if required columns are missing.
+
+    Notes:
+        - No in-place modification: always returns new DataFrame.
+        - Will log and raise on error.
+        - OSAVI: (1+0.16)*(NIR-Red)/(NIR+Red+0.16), with NIR=band5, Red=band3.
     """
     try:
         # Ensure required columns exist
@@ -35,7 +51,22 @@ def OSAVI_index_filtering(df, removal_threshold=None):
         raise
 def excess_green_filter(df, removal_threshold=None):
     """
-    Apply the Excess Green index filtering to the DataFrame.
+    Compute the Excess Green index and filter rows above a threshold.
+
+    Args:
+        df (polars.DataFrame): Input with 'band1', 'band2', 'band3'.
+        removal_threshold (float, optional): If set, keeps only rows with ExcessGreen > threshold.
+
+    Returns:
+        polars.DataFrame: DataFrame with 'ExcessGreen' column, possibly filtered.
+
+    Raises:
+        ValueError if required columns are missing.
+
+    Notes:
+        - ExcessGreen = 2*Green - Red - Blue (band2, band3, band1).
+        - Logging as above.
+        - No in-place change.
     """
     try:
         # Ensure required columns exist
@@ -62,7 +93,24 @@ def excess_green_filter(df, removal_threshold=None):
 
 
 def plot_heatmap(df, column_name, output_path, sample_size=100000):
-    # Create a sample of the data
+    """
+    Create a 2D heatmap scatter plot of a numeric column over (Xw, Yw) coordinates.
+
+    Args:
+        df (polars.DataFrame or pandas.DataFrame): Input data, must include 'Xw', 'Yw', and column_name.
+        column_name (str): The column to visualize.
+        output_path (str): Directory to save plot.
+        sample_size (int): Maximum points to plot (random sample).
+
+    Returns:
+        None. Saves PNG and shows the plot.
+
+    Notes:
+        - Will fail if columns missing.
+        - Will overwrite previous PNG silently.
+        - No file/folder existence check for output_path.
+    """
+
     sample_df = df.sample(n=sample_size)
 
     # Convert to pandas if it's a polars dataframe
@@ -100,21 +148,24 @@ def plot_heatmap(df, column_name, output_path, sample_size=100000):
 
 def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, output_path=None):
     """
-    Plot a spectrogram showing reflectance values across different wavelengths.
+    Plot average and std dev of reflectance vs. wavelength for all bands.
 
-    Parameters:
-    -----------
-    df : polars.DataFrame
-        DataFrame containing band reflectance values (band1, band2, etc.)
-    n_bands : int
-        Number of bands to include (e.g., 5 for band1 through band5)
-    bands_wavelength_list : list
-        List of wavelengths (in nm) corresponding to each band
-    sample_size : int, optional
-        Number of samples to use for plotting
-    output_path : str, optional
-        Path to save the output plot
+    Args:
+        df (polars.DataFrame or pandas.DataFrame): Must contain band1 ... bandN.
+        n_bands (int): Number of bands to plot.
+        bands_wavelength_list (list of float): Wavelengths (nm) for each band.
+        sample_size (int): Max number of samples.
+        output_path (str, optional): If set, saves PNG.
+
+    Returns:
+        None. Shows and/or saves plot.
+
+    Notes:
+        - Requires n_bands == len(bands_wavelength_list).
+        - Only mean ± 1 stddev region shown.
+        - Will fail if required bands missing.
     """
+
     try:
         # Ensure we have the required columns
         band_columns = [f"band{i}" for i in range(1, n_bands + 1)]
@@ -129,7 +180,7 @@ def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, out
 
         # Sample the dataframe if needed
         if sample_size and len(df) > sample_size:
-            df = df.sample(n=sample_size)
+            df = df.sample(n=sample_size, replace=True)
 
         # Convert to pandas if it's a polars dataframe
         if isinstance(df, pl.DataFrame):
@@ -173,22 +224,25 @@ def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, out
 
 def add_mask_and_plot(df, column_name, threshold, above=True, output_path=None):
     """
-    Add a mask column to the DataFrame based on a threshold and plot the result.
+    Add a boolean mask column based on thresholding, and plot mask over (Xw, Yw).
 
-    Parameters:
-    -----------
-    df : polars.DataFrame
-        The input DataFrame.
-    column_name : str
-        The column to apply the threshold on.
-    threshold : float
-        The threshold value for masking.
-    above : bool, default=True
-        If True, mask will be True when value > threshold.
-        If False, mask will be True when value < threshold.
-    output_path : str, optional
-        Path to save the output plot.
+    Args:
+        df (polars.DataFrame or pandas.DataFrame): Must include 'Xw', 'Yw', column_name.
+        column_name (str): Name of column to mask.
+        threshold (float): Value to threshold at.
+        above (bool): If True, mask = value > threshold. If False, mask = value < threshold.
+        output_path (str, optional): If set, saves plot PNG.
+
+    Returns:
+        pandas.DataFrame: DataFrame with 'mask' column.
+
+    Notes:
+        - No check for output_path existence.
+        - Always converts to pandas before plotting.
+        - Mask column will be boolean.
+        - Overwrites previous mask_plot PNG.
     """
+
     try:
         # Add mask column based on the 'above' parameter
         if above:

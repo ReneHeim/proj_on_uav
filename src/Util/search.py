@@ -1,8 +1,21 @@
 import concurrent
+import re
+
 import logging
 from concurrent.futures import ThreadPoolExecutor
 import os
 import glob
+
+def order_path_list(group):
+    path_colmn = list(range(0, len(group)))
+    for path in group:
+        match = re.search(r'plot_(\d+)', path)
+        if match:
+            plot_id = int(match.group(1))
+            path_colmn[plot_id] = path
+    return path_colmn
+
+
 
 
 
