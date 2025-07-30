@@ -1,21 +1,21 @@
 # ------------------------------------------------------------------
-# project configuration – WEEK 8  (29 Oct 2024 base products)
+# project configuration – WEEK 0  (12 Dec 2024 products)
 # ------------------------------------------------------------------
 
-base_path: "D:\\20240826_week8\\metashape\\20241029_products_uav_data"
+base_path: "D:\\20240603_week0\\metashape\\20241205_products_uav_data"
 
 inputs:
   date_time:
-    start: "2024-08-26 12:00:00"          # Acquisition date (WEEK 8)
+    start: "2024-06-03 12:00:00"          # noon on the data-stamp you processed
     time_zone: "Europe/Berlin"
 
   paths:
     # ► raw Metashape exports
-    cam_path:         "{base_path}/20241029_week8_cameras.txt"
-    dem_path:         "{base_path}/20241029_week8_dem.tif"
-    orthophoto_path:  "{base_path}/orthophotos/*.tif"
-    ori:              ["{base_path}/orthophotos"]
-    mosaic_path:      "{base_path}/20241209_week8_orthomosaic.tif"   # newer/larger mosaic
+    cam_path:         "{base_path}/20241212_week0_cameras.txt"
+    dem_path:         "{base_path}/20241212_week0_dem.tif"
+    orthophoto_path:  "{base_path}/20241212_week0_orthophotos/*.tif"
+    ori:              ["{base_path}/20241212_week0_orthophotos"]
+    mosaic_path:      "{base_path}/20241212_week0_orthomosaic.tif"   # use the newer, larger mosaic
 
     # ► ancillary data
     ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
@@ -24,7 +24,7 @@ inputs:
   settings:
     number_of_processor: -1
     filter_radius:      1
-    file_name:          "20241029_week8_project"
+    file_name:          "20241212_week0_project"
     bands:              5
     target_crs:         "EPSG:32632"
 

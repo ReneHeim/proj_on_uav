@@ -6,7 +6,7 @@ base_path: "D:\\20240603_week0\\metashape\\20241205_products_uav_data"
 
 inputs:
   date_time:
-    start: "2024-12-12 12:00:00"          # noon on the data-stamp you processed
+    start: "2024-06-03 12:00:00"          # noon on the data-stamp you processed
     time_zone: "Europe/Berlin"
 
   paths:
@@ -19,7 +19,7 @@ inputs:
 
     # ► ancillary data
     ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
-    polygon_file_path:        "{base_path}/2024_oncerco_plot_polygons.gpkg"
+    polygon_file_path:        "D:\\2024_oncerco_plot_polygons.gpkg"
 
   settings:
     number_of_processor: -1
