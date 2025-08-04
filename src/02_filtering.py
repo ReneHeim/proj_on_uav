@@ -27,6 +27,9 @@ def main():
     ## Apply OSAVI index filtering
     df = OSAVI_index_filtering(df)
     df = excess_green_filter(df)
+    print(df.columns)
+
+
 
     #Plot heatmaps
     # plot_heatmap(df, "OSAVI", config.main_extract_out)

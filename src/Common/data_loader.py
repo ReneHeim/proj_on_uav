@@ -1,4 +1,5 @@
 import logging
+from itertools import islice
 from pathlib import Path
 from typing import Optional
 import polars as pl
@@ -96,7 +97,58 @@ def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
              .sink_parquet(target))
         logging.info(f"  • wrote {str(target)}")
 
-def unique_plot_ids_scan(folder: Path) -> set[str]:
+
+def files_without_plot_id(folder: Path) -> list[Path]:
+    """
+    Scans all Parquet files in a folder and returns the list of files missing the 'plot_id' column.
+
+    This function uses Polars' schema reader to check file metadata only, without loading full data.
+
+    Parameters:
+    -----------
+    folder : Path
+        Path to the folder containing .parquet files to scan.
+
+    Returns:
+    --------
+    list[Path]
+        A list of Parquet file paths that do not contain the 'plot_id' column.
+    """
+    missing = []
+    for fp in folder.glob("*.parquet"):
+        try:
+            if "plot_id" not in pl.read_parquet_schema(fp):
+                missing.append(fp)
+        except Exception as err:
+            print(f"{fp.name}: {err}")  # e.g. corrupted footer
+    return missing
+
+
+def batched(it, n):
+    """
+    Yields batches of size `n` from an input iterable.
+
+    Useful for splitting long file lists into chunks to avoid resource exhaustion (e.g., open file limits).
+
+    Parameters:
+    -----------
+    it : Iterable
+        An iterable to split into batches.
+    n : int
+        Maximum number of elements per batch.
+
+    Yields:
+    -------
+    list
+        A batch (list) of up to `n` elements from the original iterable.
+    """
+    it = iter(it)
+    while (batch := list(islice(it, n))):
+        yield batch
+
+
+
+def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
     """
     Scans all Parquet files in a folder and returns the set of unique 'plot_id' values found.
 
@@ -112,10 +164,26 @@ def unique_plot_ids_scan(folder: Path) -> set[str]:
     set[str]
         A set of all unique 'plot_id' values found in the folder's Parquet files.
     """
-    ids_lf = pl.scan_parquet(folder / "*.parquet") \
-        .select("plot_id").unique()
-    return set(ids_lf.collect()["plot_id"].to_list())
 
+    #search for files without plotid:
+
+    bad = files_without_plot_id(Path(r"D:\20240603_week0\metashape\20241205_products_uav_data\output\extract"))
+    if len(bad) > 0:
+        print(f"Found band {bad} files")
+        print(f"{len(bad)} files lack plot_id")
+
+    uids = set()
+    #Batches
+
+
+
+    for files in batched(folder.glob("*.parquet"), batch_size):
+        ids = (pl.scan_parquet(files)
+                 .select("plot_id")
+                 .unique()
+                 .collect())["plot_id"]
+        uids.update(ids.to_list())
+    return uids
 
 def load_by_polygon(df_folder: str,
                     df_polygon_folder: str,
