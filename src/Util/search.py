@@ -16,7 +16,8 @@ def order_path_list(group):
     return path_colmn
 
 
-
+IGNORE_DIRS = {"System Volume Information"}
+PATTERN_TMPL = "*{obj}*.parquet"
 
 
 def search_directory(directory, objective):
@@ -36,48 +37,70 @@ def search_directory(directory, objective):
     return None
 
 
-
-
-def optimized_recursive_search(folders, objective, start=r'D:\\'):
+def optimized_recursive_search(folders, objective, start_dir):
     """
-    Recursively searches for parquet files containing a specific objective string
-    in their names within specified folders, using multithreading.
+    Search for parquet files matching an objective in relevant directories.
 
     Args:
-        folders (list): A list of substrings. A directory path must contain one of these
-                        substrings to be included in the search.
-        objective (str): The string that the target .parquet filenames must contain.
-        start (str): The starting directory for the search.
+        folders (list): List of folder name fragments to identify relevant directories
+        objective (str): String that should be in the filename
+        start_dir (str): Starting directory for the search
 
     Returns:
-        list: A list of lists, where each inner list contains matching file paths
-              from a single directory.
+        dict: Dictionary with week IDs as keys and lists of file paths as values
     """
-    results = []
-    # Use os.walk for efficient, top-down directory traversal.
-    # It avoids deep recursion and is generally faster than recursive glob.
-    directories_to_search = []
-    for root, dirs, _ in os.walk(start):
-        # Exclude special directories from the search to avoid errors and cycles.
-        dirs[:] = [d for d in dirs if '$' not in d and 'System Volume Information' not in d]
 
-        # Check if the current directory path matches the criteria.
-        if any(sub in root for sub in folders):
-            directories_to_search.append(root)
+    logging.info(f"Starting search from {start_dir}")
+    logging.info(f"Looking for files containing '{objective}' in folders related to {folders}")
 
-    # Use a ThreadPoolExecutor to search directories in parallel.
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Create a future for each directory search task.
-        future_to_dir = {executor.submit(search_directory, directory, objective): directory for directory in directories_to_search}
+    results_by_week = {}
+    stats = {
+        "directories_checked": 0,
+        "files_found": 0,
+        "weeks_found": set()
+    }
 
-        for future in concurrent.futures.as_completed(future_to_dir):
-            try:
-                matches = future.result()
-                if matches:
-                    results.append(matches)
-            except Exception as e:
-                # Handle exceptions that might occur within a thread.
-                print(f"An error occurred during search: {e}")
+    # Walk through all directories
+    for root, dirs, _ in os.walk(start_dir):
+        stats["directories_checked"] += 1
 
-    return results
+        # Skip system folders and hidden directories
+        dirs[:] = [d for d in dirs if '$' not in d and d not in IGNORE_DIRS]
+
+        is_relevant = any(folder in root for folder in folders) if folders else True
+
+        week_match = re.search(r'week\d+', root)
+        week_id = week_match.group() if week_match else None
+
+        if is_relevant or week_id:
+            logging.debug(f"Checking directory: {root}")
+
+            pattern = os.path.join(root, f"*{objective}*.parquet")
+            matching_files = glob.glob(pattern)
+
+            if matching_files:
+                if not week_id:
+                    for file in matching_files:
+                        file_week_match = re.search(r'week\d+', file)
+                        if file_week_match:
+                            week_id = file_week_match.group()
+                            break
+
+                if not week_id:
+                    week_id = 'unknown'
+
+                if week_id not in results_by_week:
+                    results_by_week[week_id] = []
+                    stats["weeks_found"].add(week_id)
+
+                results_by_week[week_id].extend(matching_files)
+                stats["files_found"] += len(matching_files)
+
+                logging.info(f"Found {len(matching_files)} files for {week_id} in {root}")
+
+    logging.info(f"Search complete: checked {stats['directories_checked']} directories")
+    logging.info(f"Found {stats['files_found']} files across {len(stats['weeks_found'])} weeks")
+    logging.info(f"Weeks found: {sorted(list(stats['weeks_found']))}")
+
+    return results_by_week
 
