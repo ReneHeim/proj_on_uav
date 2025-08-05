@@ -1,3 +1,5 @@
+import logging
+
 import polars as pl
 from tqdm import tqdm
 import time
@@ -64,6 +66,7 @@ def process_weekly_data(weeks_dics, debug=False):
                     'status': 'success'
                 })
             except Exception as e:
+                logging.warning(f"Error processing week {week}: {e}")
                 all_results.append({
                     'week': str(week) if week is not None else None,
                     'plot_id': int(plot_id) if isinstance(plot_id,

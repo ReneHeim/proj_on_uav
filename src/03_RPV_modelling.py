@@ -54,7 +54,7 @@ def main():
     # Create rpvs for each
     for week, gdf in weeks_dics.items():
         result = process_weekly_data({week: gdf})
-        result.drop("geometry").write_csv(f"{base_dir}/RPV_Results/V2/rpv_{week}_results.csv")
+        result.drop("geometry").write_csv(f"{base_dir}/RPV_Results/V5/rpv_{week}_results.csv")
 
 
 if __name__ == "__main__":
