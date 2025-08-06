@@ -16,19 +16,29 @@ def rpv_1(angle_pack, rho0, k, theta, rc=1.0):
 
 
 
-def rpv_2(angle_pack, rho0, k, Theta, rc=1.0):
-    """Rahman–Pinty–Verstraete BRF (canonical RAMI form)."""
-    s, v, dphi = np.radians(angle_pack)              # θi, θr, Δφ  [rad]
-    cs, cv   = np.cos(s), np.cos(v)
+def rpv_2(angle_pack, rho0, k, theta, rc=1.0):        # 1  keep hotspot neutral
+    s, v, dphi = np.radians(angle_pack)
+    cs, cv = np.cos(s), np.cos(v)
     sin_s, sin_v = np.sin(s), np.sin(v)
 
-    g  = np.arccos(cs*cv + sin_s*sin_v*np.cos(dphi)) # phase angle
-    F  = (1 - Theta**2) / (1 + Theta**2 + 2*Theta*np.cos(g))**1.5  # phase kernel
-    G  = np.sqrt(np.tan(s)**2 + np.tan(v)**2 - 2*np.tan(s)*np.tan(v)*np.cos(dphi))
-    hot = 1 + (1 - rc)/(1 + G)
+    g = np.arccos(np.clip(cs*cv + sin_s*sin_v*np.cos(dphi), -1.0, 1.0))
+
+    F = (1 - theta**2) / (1 + theta**2 + 2*theta*np.cos(g))**1.5
+    G = np.sqrt(np.tan(s)**2 + np.tan(v)**2 - 2*np.tan(s)*np.tan(v)*np.cos(dphi))
+    hot = 1 + (1 - rc) / (1 + G)                        # 3  deactivate unless rc is freed
 
     return rho0 * (cs**(k-1)) * (cv**(k-1)) * (cs + cv)**(-k) * F * hot
 
+
+def rpv_side(angle_pack, rho0, k, theta, sigma, rc=1.0):
+    s, v, dphi      = np.radians(angle_pack)
+    cs, cv          = np.cos(s), np.cos(v)
+    g               = np.arccos(np.clip(cs*cv + np.sin(s)*np.sin(v)*np.cos(dphi), -1, 1))
+    F   = (1 - theta**2)/(1 + theta**2 + 2*theta*np.cos(g))**1.5
+    G   = np.sqrt(np.tan(s)**2 + np.tan(v)**2 - 2*np.tan(s)*np.tan(v)*np.cos(dphi))
+    H   = 1 + (1 - rc)/(1 + G)
+    S   = 1 + sigma * (np.sin(g/2)**2) * (np.sin(dphi)**2)   # ← new bit
+    return rho0 * (cs**(k-1)) * (cv**(k-1)) * (cs+cv)**(-k) * F * H * S
 
 
 def rpv_df_preprocess(df, debug=False):
@@ -64,7 +74,8 @@ def rpv_df_preprocess(df, debug=False):
 
 
     # Formulas as expressions
-    vza_formula = np.degrees(np.arccos(df["vz"] / df["v_norm"]))
+    cos_vza = (df["vz"] / (df["v_norm"] + 1e-12)).clip(-1.0, 1.0)  # 1  guard /0 and range
+    vza_formula = np.degrees(np.arccos(cos_vza))
     vaa_formula = (np.degrees(np.arctan2(df["vx"], df["vy"])) % 360)
     sza_formula = 90 - df["sunelev"]
     ndvi_formula = (df["band5"] - df["band3"]) / (df["band5"] + df["band3"])
@@ -88,7 +99,7 @@ def rpv_df_preprocess(df, debug=False):
     return df
 
 
-def rpv_fit(df, band):
+def rpv_fit(df, band, n_samples_bins):
     """
     Fit the RPV model to spectral data.
 
@@ -99,40 +110,43 @@ def rpv_fit(df, band):
     Returns:
         Tuple of (rho0, k, theta, rc, rmse, nrmse)
     """
-    # 1. Data selection
-    df_fit = (
-        df.filter((pl.col(band).is_finite()) & (pl.col(band) > 0) & (pl.col(band) < 1))
-        .sample(n=100000, with_replacement=False, shuffle=True, seed=42)
-    )
+    edges = np.array([0, 15, 25, 35, 45, 60])  # VZA bins
+    bins = np.digitize(df["vza"], edges, right=False) - 1  # 0-based
+    df = df.with_columns(pl.Series("bin", bins))
+
+    df_fit = pl.concat([  # keep scalars!
+        df.filter(
+            (pl.col("bin") == b) &
+            (pl.col(band).is_between(0, 1))
+        ).sample(n=n_samples_bins, seed=42)
+        for b in range(len(edges) - 1)
+    ])
+
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)
-    sza, vza, raa, R = [x[mask] for x in (sza, vza, raa, R)]
 
-    # 2. Define residual for a 3-parameter fit
-    def rpv_res_3params(pars, sza, vza, raa, R):
-        # Unpack three parameters
+
+    k_prior, lam = 0.20, 0.1
+
+    def resid(pars, sza, vza, raa, R):
         rho0, k, theta = pars
-        return rpv_2((sza, vza, raa), rho0, k, theta) - R
+        data_err = rpv_2((sza, vza, raa), rho0, k, theta) - R
+        prior_err = np.sqrt(lam) * (k - k_prior)
+        return np.concatenate([data_err, [prior_err]])
 
-    # 3. Initial guess and bounds for 3 parameters
-    p0 = [np.median(R), 0.7, -0.10]
-    bounds = ([1e-3, 0.2, -0.30],
-              [0.70, 0.95, 0.00])
+    p0 = [np.median(R), 0.1, 0]  # bowl-centred
+    bounds = ([1e-3, 0.0, -1], [0.80, 2 , 1])
 
-    # 4. Robust fit with the residual function
-    res = least_squares(
-        rpv_res_3params, p0,
-        bounds=bounds,  # Add this to use the bounds
-        args=(sza, vza, raa, R),
-        loss="soft_l1",
-        max_nfev=30000, verbose=0
-    )
+    res = least_squares(resid, p0, bounds=bounds,
+                        args=(sza, vza, raa, R),
+                        loss="cauchy", jac="3-point", max_nfev=30_000)
+    #print("Median R", np.median(R))
 
-    # 5. Unpack the three results (not four)
+
     rho0, k, theta = res.x
-    rc = 1.0  # Use default value since we're not fitting this parameter
+    rc = 1.0
 
-    # 6. Evaluate model performance
+
     R_hat = rpv_2((sza, vza, raa), rho0, k, theta, rc)
     rmse = np.sqrt(mean_squared_error(R, R_hat))
     nrmse = rmse / R.mean()

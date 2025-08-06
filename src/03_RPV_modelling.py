@@ -53,8 +53,9 @@ def main():
 
     # Create rpvs for each
     for week, gdf in weeks_dics.items():
-        result = process_weekly_data({week: gdf})
-        result.drop("geometry").write_csv(f"{base_dir}/RPV_Results/V5/rpv_{week}_results.csv")
+        for band in ["band1", "band2", "band3", "band4", "band5"]:
+            result = process_weekly_data({week: gdf}, band=band)
+            result.drop("geometry").write_csv(f"{base_dir}/RPV_Results/V5/rpv_{week}_{band}_results.csv")
 
 
 if __name__ == "__main__":

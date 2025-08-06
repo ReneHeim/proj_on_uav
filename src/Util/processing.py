@@ -8,7 +8,7 @@ from datetime import datetime
 from src.Common.rpv import rpv_df_preprocess, rpv_fit
 
 
-def process_weekly_data(weeks_dics, debug=False):
+def process_weekly_data(weeks_dics,band ,debug=False, n_samples_bins= 2000):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -44,7 +44,7 @@ def process_weekly_data(weeks_dics, debug=False):
 
                 dg = pl.read_parquet(row['paths'])
                 dg = rpv_df_preprocess(dg, debug)
-                rpv_result = rpv_fit(dg, band='band5')
+                rpv_result = rpv_fit(dg, n_samples_bins=n_samples_bins, band=band)
                 rho0, k, theta, rc, rmse, nrmse = rpv_result
 
 
