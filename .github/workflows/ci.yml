@@ -89,7 +89,7 @@ jobs:
         safety check --json --output safety-report.json || true
     
     - name: Upload security reports
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-reports-3.12-${{ github.sha }}
         path: |
@@ -122,7 +122,7 @@ jobs:
         twine check dist/*
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dist-3.12-${{ github.sha }}
         path: dist/
