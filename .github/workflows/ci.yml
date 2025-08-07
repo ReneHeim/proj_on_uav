@@ -1,10 +1,9 @@
 name: CI
 
 on:
+  # Run on every commit to any branch
   push:
-    branches: [ main, dev ]
   pull_request:
-    branches: [ main, dev ]
   schedule:
     # Run dependency updates weekly
     - cron: '0 2 * * 1'
@@ -14,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.12", "3.13", "3.14", "3.15"]
 
     steps:
     - uses: actions/checkout@v4
@@ -74,13 +73,16 @@ jobs:
 
   security:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.15"]
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
+        python-version: ${{ matrix.python-version }}
     
     - name: Install dependencies
       run: |
@@ -96,7 +98,7 @@ jobs:
     - name: Upload security reports
       uses: actions/upload-artifact@v3
       with:
-        name: security-reports-${{ github.sha }}
+        name: security-reports-${{ matrix.python-version }}-${{ github.sha }}
         path: |
           bandit-report.json
           safety-report.json
@@ -104,14 +106,17 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: test
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.15"]
     
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
+        python-version: ${{ matrix.python-version }}
     
     - name: Install dependencies
       run: |
@@ -130,19 +135,22 @@ jobs:
     - name: Upload build artifacts
       uses: actions/upload-artifact@v3
       with:
-        name: dist-${{ github.sha }}
+        name: dist-${{ matrix.python-version }}-${{ github.sha }}
         path: dist/
 
   dependency-update:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.15"]
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Python
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
-        python-version: "3.11"
+        python-version: ${{ matrix.python-version }}
     
     - name: Install pip-tools
       run: |
