@@ -2,9 +2,36 @@ from __future__ import annotations
 from pathlib import Path
 from dataclasses import dataclass, field
 import yaml, glob, warnings, logging
-from metadict import MetaDict
 
 log = logging.getLogger(__name__)
+
+
+class AttrDict(dict):
+    """Minimal attribute-access wrapper for nested dicts.
+
+    Converts nested dicts to AttrDict recursively; lists are left intact except inner dicts.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for k, v in list(self.items()):
+            self[k] = self._wrap(v)
+
+    def _wrap(self, value):
+        if isinstance(value, dict):
+            return AttrDict(value)
+        if isinstance(value, list):
+            return [self._wrap(x) for x in value]
+        return value
+
+    def __getattr__(self, item):
+        try:
+            return self[item]
+        except KeyError as e:
+            raise AttributeError(item) from e
+
+    def __setattr__(self, key, value):
+        self[key] = self._wrap(value)
 
 
 @dataclass(frozen=True)
@@ -33,13 +60,13 @@ def _load_yaml(path: Path) -> dict:
     with path.open() as fh:
         return yaml.safe_load(fh)
 
-def _resolve_base(cfg: dict) -> MetaDict:
+def _resolve_base(cfg: dict) -> AttrDict:
     base = cfg.get("base_path", "")
     for sect in ("inputs", "outputs"):
         for k, v in cfg.get(sect, {}).get("paths", {}).items():
             repl = lambda s: s.replace("{base_path}", base)
             cfg[sect]["paths"][k] = [repl(x) for x in v] if isinstance(v, list) else repl(v)
-    return MetaDict(cfg)
+    return AttrDict(cfg)
 
 def _check(path: str | Path, *, expect="file", allow_glob=False) -> None:
     path = str(path)

@@ -332,7 +332,11 @@ def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
 
     # Create the folder if it doesn't exist
     os.makedirs(folder_name, exist_ok=True)
-    df_merged = df_merged.drop_nans()
+    # drop NaN/null values if present
+    if hasattr(df_merged, "drop_nans"):
+        df_merged = df_merged.drop_nans()
+    else:
+        df_merged = df_merged.drop_nulls()
     # For debugging: convert to pandas and plot distributions
     plt.figure(figsize=(8, 6))
     plt.hist(df_merged['elev'], bins=50, color='skyblue', edgecolor='black')

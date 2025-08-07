@@ -13,5 +13,6 @@ colorama==0.4.6
 pytz==2024.1
 pysolar==0.11
 PyYAML==6.0.1
-metadict==0.6.3
+# removed metadict due to Python 3.12 compatibility; replaced with local AttrDict
+pyarrow==16.1.0
 

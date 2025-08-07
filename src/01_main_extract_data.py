@@ -35,14 +35,25 @@ from src.Util.logging import logging_config
 # ------------------------------
 def save_parquet(df, out, source, iteration, file):
     start_write = timer()
-    try:
-        output_path = Path(out) / f"{source['name']}_{iteration}_{file}.parquet"
-        df.write_parquet(str(output_path), compression='zstd', compression_level=2)
-        end_write = timer()
-        logging.info(f"Saved image result for {file} in {end_write - start_write:.2f} seconds")
-    except Exception as e:
-        logging.error(f"Error saving parquet for {file}: {e}")
-        raise
+    output_path = Path(out) / f"{source['name']}_{iteration}_{file}.parquet"
+    last_err = None
+    for comp in ("zstd", "snappy", None):
+        try:
+            if comp is None:
+                df.write_parquet(str(output_path))
+            else:
+                df.write_parquet(str(output_path), compression=comp)
+            end_write = timer()
+            logging.info(
+                f"Saved image result for {file} in {end_write - start_write:.2f} seconds (compression={comp})"
+            )
+            return
+        except Exception as e:
+            last_err = e
+            logging.warning(f"Parquet write failed with compression={comp}: {e}")
+            continue
+    logging.error(f"Error saving parquet for {file}: {last_err}")
+    raise last_err
 
 # ------------------------------
 # Check Images done

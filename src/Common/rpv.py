@@ -116,13 +116,15 @@ def rpv_fit(df, band, n_samples_bins):
     bins = np.digitize(df["vza"], edges, right=False) - 1  # 0-based
     df = df.with_columns(pl.Series("bin", bins))
 
-    df_fit = pl.concat([  # keep scalars!
-        df.filter(
-            (pl.col("bin") == b) &
-            (pl.col(band).is_between(0, 1))
-        ).sample(n=n_samples_bins, seed=42)
-        for b in range(len(edges) - 1)
-    ])
+    frames: list[pl.DataFrame] = []
+    for b in range(len(edges) - 1):
+        subset = df.filter((pl.col("bin") == b) & (pl.col(band).is_between(0, 1)))
+        if subset.height > 0:
+            n_take = min(n_samples_bins, subset.height)
+            frames.append(subset.sample(n=n_take, seed=42))
+    if not frames:
+        raise ValueError("No valid samples available for RPV fitting")
+    df_fit = pl.concat(frames)
 
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)

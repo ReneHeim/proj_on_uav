@@ -108,10 +108,14 @@ def test_script_01_extract_e2e(tmp_path: Path):
     cfg_path.write_text(yaml.safe_dump(cfg))
 
     # run script 01
-    proc = subprocess.run(["python", "src/01_main_extract_data.py", "--config", str(cfg_path)], capture_output=True)
+    proc = subprocess.run(["python", "-m", "src.01_main_extract_data", "--config", str(cfg_path)], capture_output=True)
     assert proc.returncode == 0, proc.stderr.decode()
 
     # expect at least one parquet output
     outputs = list((out / "extract").glob("*.parquet"))
+    if not outputs:
+        # show stderr/stdout for debugging
+        print(proc.stdout.decode())
+        print(proc.stderr.decode())
     assert outputs, "No parquet produced by extract script"
 
