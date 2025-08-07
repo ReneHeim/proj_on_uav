@@ -206,11 +206,10 @@ def check_data_polygon_overlap(df, polygons_gdf):
     phase_start = time.time()
 
     # Get data bounds with individual operations
-
-    xmin = df.select(pl.min("Xw")).item()
-    xmax = df.select(pl.max("Xw")).item()
-    ymin = df.select(pl.min("Yw")).item()
-    ymax = df.select(pl.max("Yw")).item()
+    xmin = df.select(pl.col("Xw").min()).item()
+    xmax = df.select(pl.col("Xw").max()).item()
+    ymin = df.select(pl.col("Yw").min()).item()
+    ymax = df.select(pl.col("Yw").max()).item()
 
     # Create bounds array
     data_bounds = [xmin, ymin, xmax, ymax]
@@ -538,8 +537,16 @@ def combine_chunk_results(filtered_chunks, n_points, phase_time):
         return None
 
 
-def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bounds, sample_for_debug=5000, plots_out=None,
-                 img_name=None):
+def plot_results(
+    gdf_poly,
+    gdf_filtered,
+    target_crs,
+    polygon_basename,
+    data_bounds,
+    sample_for_debug=5000,
+    plots_out=None,
+    img_name=None,
+):
     """
     Generate a visualization of the filtered points within polygons.
     Randomly samples points and displays polygon IDs on the map.
@@ -600,8 +607,8 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bound
         # Create GeoDataFrame from the sampled points
         sample_points = gpd.GeoDataFrame(
             sample_df,
-            geometry=pl.points_from_xy(sample_df['Xw'], sample_df['Yw']),
-            crs=target_crs
+            geometry=points_from_xy(sample_df['Xw'], sample_df['Yw']),
+            crs=target_crs,
         )
 
         # Plot sampled points
@@ -690,17 +697,25 @@ def plot_results(gdf_poly, gdf_filtered, target_crs, polygon_basename,data_bound
     plt.tight_layout()
     if plots_out is not None:
         os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
-        plt.savefig(f'{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png', dpi=300)
+        plt.savefig(f"{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png", dpi=300)
     else:
-        plt.savefig(f'polygon_filtering_{polygon_basename}.png', dpi=300)
+        plt.savefig(f"polygon_filtering_{polygon_basename}.png", dpi=300)
 
     # Show plot first, then close
     plt.show()
     plt.close()
 
-def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id",
-                         shrinkage=0.1, debug=True,
-                         sample_for_debug=5000, plots_out=None, img_name = None):
+def filter_df_by_polygon(
+    df,
+    polygon_path,
+    target_crs="EPSG:32632",
+    id_field="id",
+    shrinkage=0.1,
+    debug=True,
+    sample_for_debug=5000,
+    plots_out=None,
+    img_name=None,
+):
     """
     Filter a Polars DataFrame to only include points that fall within polygons.
     Implements timeouts and performance optimizations.
@@ -759,7 +774,7 @@ def filter_df_by_polygon(df, polygon_path, target_crs="EPSG:32632", id_field="id
                 plot_no_overlap(polygons_gdf, data_bounds, img_name=img_name, plots_out=plots_out, debug=debug)
             return None
 
-        # --- PHASE 5: Prepare chunks for parallfel processing ---
+        # --- PHASE 5: Prepare chunks for parallel processing ---
         chunk_indices, max_workers, n_points, n_chunks = prepare_chunks(df)
 
         # --- PHASE 6: Process chunks in parallel ---

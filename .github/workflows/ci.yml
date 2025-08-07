@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, dev ]
+  pull_request:
+    branches: [ main, dev ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pre-commit
+      - name: Run pre-commit
+        run: |
+          pre-commit run --all-files
+      - name: Smoke test CLIs
+        run: |
+          python src/01_main_extract_data.py --help | head -n 20
+          python src/02_filtering.py --help | head -n 20
+          python src/03_RPV_modelling.py --help | head -n 20
+

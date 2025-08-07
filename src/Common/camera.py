@@ -2,8 +2,9 @@ import logging
 import os
 import traceback
 from timeit import default_timer as timer
-import polars as pl
+
 import numpy as np
+import polars as pl
 from matplotlib import pyplot as plt
 from rasterio.warp import transform
 
@@ -84,8 +85,8 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         # ------------------------------------------------------------------
         # 4. masking logic (unchanged)
         # ------------------------------------------------------------------
-        p05 = df_merged.select(pl.col("elev").quantile(0.02)).item()
-        p95 = df_merged.select(pl.col("elev").quantile(0.98)).item()
+        p05 = df_merged.select(pl.col("elev").quantile(0.02, interpolation="nearest")).item()
+        p95 = df_merged.select(pl.col("elev").quantile(0.98, interpolation="nearest")).item()
 
         df_merged = df_merged.with_columns([
             pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),

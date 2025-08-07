@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import re
-from datetime import datetime
-from types import NoneType
+import argparse
 import glob
-from pathlib import PureWindowsPath, Path
+import logging
+import os
+import re
 import traceback
-from tqdm import tqdm
-from src.Common.camera import get_camera_position, calculate_angles, plot_angles
-from src.Common.date_time import convert_to_timezone
-from src.Common.merge_analysis import merge_data
-from src.Common.polygon_filtering import  filter_df_by_polygon
-from src.Common.raster import *  # Your helper Common, e.g., xyval, latlon_to_utm32n_series, etc.
-from src.Common.config_object import config_object
+from datetime import datetime
+from pathlib import PureWindowsPath, Path
+from timeit import default_timer as timer
+
+import numpy as np
 import polars as pl
 import pysolar as solar
+from rasterio.enums import Resampling
+from tqdm import tqdm
+
+from src.Common.camera import calculate_angles, get_camera_position, plot_angles
+from src.Common.config_object import config_object
+from src.Common.date_time import convert_to_timezone
+from src.Common.merge_analysis import merge_data
+from src.Common.polygon_filtering import filter_df_by_polygon
+from src.Common.raster import *  # read_orthophoto_bands, plotting_raster, etc.
 from src.Util.logging import logging_config
 
 
@@ -158,10 +165,14 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
         #Paert 3: Filter by polygon if specified
         if polygon_filtering:
-            df_merged = filter_df_by_polygon(df_merged,polygon_path = source["Polygon_path"],
-                                             plots_out= source["plot out"] ,target_crs=source["target_crs"],
-                                             img_name= file)
-            if type(df_merged) == NoneType:
+            df_merged = filter_df_by_polygon(
+                df_merged,
+                polygon_path=source["Polygon_path"],
+                plots_out=source["plot out"],
+                target_crs=source["target_crs"],
+                img_name=file,
+            )
+            if df_merged is None:
                 raise ValueError("No Points are inside the polygon, skipping this image.")
 
         #Part 4: Retrieve solar angles from position and time and filter
@@ -198,7 +209,27 @@ def process_orthophoto(orthophoto, cam_path, path_flat, out, source, iteration, 
 
 def main():
     logging_config()
-    config = config_object("config_file.yml")
+
+    parser = argparse.ArgumentParser(description="Extract per-pixel data and angles from orthophotos")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=str(Path(__file__).resolve().parent / "config_file_example.yml"),
+        help="Path to YAML config file",
+    )
+    parser.add_argument(
+        "--alignment",
+        action="store_true",
+        help="Enable DEM/orthophoto co-registration if misaligned",
+    )
+    parser.add_argument(
+        "--no-polygon",
+        action="store_true",
+        help="Disable polygon filtering",
+    )
+    args = parser.parse_args()
+
+    config = config_object(args.config)
 
     source= {'out': config.main_extract_out,
                'cam_path': config.main_extract_cam_path,
@@ -234,8 +265,17 @@ def main():
 
         start_DEM_i = timer()
         path_flat = retrieve_orthophoto_paths(ori)
-        process_orthophoto(image_path, source['cam_path'], path_flat, source['out'], source, i, exiftool_path,
-                           polygon_filtering=True)
+        process_orthophoto(
+            image_path,
+            source['cam_path'],
+            path_flat,
+            source['out'],
+            source,
+            i,
+            exiftool_path,
+            polygon_filtering=not args.no_polygon,
+            alignment=args.alignment,
+        )
         end_DEM_i = timer()
         logging.info(f"Total time for iteration {i}: {end_DEM_i - start_DEM_i:.2f} seconds")
 

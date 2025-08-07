@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "proj_on_uav"
+version = "0.1.0"
+description = "Multi-angular UAV reflectance extraction, filtering, and RPV modeling"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["find:"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+uav-extract = "01_main_extract_data:main"
+uav-filter = "02_filtering:main"
+uav-rpv = "03_RPV_modelling:main"
+

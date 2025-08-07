@@ -1,26 +1,43 @@
-import logging
-
-from src.Common.data_loader import load_by_polygon
-from src.Common.filters import add_mask_and_plot
-from Common.filters import OSAVI_index_filtering, excess_green_filter, plot_heatmap, plot_spectrogram
-from Common.config_object import config_object
-import polars as pl
-import os
+import argparse
 import glob
+import logging
+import os
 
+import polars as pl
+
+from src.Common.config_object import config_object
+from src.Common.data_loader import load_by_polygon
+from src.Common.filters import (
+    OSAVI_index_filtering,
+    add_mask_and_plot,
+    excess_green_filter,
+    plot_heatmap,
+    plot_spectrogram,
+)
 from src.Util.logging import logging_config
 
 
 def main():
-    config = config_object("config_file.yml")
     logging_config()
+    parser = argparse.ArgumentParser(description="Apply filtering and polygon splitting")
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=str(os.path.join(os.path.dirname(__file__), "config_file_example.yml")),
+        help="Path to YAML config file",
+    )
+    args = parser.parse_args()
+
+    config = config_object(args.config)
 
     ## Import dataframe
 
 
     paths = glob.glob(os.path.join(config.main_extract_out, "*.parquet"))
 
-    df = pl.read_parquet(paths[12])
+    if not paths:
+        raise RuntimeError(f"No parquet files found in {config.main_extract_out}")
+    df = pl.read_parquet(paths[0])
 
 
 
@@ -44,7 +61,7 @@ def main():
     # add_mask_and_plot(df,"OSAVI",0.4)
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
-    dfs =  load_by_polygon(config.main_extract_out, config.main_extract_out_polygons_df)
+    dfs = load_by_polygon(str(config.main_extract_out), str(config.main_extract_out_polygons_df))
 
 
 

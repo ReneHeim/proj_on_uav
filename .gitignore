@@ -130,3 +130,6 @@ dmypy.json
 /.idea
 /c
 /Plots/
+Documentation/_build/
+process.log
+output/
