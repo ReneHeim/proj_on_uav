@@ -1,4 +1,6 @@
-import numpy as np, polars as pl, matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
 from scipy.optimize import least_squares
 from sklearn.metrics import mean_squared_error
 

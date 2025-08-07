@@ -7,13 +7,32 @@ import os
 import glob
 
 def order_path_list(group):
-    path_colmn = list(range(0, len(group)))
+    """Return a list indexed by plot_id where present, preserving others at the end.
+
+    - Safely handles gaps and large plot IDs by using a dict first.
+    - Keeps non-matching paths appended after indexed ones.
+    """
+    indexed: dict[int, str] = {}
+    rest: list[str] = []
     for path in group:
-        match = re.search(r'plot_(\d+)', path)
+        match = re.search(r"plot_(\d+)", path)
         if match:
-            plot_id = int(match.group(1))
-            path_colmn[plot_id] = path
-    return path_colmn
+            try:
+                plot_id = int(match.group(1))
+                indexed[plot_id] = path
+            except ValueError:
+                rest.append(path)
+        else:
+            rest.append(path)
+
+    # Rebuild ordered list with gaps filled by None
+    ordered: list[str | None] = []
+    if indexed:
+        for i in range(max(indexed.keys()) + 1):
+            ordered.append(indexed.get(i))
+    # Append leftovers
+    ordered.extend(rest)
+    return ordered
 
 
 IGNORE_DIRS = {"System Volume Information"}
