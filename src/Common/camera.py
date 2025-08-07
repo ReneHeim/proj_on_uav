@@ -162,93 +162,62 @@ def get_camera_position(cam_path, name, target_crs=None ):
         logging.error(f"Error retrieving camera position for {name}: {e}")
         raise
 
-def plot_angles(df_merged, xcam, ycam, zcam, path, file_name):
+def plot_angles(df_merged, lon, lat, zcam, path, file_name):
     """
-    Generate and save 2D and 3D plots of drone-camera geometry and ground points.
-
+    Plot viewing angles for the merged data.
+    
     Args:
-        df_merged (pl.DataFrame): Data with 'Xw', 'Yw', 'elev' columns at minimum.
-        xcam, ycam, zcam (float): Camera position for plotting.
-        path (str): Base directory where figures are saved. Subfolders must exist.
-        file_name (str): Used to name saved files.
-
-    Returns:
-        None. Saves three PNG files:
-            - top_down/angle_data_{file_name}.png   (XY projection)
-            - side_view/angle_data_{file_name}.png  (Y vs. elev)
-            - 3d_view/angle_data_{file_name}.png    (3D scatter)
-
-    Notes:
-        - If df_merged has >10,000 rows, randomly samples for plotting.
-        - Will throw if output directories do not exist.
-        - Does not delete or overwrite any data; only adds plots.
-        - Relies on matplotlib and polars DataFrame interface.
+        df_merged: Polars DataFrame with angle data
+        lon: Camera longitude
+        lat: Camera latitude  
+        zcam: Camera altitude
+        path: Output path for plots
+        file_name: Name of the file being processed
     """
-
-
-    # --------------------
-    # TOP-DOWN VIEW
-    # --------------------
-    if df_merged.shape[0] < 10000:
-        df_merged_sample = df_merged
-    else:
-        df_merged_sample = df_merged.sample(n=10000, with_replacement=False)
-
-
-    plt.figure(figsize=(8, 8))
-    plt.scatter(df_merged_sample["Xw"], df_merged_sample["Yw"], s=10, alpha=0.5, label="Ground Points")
-    plt.scatter([xcam], [ycam], c='red', label="Drone")
-
-
-    plt.legend()
-    plt.title("Top-Down Projection of Drone to Ground Points")
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.axis("equal")
-    plt.savefig(os.path.join(path, f"top_down/angle_data_{file_name}.png"), dpi=200)
-
-    # --------------------
-    # SIDE VIEW
-    # --------------------
-
-    plt.figure(figsize=(10, 5))
-    plt.scatter(df_merged_sample["Yw"], df_merged_sample["elev"], label="Ground Elevation", alpha=0.5)
-
-    #for i in range(0, len(df_merged), 1000):
-    #    plt.plot([0, df_merged["distance_xy"][i]], [zcam, df_merged["elev"][i]], alpha=0.3)
-
-    plt.scatter([ycam], [zcam], c='red', label="Drone")
-    plt.xlabel("Horizontal Distance")
-    plt.ylabel("Elevation")
-    plt.title("Side View: Drone Viewing Geometry")
-    plt.legend()
-    plt.savefig(os.path.join(path, f"side_view/angle_data_{file_name}.png"), dpi=200)
-
-    # --------------------
-    # 3D VIEW
-    # --------------------
-    fig = plt.figure(figsize=(10, 8))
+    import matplotlib.pyplot as plt
+    import os
+    
+    # Create necessary directories
+    top_down_dir = os.path.join(path, "top_down")
+    side_view_dir = os.path.join(path, "side_view")
+    view_3d_dir = os.path.join(path, "3d_view")
+    
+    for dir_path in [top_down_dir, side_view_dir, view_3d_dir]:
+        os.makedirs(dir_path, exist_ok=True)
+    
+    # Convert to pandas for plotting
+    df_pandas = df_merged.to_pandas()
+    
+    # Top-down view
+    plt.figure(figsize=(10, 8))
+    plt.scatter(df_pandas['Xw'], df_pandas['Yw'], c=df_pandas['vza'], cmap='viridis', s=1)
+    plt.colorbar(label='View Zenith Angle (degrees)')
+    plt.xlabel('X (m)')
+    plt.ylabel('Y (m)')
+    plt.title(f'View Zenith Angle - {file_name}')
+    plt.savefig(os.path.join(top_down_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
+    
+    # Side view
+    plt.figure(figsize=(10, 8))
+    plt.scatter(df_pandas['Xw'], df_pandas['elev'], c=df_pandas['vza'], cmap='viridis', s=1)
+    plt.colorbar(label='View Zenith Angle (degrees)')
+    plt.xlabel('X (m)')
+    plt.ylabel('Elevation (m)')
+    plt.title(f'View Zenith Angle vs Elevation - {file_name}')
+    plt.savefig(os.path.join(side_view_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
+    
+    # 3D view
+    fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-
-    # Ground points
-    ax.scatter(df_merged_sample["Xw"], df_merged_sample["Yw"], df_merged_sample["elev"], s=5, alpha=0.6, label="Ground Points")
-
-    # Drone position
-    ax.scatter([xcam], [ycam], [zcam], c='red', label="Drone")
-
-    # Viewing rays
-    for i in range(0, len(df_merged_sample), 10000):
-        ax.plot(
-            [xcam, df_merged_sample["Xw"][i]],
-            [ycam, df_merged_sample["Yw"][i]],
-            [zcam, df_merged_sample["elev"][i]],
-            alpha=0.2
-        )
-
-    ax.set_xlabel("X")
-    ax.set_ylabel("Y")
-    ax.set_zlabel("Elevation (Z)")
-    ax.set_title("3D Visualization of Drone Viewing Geometry")
-    plt.savefig(os.path.join(path, "3d_view", f"angle_data_{file_name}.png"), dpi=200)
-    ax.legend()
+    scatter = ax.scatter(df_pandas['Xw'], df_pandas['Yw'], df_pandas['elev'], 
+                        c=df_pandas['vza'], cmap='viridis', s=1)
+    plt.colorbar(scatter, label='View Zenith Angle (degrees)')
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Elevation (m)')
+    ax.set_title(f'3D View Zenith Angle - {file_name}')
+    plt.savefig(os.path.join(view_3d_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
 

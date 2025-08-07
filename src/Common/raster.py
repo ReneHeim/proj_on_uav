@@ -328,30 +328,61 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
     return easting, northing
 
 
-def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
-
-    # Create the folder if it doesn't exist
-    os.makedirs(folder_name, exist_ok=True)
-    # drop NaN/null values if present
-    if hasattr(df_merged, "drop_nans"):
-        df_merged = df_merged.drop_nans()
-    else:
-        df_merged = df_merged.drop_nulls()
-    # For debugging: convert to pandas and plot distributions
-    plt.figure(figsize=(8, 6))
-    plt.hist(df_merged['elev'], bins=50, color='skyblue', edgecolor='black')
-    plt.xlabel('Elevation')
-    plt.ylabel('Frequency')
-    plt.title('Elevation Distribution of {}'.format(file))
-    plt.savefig(os.path.join(folder_name, f'Elevation Distribution_{file}.png'), dpi=200)
-    plt.show()
-
-    for band in [col for col in df_merged.columns if col.startswith('band')]:
-        plt.figure(figsize=(8, 6))
-        plt.hist(df_merged[band], bins=50, alpha=0.7, edgecolor='black')
-        plt.xlabel(f'{band} Values')
-        plt.ylabel('Frequency')
-        plt.title(f'Distribution of {band} Values in {file}')
-        plt.savefig(os.path.join(folder_name, f'{band}_distribution_{file}.png'), dpi=200)
-        plt.show()
+def plotting_raster(df_merged, path, file_name):
+    """
+    Plot raster data and save visualizations.
+    
+    Args:
+        df_merged: Polars DataFrame with band data
+        path: Output path for plots
+        file_name: Name of the file being processed
+    """
+    import matplotlib.pyplot as plt
+    import os
+    
+    # Create necessary directories
+    bands_data_dir = os.path.join(path, "bands_data")
+    os.makedirs(bands_data_dir, exist_ok=True)
+    
+    # Convert to pandas for plotting
+    df_pandas = df_merged.drop_nulls().to_pandas()
+    
+    if len(df_pandas) == 0:
+        print(f"No valid data to plot for {file_name}")
+        return
+    
+    # Plot each band
+    band_cols = [col for col in df_pandas.columns if col.startswith('band')]
+    
+    if len(band_cols) > 0:
+        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+        axes = axes.flatten()
+        
+        for i, band in enumerate(band_cols[:6]):  # Plot up to 6 bands
+            if i < len(axes):
+                scatter = axes[i].scatter(df_pandas['Xw'], df_pandas['Yw'], 
+                                        c=df_pandas[band], cmap='viridis', s=1)
+                axes[i].set_title(f'{band} - {file_name}')
+                axes[i].set_xlabel('X (m)')
+                axes[i].set_ylabel('Y (m)')
+                plt.colorbar(scatter, ax=axes[i])
+        
+        # Hide unused subplots
+        for i in range(len(band_cols), len(axes)):
+            axes[i].set_visible(False)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(bands_data_dir, f"bands_data_{file_name}.png"), dpi=200)
+        plt.close()
+    
+    # Plot elevation
+    plt.figure(figsize=(10, 8))
+    scatter = plt.scatter(df_pandas['Xw'], df_pandas['Yw'], 
+                         c=df_pandas['elev'], cmap='terrain', s=1)
+    plt.colorbar(scatter, label='Elevation (m)')
+    plt.xlabel('X (m)')
+    plt.ylabel('Y (m)')
+    plt.title(f'Elevation - {file_name}')
+    plt.savefig(os.path.join(bands_data_dir, f"elevation_{file_name}.png"), dpi=200)
+    plt.close()
 

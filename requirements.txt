@@ -13,6 +13,7 @@ colorama==0.4.6
 pytz==2024.1
 pysolar==0.11
 PyYAML==6.0.1
+pyarrow==16.1.0
+psutil>=5.9.0
 # removed metadict due to Python 3.12 compatibility; replaced with local AttrDict
-  git remote set-url origin https://<YOUR_USER>:<NEW_TOKEN>@github.com/<owner>/<repo>.gitpyarrow==16.1.0
 

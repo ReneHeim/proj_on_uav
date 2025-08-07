@@ -112,7 +112,7 @@ def test_script_01_extract_e2e(tmp_path: Path):
     assert proc.returncode == 0, proc.stderr.decode()
 
     # expect at least one parquet output
-    outputs = list((out / "extract").glob("*.parquet"))
+    outputs = list(out.glob("*.parquet"))
     if not outputs:
         # show stderr/stdout for debugging
         print(proc.stdout.decode())
