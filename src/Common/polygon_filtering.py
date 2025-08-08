@@ -606,7 +606,7 @@ def plot_results(
         # Create GeoDataFrame from the sampled points
         sample_points = gpd.GeoDataFrame(
             sample_df,
-            geometry=points_from_xy(sample_df['Xw'], sample_df['Yw']),
+            geometry=gpd.points_from_xy(sample_df['Xw'], sample_df['Yw']),
             crs=target_crs,
         )
 
