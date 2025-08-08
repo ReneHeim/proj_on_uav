@@ -33,12 +33,16 @@ def main():
         default=str(Path(__file__).resolve().parent / "config_file_example.yml"),
         help="Path to YAML config file",
     )
-    parser.add_argument("--band", type=str, default="band1", help="Band to fit")
+    parser.add_argument("--band", type=str, default=0, help="Band to fit")
     parser.add_argument("--base-dir", type=str, default=r"/run/media/mak/Heim", help="Search base dir")
     args = parser.parse_args()
 
-    config = config_object(args.config)
+    config = config_object(.config)
 
+    if args.band == 0:
+        band = [f"band{i}" for i in range(1,config.bands)]
+    else:
+        band = [args.band]
 
     # Search data
     folders = ['', 'metashape', 'products_uav_data', 'output', 'extract', 'polygon_df']
@@ -66,9 +70,9 @@ def main():
 
     # Create rpvs for each
     for week, gdf in weeks_dics.items():
-        for band in [args.band]:
+        for band in band:
             result = process_weekly_data({week: gdf}, band=band)
-            out_dir = Path(base_dir) / "RPV_Results" / "V5"
+            out_dir = Path(base_dir) / "RPV_Results" / "V6"
             out_dir.mkdir(parents=True, exist_ok=True)
             result.drop("geometry").write_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
 
