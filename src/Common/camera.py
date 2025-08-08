@@ -185,12 +185,17 @@ def plot_angles(df_merged, lon, lat, zcam, path, file_name):
     for dir_path in [top_down_dir, side_view_dir, view_3d_dir]:
         os.makedirs(dir_path, exist_ok=True)
     
-    # Convert to pandas for plotting
-    df_pandas = df_merged.to_pandas()
+    # Sample before
+    if df_merged.shape[0] > 10000:
+        df_sample = df_merged.sample(n=10000, with_replacement=False)
+    else:
+        df_sample = df_merged
+
     
     # Top-down view
     plt.figure(figsize=(10, 8))
-    plt.scatter(df_pandas['Xw'], df_pandas['Yw'], c=df_pandas['vza'], cmap='viridis', s=1)
+    plt.scatter(df_sample['Xw'], df_sample['Yw'], c=df_sample['vza'], cmap='viridis', s=1)
+    plt.scatter([lon], [lat], c='red', label="Drone")
     plt.colorbar(label='View Zenith Angle (degrees)')
     plt.xlabel('X (m)')
     plt.ylabel('Y (m)')
@@ -200,7 +205,8 @@ def plot_angles(df_merged, lon, lat, zcam, path, file_name):
     
     # Side view
     plt.figure(figsize=(10, 8))
-    plt.scatter(df_pandas['Xw'], df_pandas['elev'], c=df_pandas['vza'], cmap='viridis', s=1)
+    plt.scatter(df_sample['Xw'], df_sample['elev'], c=df_sample['vza'], cmap='viridis', s=1)
+    plt.scatter([lon], [zcam], c='red', label="Drone")
     plt.colorbar(label='View Zenith Angle (degrees)')
     plt.xlabel('X (m)')
     plt.ylabel('Elevation (m)')
@@ -211,9 +217,11 @@ def plot_angles(df_merged, lon, lat, zcam, path, file_name):
     # 3D view
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-    scatter = ax.scatter(df_pandas['Xw'], df_pandas['Yw'], df_pandas['elev'], 
-                        c=df_pandas['vza'], cmap='viridis', s=1)
+    scatter = ax.scatter(df_sample['Xw'], df_sample['Yw'], df_sample['elev'],
+                        c=df_sample['vza'], cmap='viridis', s=1)
     plt.colorbar(scatter, label='View Zenith Angle (degrees)')
+    ax.scatter([lon], [lat], [zcam], c='red', label="Drone")
+
     ax.set_xlabel('X (m)')
     ax.set_ylabel('Y (m)')
     ax.set_zlabel('Elevation (m)')

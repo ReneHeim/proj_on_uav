@@ -1,29 +1,35 @@
-base_path: 'D:\20240611_week1\metashape\20241206_week1_products_uav_data'
+# ------------------------------------------------------------------
+# project configuration – WEEK 3  (06 Dec 2024 base products)
+# ------------------------------------------------------------------
+
+base_path: "/run/media/mak/Heim/20240624_week3/metashape/20241206_week3_products_uav_data/"
 
 inputs:
-    date_time:
-        start: "2024-12-07 12:00:00"       # ISO format
-        time_zone: "Europe/Berlin"         # Converted from CET
+  date_time:
+    start: "2024-06-24 12:00:00"          # camera/DEM timestamps
+    time_zone: "Europe/Berlin"
 
-    paths:
-        cam_path: "{base_path}/20241207_week5_cameras.txt"
-        dem_path: "{base_path}/20241207_week5_dem.tif"
-        orthophoto_path: "{base_path}/20241207_week5_orthophotos/*.tif"
-        ori: ["{base_path}/orthophotos_5"]
-        mosaic_path: "{base_path}/20241207_week5_orthomosaic.tif"
-        ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
-        polygon_file_path: "{base_path}/2024_oncerco_plot_polygons.gpkg"
+  paths:
+    # ► raw Metashape exports
+    cam_path:         "{base_path}/20241206_week3_cameras.txt"
+    dem_path:         "{base_path}/20241206_week3_dem.tif"
+    orthophoto_path:  "{base_path}/20241212_week3_orthophotos/*.tif"
+    ori:              ["{base_path}/20241212_week3_orthophotos"]
+    mosaic_path:      "{base_path}/20241212_week3_orthomosaic.tif"   # newer/larger mosaic
 
-    settings:
-        number_of_processor: -1
-        filter_radius: 1
-        file_name: "20241207_week5_project"
-        bands: 5
-        target_crs: "EPSG:32632"
+    # ► ancillary data
+    ground_truth_coordinates: "/run/media/mak/OS/gpscoords_plots.csv"
+    polygon_file_path:        "/run/media/mak/Heim/2024_oncerco_plot_polygons.gpkg"
+
+  settings:
+    number_of_processor: -1
+    filter_radius:      1
+    file_name:          "20241206_week3_project"
+    bands:              5
+    target_crs:         "EPSG:32632"
 
 
 outputs:
-    paths:
-        main_out: "{base_path}/output"
-        plot_out: "{base_path}/output/plots"
-
+  paths:
+    main_out: "{base_path}/output"
+    plot_out: "{base_path}/output/plots"
