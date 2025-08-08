@@ -8,7 +8,6 @@ import pandas as pd
 import concurrent.futures
 from functools import partial
 
-from geopandas import points_from_xy
 from shapely.geometry import Point
 import geopandas as gpd
 import polars as pl
