@@ -40,7 +40,7 @@ def main():
     config = config_object(args.config)
 
     if args.band == 0:
-        band = [f"band{i}" for i in range(1,config.bands)]
+        band = [f"band{i}" for i in range(1, config.bands + 1)]
     else:
         band = [args.band]
 
