@@ -421,7 +421,7 @@ def process_chunk(chunk_indices, df, polygons_gdf, target_crs, id_field="id"):
 
         points_gdf = gpd.GeoDataFrame(
             chunk_pd,
-            geometry=points_from_xy(chunk_pd['Xw'], chunk_pd['Yw']),
+            geometry=gpd.points_from_xy(chunk_pd['Xw'], chunk_pd['Yw']),
             crs=target_crs
         )
 
