@@ -332,6 +332,10 @@ def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny
     import numpy as np
     import matplotlib.pyplot as plt
 
+    if df_merged is None or df_merged.is_empty():
+        logging.error(f"No data found for {file_name}")
+        return
+
     outdir = os.path.join(path, "bands_data")
     os.makedirs(outdir, exist_ok=True)
 
