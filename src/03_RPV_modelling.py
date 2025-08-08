@@ -37,7 +37,7 @@ def main():
     parser.add_argument("--base-dir", type=str, default=r"/run/media/mak/Heim", help="Search base dir")
     args = parser.parse_args()
 
-    config = config_object(.config)
+    config = config_object(args.config)
 
     if args.band == 0:
         band = [f"band{i}" for i in range(1,config.bands)]
