@@ -1,0 +1,23 @@
+"""
+Wrapper module for the main extract data script.
+This provides a valid module name for the entry point.
+"""
+
+import importlib.util
+import sys
+from pathlib import Path
+
+def main():
+    """Entry point for the uav-extract command."""
+    # Import the main function from the script file
+    script_path = Path(__file__).parent / "01_main_extract_data.py"
+    spec = importlib.util.spec_from_file_location("main_extract_script", script_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["main_extract_script"] = module
+    spec.loader.exec_module(module)
+    
+    # Call the main function
+    return module.main()
+
+if __name__ == "__main__":
+    main()

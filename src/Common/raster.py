@@ -327,27 +327,82 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
 
     return easting, northing
 
+def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny=1500, max_bands=6, clip=(2, 98)):
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
 
-def plotting_raster(df_merged,folder_name="Plots/bands_data", file="FILE"):
+    if df_merged is None or df_merged.is_empty():
+        logging.error(f"No data found for {file_name}")
+        return
 
-    # Create the folder if it doesn't exist
-    os.makedirs(folder_name, exist_ok=True)
-    df_merged = df_merged.drop_nans()
-    # For debugging: convert to pandas and plot distributions
-    plt.figure(figsize=(8, 6))
-    plt.hist(df_merged['elev'], bins=50, color='skyblue', edgecolor='black')
-    plt.xlabel('Elevation')
-    plt.ylabel('Frequency')
-    plt.title('Elevation Distribution of {}'.format(file))
-    plt.savefig(os.path.join(folder_name, f'Elevation Distribution_{file}.png'), dpi=200)
-    plt.show()
+    outdir = os.path.join(path, "bands_data")
+    os.makedirs(outdir, exist_ok=True)
 
-    for band in [col for col in df_merged.columns if col.startswith('band')]:
-        plt.figure(figsize=(8, 6))
-        plt.hist(df_merged[band], bins=50, alpha=0.7, edgecolor='black')
-        plt.xlabel(f'{band} Values')
-        plt.ylabel('Frequency')
-        plt.title(f'Distribution of {band} Values in {file}')
-        plt.savefig(os.path.join(folder_name, f'{band}_distribution_{file}.png'), dpi=200)
-        plt.show()
+    x = df_merged["Xw"].to_numpy()
+    y = df_merged["Yw"].to_numpy()
+    m = ~np.isnan(x) & ~np.isnan(y)
+    x, y = x[m], y[m]
 
+    xmin, xmax = float(np.nanmin(x)), float(np.nanmax(x))
+    ymin, ymax = float(np.nanmin(y)), float(np.nanmax(y))
+    xbins = np.linspace(xmin, xmax, nx + 1)
+    ybins = np.linspace(ymin, ymax, ny + 1)
+    counts, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
+
+    def grid_mean(series):
+        v = series.to_numpy()[m]
+        vm = np.isfinite(v)
+        sums, _, _ = np.histogram2d(y[vm], x[vm], bins=[ybins, xbins], weights=v[vm])
+        return np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
+
+    bands = [c for c in df_merged.columns if c.startswith(bands_prefix)][:max_bands]
+    means = [(b, grid_mean(df_merged[b])) for b in bands]
+    elev = grid_mean(df_merged["elev"])
+
+    n_panels = len(means) + 1
+    cols = min(3, n_panels)
+    rows = int(np.ceil(n_panels / cols))
+    extent = [xmin, xmax, ymin, ymax]
+
+    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows), squeeze=False)
+    for ax, (band, grid) in zip(axes.ravel(), means):
+        im = ax.imshow(grid, origin="lower", extent=extent, cmap="viridis", interpolation="bilinear")
+        ax.set_title(band)
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Y (m)")
+        fig.colorbar(im, ax=ax, shrink=0.85)
+
+    lo, hi = np.nanpercentile(elev, clip)
+    ax_elev = axes.ravel()[len(means)]
+    im = ax_elev.imshow(elev, origin="lower", extent=extent, cmap="terrain", vmin=lo, vmax=hi, interpolation="bilinear")
+    ax_elev.set_title("Elevation")
+    ax_elev.set_xlabel("X (m)")
+    ax_elev.set_ylabel("Y (m)")
+    fig.colorbar(im, ax=ax_elev, shrink=0.85)
+
+    for ax in axes.ravel()[n_panels:]:
+        ax.axis("off")
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(outdir, f"panels_{file_name}.png"), dpi=200)
+    plt.close(fig)
+
+    cols_h = min(3, len(bands))
+    rows_h = int(np.ceil(len(bands) / cols_h))
+    fig_h, axes_h = plt.subplots(rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False)
+    for ax, b in zip(axes_h.ravel(), bands):
+        v = df_merged[b].to_numpy()[m]
+        v = v[np.isfinite(v)]
+        if v.size:
+            lo, hi = np.percentile(v, clip)
+            ax.hist(v, bins=50, range=(lo, hi))
+        ax.set_title(b)
+        ax.set_xlabel("Value")
+        ax.set_ylabel("Count")
+    for ax in axes_h.ravel()[len(bands):]:
+        ax.axis("off")
+
+    fig_h.tight_layout()
+    fig_h.savefig(os.path.join(outdir, f"band_distributions_{file_name}.png"), dpi=200)
+    plt.close(fig_h)

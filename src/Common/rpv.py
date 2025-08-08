@@ -1,4 +1,6 @@
-import numpy as np, polars as pl, matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
 from scipy.optimize import least_squares
 from sklearn.metrics import mean_squared_error
 
@@ -114,19 +116,21 @@ def rpv_fit(df, band, n_samples_bins):
     bins = np.digitize(df["vza"], edges, right=False) - 1  # 0-based
     df = df.with_columns(pl.Series("bin", bins))
 
-    df_fit = pl.concat([  # keep scalars!
-        df.filter(
-            (pl.col("bin") == b) &
-            (pl.col(band).is_between(0, 1))
-        ).sample(n=n_samples_bins, seed=42)
-        for b in range(len(edges) - 1)
-    ])
+    frames: list[pl.DataFrame] = []
+    for b in range(len(edges) - 1):
+        subset = df.filter((pl.col("bin") == b) & (pl.col(band).is_between(0, 1)))
+        if subset.height > 0:
+            n_take = min(n_samples_bins, subset.height)
+            frames.append(subset.sample(n=n_take, seed=42))
+    if not frames:
+        raise ValueError("No valid samples available for RPV fitting")
+    df_fit = pl.concat(frames)
 
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)
 
 
-    k_prior, lam = 0.20, 0.1
+    k_prior, lam = 1, 0.05
 
     def resid(pars, sza, vza, raa, R):
         rho0, k, theta = pars
@@ -135,7 +139,7 @@ def rpv_fit(df, band, n_samples_bins):
         return np.concatenate([data_err, [prior_err]])
 
     p0 = [np.median(R), 0.1, 0]  # bowl-centred
-    bounds = ([1e-3, 0.0, -1], [0.80, 2 , 1])
+    bounds = ([1e-3, 0.0, -1], [1.1, 3 , 1])
 
     res = least_squares(resid, p0, bounds=bounds,
                         args=(sza, vza, raa, R),

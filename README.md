@@ -1,72 +1,251 @@
-## Why is this repository important to you?
+# Multi-angular UAV Reflectance Extractor
 
-This repository contains code, written in [R](https://www.r-project.org/) and [Python](https://www.python.org/), to reproduce [LINK TO ARTCLE HERE]. If you are using any of the contained code or data, please use the following reference:
+[![CI](https://github.com/ReneHeim/proj_on_uav/workflows/CI/badge.svg)](https://github.com/ReneHeim/proj_on_uav/actions)
+[![Codecov](https://codecov.io/gh/ReneHeim/proj_on_uav/branch/dev/graph/badge.svg)](https://codecov.io/gh/ReneHeim/proj_on_uav)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024). An applied framework to unlocking multi‑angular UAV reflectance data: A case study for classification of plant parameters in maize (*Zea mays*). *Precision Agriculture*. (accepted)
+## Overview
 
-![alt text](https://github.com/ReneHeim/proj_on_uav/blob/main/graphical_abstract.png)
+This repository provides a Python pipeline to extract multi-angular reflectance and geometry from UAV orthophotos, filter data spatially using polygons, and fit RPV models per plot and week.
 
-## What does this repository contain?
+## Features
 
-- The [ref](https://github.com/ReneHeim/proj_on_uav/tree/main/ref) directory containing the code that was used to clean and structure the data that was collected for the study XYZ, published here (LINK TBA).
-- The [main](https://github.com/ReneHeim/proj_on_uav/tree/main/main) directory containing the code to re-run the presented method as it was done in the published manuscript.
-- The [main_public](https://github.com/ReneHeim/proj_on_uav/tree/main/main_public) directory containing the code to run our method as it is intended for a new user.
-- The [analysis](https://github.com/ReneHeim/proj_on_uav/tree/main/analysis) directory containing the code that was used to generate the results and visualizations as they were published HERE (LINK TBA).
-- The [Optimisation_Changes](https://github.com/ReneHeim/proj_on_uav/tree/main/Optimisation_Changes)  Directory contains the changes made to optimise the original code
-## How to use this method to unlock multi-angular reflectance data?
+- **Multi-angular reflectance extraction** from UAV orthophotos
+- **Spatial filtering** using polygon boundaries
+- **RPV model fitting** for vegetation analysis
+- **Comprehensive testing** with unit and E2E tests
+- **Modern development tools** (pre-commit, CI/CD, type hints)
+- **Cross-platform compatibility** (Linux, macOS, Windows)
 
-### Installing required software
+## Quickstart
 
-**Python:** Installing Python 3.X through the [Anaconda distribution](https://professorkazarinoff.github.io/Problem-Solving-101-with-Python/01-What-is-Python/01.03-What-is-Anaconda/). Please follow the instructions, based on your operating system, [HERE](https://docs.anaconda.com/anaconda/install/index.html).
+### Prerequisites
 
-**Agisoft Metashape:** Please download [Agisoft Metashape Professional](https://www.agisoft.com/downloads/installer/) and purchase a license to allow full functionality.
+- Python 3.10 or higher
+- [Agisoft Metashape Professional](https://www.agisoft.com/) (for data preprocessing)
+- [ExifTool](https://exiftool.org/) (for EXIF data extraction)
 
-**Exiftool (by Phil Harvey):** Please follow the [instructions](https://exiftool.org/install.html) to install Exiftool on your operating system and associate the programm with your Python environment.
+### Installation
 
-**PyExifTool and other Python libraries:** Please use THIS requirements file and the following command to install all necessary Python libraries and your preferred conda environment simultaniously:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ReneHeim/proj_on_uav.git
+   cd proj_on_uav
+   ```
 
-`conda env create --name my-env-name --file environment.yml`
+2. **Install dependencies:**
+   ```bash
+   # Using pip
+   pip install -r requirements.txt
+   
+   # Or using the Makefile
+   make install
+   ```
 
-### Sample Coordinates
+3. **Install pre-commit hooks (optional but recommended):**
+   ```bash
+   pre-commit install
+   ```
 
-For each ground sampling that was performed in the field, you will need an associated coordinate and provide a csv file containing these coordinates.
+### Configuration
 
-NO HEADER  
-"id_1","lon_1","lat_1"  
-"id_2","lon_2","lat_2"  
-"id_i","lon_i","lat_i"  
+1. **Copy and edit the configuration file:**
+   ```bash
+   cp src/config_file_example.yml my_config.yml
+   ```
 
-### Metashape
+2. **Edit `my_config.yml` with your data paths:**
+   ```yaml
+   base_path: '/path/to/your/data'
+   inputs:
+     date_time:
+       start: "2024-12-07 12:00:00"
+       time_zone: "Europe/Berlin"
+     paths:
+       cam_path: "{base_path}/cameras.txt"
+       dem_path: "{base_path}/dem.tif"
+       orthophoto_path: "{base_path}/orthophotos/*.tif"
+       # ... other paths
+   ```
 
-1. Align image dataset
-2. Build dense cloud
-3. Build DEM 
-4. Build orthomosaic 
-5. Export DEM (make sure the DEM matches the extent of the Orthomosaic)
-6. Export orthomosaic (make sure the Orthomosaic matches the extent of the DEM)
-7. Export orthophotos
-8. Export camera positions as omega_phi_kappa.txt
+### Usage
 
-### Combine required files into a single directory
+#### Step 1: Extract Data
+```bash
+# Extract per-pixel data from orthophotos and DEM
+python src/01_main_extract_data.py --config my_config.yml
 
-Please save the following files in a single directory:
+# With optional co-registration
+python src/01_main_extract_data.py --config my_config.yml --alignment
 
-- DEM (as .tiff)
-- Orthophotos (as directory)
-- Camera positions (as .txt)
-- Sample coordinates (as. csv)
-- Original images (as directory)
+# Without polygon filtering
+python src/01_main_extract_data.py --config my_config.yml --no-polygon
+```
 
-### Python
+#### Step 2: Apply Filters
+```bash
+# Apply spectral filters and split by polygon
+python src/02_filtering.py --config my_config.yml
+```
 
-1. Please download the complete [repository](https://github.com/ReneHeim/proj_on_uav) and keep the directory structure as it is
-2. Open the [config_file.yaml](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/config_file.yaml)
-3. Change the paths, settings, and output according to your specific setup
-4. Execute the [01_main_extract_vza_aza_reflectance.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/01_main_extract_vza_aza_reflectance.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-5. Execute the [02_filter_sample_location.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/02_filter_sample_location.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-6. Execute the [03_merging_sample_locations.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/03_merging_sample_locations.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-7. Execute the [04_orthomosaic_pixel_data.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/04_orthomosaic_pixel_data.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+#### Step 3: Fit RPV Models
+```bash
+# Fit RPV models for a specific band
+python src/03_RPV_modelling.py --config my_config.yml --band band1
+```
 
-### Contact
+#### Using Makefile (Alternative)
+```bash
+make extract    # Run extraction
+make filter     # Run filtering
+make rpv        # Run RPV modeling
+```
 
-If you have any questions how to use the code, please commit an issue for others to benefit from it. If this is not an option for you, please contact either Nathan Okole (okole@ifz-goettingen.de) or Rene Heim (rheim@uni-bonn.de)
+## Testing
+
+### Run Tests
+```bash
+# Run all tests
+python -m pytest
+
+# Run with coverage
+python -m pytest --cov=src --cov-report=html
+
+# Run specific test categories
+python -m pytest tests/           # Unit tests
+python -m pytest tests/e2e/       # End-to-end tests
+python -m pytest tests/test_smoke.py  # CLI smoke tests
+```
+
+### Development Tools
+```bash
+make lint       # Run linting
+make format     # Format code
+make install    # Install dependencies
+```
+
+## Project Structure
+
+```
+proj_on_uav/
+├── src/                    # Source code
+│   ├── Common/            # Common utilities
+│   │   ├── camera.py      # Camera position calculations
+│   │   ├── config_object.py # Configuration management
+│   │   ├── filters.py     # Spectral filters
+│   │   ├── polygon_filtering.py # Spatial filtering
+│   │   ├── raster.py      # Raster operations
+│   │   └── rpv.py         # RPV model fitting
+│   ├── Util/              # Utility functions
+│   ├── 01_main_extract_data.py    # Main extraction script
+│   ├── 02_filtering.py            # Filtering script
+│   └── 03_RPV_modelling.py        # RPV modeling script
+├── tests/                 # Test suite
+│   ├── e2e/              # End-to-end tests
+│   ├── test_*.py         # Unit tests
+│   └── test_smoke.py     # CLI smoke tests
+├── Documentation/         # Documentation
+├── requirements.txt       # Python dependencies
+├── pyproject.toml        # Project configuration
+├── Makefile              # Development commands
+└── README.md             # This file
+```
+
+## Input Data Requirements
+
+### Required Files
+- **DEM**: Digital Elevation Model as GeoTIFF
+- **Orthophotos**: Multi-band orthophotos as GeoTIFF files
+- **Camera positions**: Text file with camera metadata
+- **Polygon file**: GeoPackage with plot boundaries
+- **Ground truth coordinates**: CSV with sample locations
+
+### Data Format
+- **Orthophotos**: Multi-band GeoTIFF (typically 5 bands)
+- **DEM**: Single-band GeoTIFF with same extent as orthophotos
+- **Camera file**: Tab-separated with columns: PhotoID, X, Y, Z, Omega, Phi, Kappa, etc.
+- **Polygons**: GeoPackage (.gpkg) with plot geometries
+- **Coordinates**: CSV with columns: id, lon, lat
+
+## Output
+
+### Generated Files
+- **Parquet files**: Per-image extracted data with reflectance and geometry
+- **Filtered data**: Spectral-filtered datasets split by polygon
+- **RPV results**: CSV files with fitted RPV parameters per plot and week
+- **Plots**: Visualization of angles, bands, and filtering results
+
+### Output Structure
+```
+output/
+├── extract/              # Extracted per-pixel data
+│   ├── IMG_0001_0.tif.parquet
+│   └── ...
+├── plots/                # Generated plots
+│   ├── angles_data/      # Viewing angle plots
+│   ├── bands_data/       # Band reflectance plots
+│   └── ...
+└── RPV_Results/          # RPV model results
+    └── V5/
+        └── rpv_week1_band1_results.csv
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes and add tests
+4. Run tests: `python -m pytest`
+5. Format code: `make format`
+6. Commit: `git commit -m 'Add feature'`
+7. Push: `git push origin feature-name`
+8. Create a Pull Request
+
+### Development Setup
+```bash
+# Install in development mode
+pip install -e .
+
+# Install pre-commit hooks
+pre-commit install
+
+# Run tests before committing
+python -m pytest
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Import errors**: Ensure you're running from the project root
+2. **Missing dependencies**: Run `pip install -r requirements.txt`
+3. **File not found**: Check paths in your config file
+4. **Memory issues**: Reduce `number_of_processor` in config
+5. **Alignment errors**: Use `--alignment` flag for co-registration
+
+### Getting Help
+
+- Check the [Documentation](Documentation/) folder
+- Review existing [Issues](https://github.com/ReneHeim/proj_on_uav/issues)
+- Create a new issue with detailed error information
+
+## Citation
+
+If you use this software in your research, please cite:
+
+```
+Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024). 
+An applied framework to unlocking multi‑angular UAV reflectance data: 
+A case study for classification of plant parameters in maize (Zea mays). 
+Precision Agriculture. (accepted)
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Development supported by [Your Institution]
+- Built with [Polars](https://pola.rs/), [GeoPandas](https://geopandas.org/), and [Rasterio](https://rasterio.readthedocs.io/)
