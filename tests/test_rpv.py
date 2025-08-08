@@ -21,6 +21,7 @@ def test_rpv_preprocess_and_fit():
     df = rpv_df_preprocess(df)
     assert all(c in df.columns for c in ["vza", "vaa", "sza", "NDVI", "raa"])
 
+
     # band reflectance within [0,1] is required by rpv_fit sampling
     rho0, k, theta, rc, rmse, nrmse = rpv_fit(df, band="band1", n_samples_bins=1)
     assert 0 < rho0 < 1

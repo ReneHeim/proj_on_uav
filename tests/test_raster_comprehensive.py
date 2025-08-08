@@ -2,7 +2,8 @@
 Comprehensive unit tests for the raster module.
 Tests coordinate transformations, raster operations, and alignment functions.
 """
-
+from pyproj import Transformer
+import math
 import pytest
 import numpy as np
 import polars as pl
@@ -44,7 +45,6 @@ class TestCoordinateTransformations:
         """Test world to pixel coordinate transformation with integer output."""
         geo_transform = [1000.0, 1.0, 0.0, 2000.0, 0.0, -1.0]
         
-        # Test single point
         pixel_x, pixel_y = worldToPixelCoords(1010.0, 1980.0, geo_transform, dtype='int')
         
         assert pixel_x == 10
@@ -59,9 +59,7 @@ class TestCoordinateTransformations:
         # Test single point
         pixel_x, pixel_y = worldToPixelCoords(1010.5, 1980.5, geo_transform, dtype='float')
         
-        # The function adds 0.5 for float output, so we need to account for that
-        # For world coordinates (1010.5, 1980.5), pixel coordinates should be (10.5, 19.5)
-        # But the function adds 0.5, so we get (11.0, 20.0)
+
         assert abs(pixel_x - 11.0) < 1e-6
         assert abs(pixel_y - 20.0) < 1e-6
         assert isinstance(pixel_x, float)
@@ -274,6 +272,22 @@ class TestRasterOperations:
             assert 400000 < x < 900000
             assert 5000000 < y < 6000000
 
+
+T = Transformer.from_crs("EPSG:4326", "EPSG:32632", always_xy=True)
+
+@pytest.mark.parametrize("lat,lon", [(52.0,13.0), (52.1,13.1), (52.2,12.0)])
+def test_latlon_to_utm32n_precise(lat, lon, tol=1.0):
+    exp_x, exp_y = T.transform(lon, lat)
+    x, y = latlon_to_utm32n_series(lat, lon)
+    assert math.isfinite(x) and math.isfinite(y)
+    assert abs(x - exp_x) < tol and abs(y - exp_y) < tol
+
+def test_monotonic_local():
+    lat, lon = 52.0, 13.0
+    x0, y0 = latlon_to_utm32n_series(lat, lon)
+    xE, yE = latlon_to_utm32n_series(lat, lon + 0.05)
+    xN, yN = latlon_to_utm32n_series(lat + 0.05, lon)
+    assert xE > x0 and yN > y0
 
 class TestPlottingFunctions:
     """Test plotting functions."""
