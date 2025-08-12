@@ -2,6 +2,7 @@ import logging
 from itertools import islice
 from pathlib import Path
 from typing import Optional
+
 import polars as pl
 
 
@@ -41,8 +42,7 @@ def unique_plot_ids(dataframes: list[pl.DataFrame]) -> set[str]:
     return ids
 
 
-def split_by_polygon(dataframes: list[pl.DataFrame],
-                     polygons: set[str]) -> dict[str, pl.DataFrame]:
+def split_by_polygon(dataframes: list[pl.DataFrame], polygons: set[str]) -> dict[str, pl.DataFrame]:
     """
     Filters and groups rows by plot_id (polygon) across all input DataFrames.
 
@@ -58,10 +58,9 @@ def split_by_polygon(dataframes: list[pl.DataFrame],
     Dictionary mapping each plot_id to its corresponding concatenated DataFrame.
     """
     return {
-        p: pl.concat([
-            df.filter(pl.col("plot_id") == p)
-            for df in dataframes if "plot_id" in df.columns
-        ])
+        p: pl.concat(
+            [df.filter(pl.col("plot_id") == p) for df in dataframes if "plot_id" in df.columns]
+        )
         for p in polygons
     }
 
@@ -86,15 +85,13 @@ def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
     --------
     None
     """
-    out_dir = out_dir.resolve()           # guarantees absolute path
+    out_dir = out_dir.resolve()  # guarantees absolute path
     out_dir.mkdir(parents=True, exist_ok=True)
-    logging.info(f"Writing to {str(out_dir)}" )          # tells you once, up front
+    logging.info(f"Writing to {str(out_dir)}")  # tells you once, up front
 
     for p in polygons:
         target = out_dir / f"{p}.parquet"
-        (pl.scan_parquet(src / "*.parquet")
-             .filter(pl.col("plot_id") == p)
-             .sink_parquet(target))
+        (pl.scan_parquet(src / "*.parquet").filter(pl.col("plot_id") == p).sink_parquet(target))
         logging.info(f"  • wrote {str(target)}")
 
 
@@ -143,9 +140,8 @@ def batched(it, n):
         A batch (list) of up to `n` elements from the original iterable.
     """
     it = iter(it)
-    while (batch := list(islice(it, n))):
+    while batch := list(islice(it, n)):
         yield batch
-
 
 
 def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
@@ -165,29 +161,25 @@ def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
         A set of all unique 'plot_id' values found in the folder's Parquet files.
     """
 
-    #search for files without plotid:
+    # search for files without plotid:
 
-    bad = files_without_plot_id(Path(r"D:\20240603_week0\metashape\20241205_products_uav_data\output\extract"))
+    bad = files_without_plot_id(
+        Path(r"D:\20240603_week0\metashape\20241205_products_uav_data\output\extract")
+    )
     if len(bad) > 0:
         print(f"Found band {bad} files")
         print(f"{len(bad)} files lack plot_id")
 
     uids = set()
-    #Batches
-
-
+    # Batches
 
     for files in batched(folder.glob("*.parquet"), batch_size):
-        ids = (pl.scan_parquet(files)
-                 .select("plot_id")
-                 .unique()
-                 .collect())["plot_id"]
+        ids = (pl.scan_parquet(files).select("plot_id").unique().collect())["plot_id"]
         uids.update(ids.to_list())
     return uids
 
-def load_by_polygon(df_folder: str,
-                    df_polygon_folder: str,
-                    specific: Optional[str] = None) -> str:
+
+def load_by_polygon(df_folder: str, df_polygon_folder: str, specific: Optional[str] = None) -> str:
     """
     Loads all .parquet files from a folder and writes each polygon's data to separate files,
     minimizing RAM usage by not returning dataframes.
@@ -237,6 +229,8 @@ def create_polygon_dict(dataframe_dict: dict, polygon_list: list) -> dict:
                     # Combine DataFrames for each polygon
                     polygon_dict[polygon] = pl.concat([polygon_dict[polygon], filtered_df])
         else:
-            logging.warning(f"'plot_id' column not found in DataFrame {file_name}. Skipping filtering.")
+            logging.warning(
+                f"'plot_id' column not found in DataFrame {file_name}. Skipping filtering."
+            )
 
     return polygon_dict

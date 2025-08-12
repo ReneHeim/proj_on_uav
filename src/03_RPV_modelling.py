@@ -22,8 +22,6 @@ PATTERN_TMPL = "*{obj}*.parquet"
 init(autoreset=True)
 
 
-
-
 def main():
     logging_config()
     parser = argparse.ArgumentParser(description="Fit RPV to weekly per-plot datasets")
@@ -34,7 +32,9 @@ def main():
         help="Path to YAML config file",
     )
     parser.add_argument("--band", type=str, default=0, help="Band to fit")
-    parser.add_argument("--base-dir", type=str, default=r"/run/media/mak/Heim", help="Search base dir")
+    parser.add_argument(
+        "--base-dir", type=str, default=r"/run/media/mak/Heim", help="Search base dir"
+    )
     args = parser.parse_args()
 
     config = config_object(args.config)
@@ -45,28 +45,25 @@ def main():
         band = [args.band]
 
     # Search data
-    folders = ['', 'metashape', 'products_uav_data', 'output', 'extract', 'polygon_df']
+    folders = ["", "metashape", "products_uav_data", "output", "extract", "polygon_df"]
     objective = "plot_"
     base_dir = args.base_dir
     plots_group = optimized_recursive_search(folders, objective, start_dir=base_dir)
 
-    #Search geometry plot data
+    # Search geometry plot data
     gdf = pd.DataFrame(gpd.read_file(config.main_polygon_path))
-    gdf['geometry'] = gdf['geometry'].apply(lambda geom: geom.wkt if geom else None)
+    gdf["geometry"] = gdf["geometry"].apply(lambda geom: geom.wkt if geom else None)
     gdf = pl.from_pandas(pd.DataFrame(gdf))
 
     weeks_dics = {}
-    for key,group in plots_group.items():
+    for key, group in plots_group.items():
         ordered_group = order_path_list(group)
 
-        week_id = re.search(r'week\d+', group[0]).group()
+        week_id = re.search(r"week\d+", group[0]).group()
 
         gdf_tmp = gdf
-        gdf_tmp = gdf_tmp.with_columns([
-            pl.Series("paths",ordered_group)
-        ])
+        gdf_tmp = gdf_tmp.with_columns([pl.Series("paths", ordered_group)])
         weeks_dics[week_id] = gdf_tmp
-
 
     # Create rpvs for each
     for week, gdf in weeks_dics.items():

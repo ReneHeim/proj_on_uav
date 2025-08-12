@@ -1,17 +1,19 @@
-import os
-
-import polars as pl
 import logging
+import os
+from timeit import default_timer as timer
+
 import matplotlib.pyplot as plt
 import numpy as np
+import polars as pl
 import rasterio as rio
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
 from scipy.stats import gaussian_kde
-from timeit import default_timer as timer
 
 
-def reproject_dem_to_band_grid_single(dem_path, band_path, output_dem_path, resampling_method=Resampling.bilinear):
+def reproject_dem_to_band_grid_single(
+    dem_path, band_path, output_dem_path, resampling_method=Resampling.bilinear
+):
     """
     Reprojects and resamples a single DEM to match the band image's grid exactly.
 
@@ -33,20 +35,21 @@ def reproject_dem_to_band_grid_single(dem_path, band_path, output_dem_path, resa
         dst_transform = band_src.transform
         dst_width = band_src.width
         dst_height = band_src.height
-        logging.info(f"Band image parameters: CRS: {band_crs}, width: {dst_width}, height: {dst_height}")
+        logging.info(
+            f"Band image parameters: CRS: {band_crs}, width: {dst_width}, height: {dst_height}"
+        )
 
     with rio.open(dem_path) as dem_src:
         logging.info(f"DEM source CRS: {dem_src.crs}")
         dst_kwargs = dem_src.meta.copy()
-        dst_kwargs.update({
-            'crs': band_crs,
-            'transform': dst_transform,
-            'width': dst_width,
-            'height': dst_height
-        })
-        logging.info(f"DEM parameters: CRS: {dem_src.crs}, width: {dem_src.width}, height: {dem_src.height}")
+        dst_kwargs.update(
+            {"crs": band_crs, "transform": dst_transform, "width": dst_width, "height": dst_height}
+        )
+        logging.info(
+            f"DEM parameters: CRS: {dem_src.crs}, width: {dem_src.width}, height: {dem_src.height}"
+        )
 
-        with rio.open(output_dem_path, 'w', **dst_kwargs) as dst:
+        with rio.open(output_dem_path, "w", **dst_kwargs) as dst:
             for i in range(1, dem_src.count + 1):
                 logging.info(f"Reprojecting DEM band {i}...")
                 reproject(
@@ -56,7 +59,7 @@ def reproject_dem_to_band_grid_single(dem_path, band_path, output_dem_path, resa
                     src_crs=dem_src.crs,
                     dst_transform=dst_transform,
                     dst_crs=band_crs,
-                    resampling=resampling_method
+                    resampling=resampling_method,
                 )
     end_reproj = timer()
     logging.info(f"DEM reprojection completed in {end_reproj - start_reproj:.2f} seconds.")
@@ -95,8 +98,10 @@ def sample_dem_at_band_pixels(band_path, dem_reprojected_path):
     end_sample = timer()
     num_pixels = band_shape[0] * band_shape[1]
     sample_time = end_sample - start_sample
-    logging.info(f"DEM sampling completed in {sample_time:.2f} seconds for {num_pixels} pixels "
-                 f"({num_pixels / sample_time:.2f} pixels/second).")
+    logging.info(
+        f"DEM sampling completed in {sample_time:.2f} seconds for {num_pixels} pixels "
+        f"({num_pixels / sample_time:.2f} pixels/second)."
+    )
     return dem_values
 
 
@@ -122,7 +127,9 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
         temp_dem_path = os.path.join(os.path.dirname(band_path), "temp_reprojected_dem.tif")
 
         # Reproject the DEM to match the band grid
-        reproject_dem_to_band_grid_single(dem_path, band_path, temp_dem_path, resampling_method=Resampling.bilinear)
+        reproject_dem_to_band_grid_single(
+            dem_path, band_path, temp_dem_path, resampling_method=Resampling.bilinear
+        )
         logging.info(f"Reprojected DEM saved to {temp_dem_path}")
 
         # Sample the reprojected DEM
@@ -130,7 +137,9 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
         logging.info("DEM sampling complete.")
 
         # Add the DEM values as a new column in the band DataFrame.
-        df_merged = df_allbands.with_columns(pl.Series("elev", dem_sampled.flatten(), dtype=pl.Float32))
+        df_merged = df_allbands.with_columns(
+            pl.Series("elev", dem_sampled.flatten(), dtype=pl.Float32)
+        )
 
         if debug:
             merged_size = len(df_merged)
@@ -150,9 +159,13 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
         logging.error(f"Error merging data: {e}")
         raise
 
-#TODO: Revise the following Common
 
-def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="Plots/coordinate_alignments"):
+# TODO: Revise the following Common
+
+
+def visualize_coordinate_alignment(
+    df_dem, df_allbands, precision, folder_name="Plots/coordinate_alignments"
+):
     """Visualize how well the coordinates align between datasets
 
     Args:
@@ -166,6 +179,7 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
     """
     import os
     import re
+
     import matplotlib.pyplot as plt
 
     # Create the folder if it doesn't exist
@@ -176,7 +190,7 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
     indices = []
 
     # Extract indices from existing filenames
-    pattern = re.compile(r'coordinate_alignment_(\d+)\.png$')
+    pattern = re.compile(r"coordinate_alignment_(\d+)\.png$")
     for file in existing_files:
         match = pattern.match(file)
         if match:
@@ -184,14 +198,10 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
     # Determine next index (0 if no files exist, otherwise max+1)
     next_index = 0 if not indices else max(indices) + 1
     # Round coordinates for analysis
-    df_dem = df_dem.with_columns([
-        pl.col("Xw").round(precision),
-        pl.col("Yw").round(precision)
-    ])
-    df_allbands = df_allbands.with_columns([
-        pl.col("Xw").round(precision),
-        pl.col("Yw").round(precision)
-    ])
+    df_dem = df_dem.with_columns([pl.col("Xw").round(precision), pl.col("Yw").round(precision)])
+    df_allbands = df_allbands.with_columns(
+        [pl.col("Xw").round(precision), pl.col("Yw").round(precision)]
+    )
 
     # Get coordinate differences
     dem_coords = set(zip(df_dem["Xw"].to_list(), df_dem["Yw"].to_list()))
@@ -210,24 +220,30 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
     # Sample points for clearer visualization if datasets are large
     max_points = 5000
     dem_sample = list(dem_coords)[:max_points] if len(dem_coords) > max_points else dem_coords
-    bands_sample = list(bands_coords)[:max_points] if len(bands_coords) > max_points else bands_coords
+    bands_sample = (
+        list(bands_coords)[:max_points] if len(bands_coords) > max_points else bands_coords
+    )
 
     # Plot points
     if dem_sample:
         x_dem, y_dem = zip(*dem_sample)
-        plt.scatter(x_dem, y_dem, c='blue', alpha=0.5, s=3, label=f'DEM ({overlap_dem:.1f}% overlap)')
+        plt.scatter(
+            x_dem, y_dem, c="blue", alpha=0.5, s=3, label=f"DEM ({overlap_dem:.1f}% overlap)"
+        )
 
     if bands_sample:
         x_bands, y_bands = zip(*bands_sample)
-        plt.scatter(x_bands, y_bands, c='red', alpha=0.5, s=3, label=f'Bands ({overlap_bands:.1f}% overlap)')
+        plt.scatter(
+            x_bands, y_bands, c="red", alpha=0.5, s=3, label=f"Bands ({overlap_bands:.1f}% overlap)"
+        )
 
     plt.legend()
-    plt.title('Coordinate Alignment Between DEM and Band Data')
-    plt.xlabel('X Coordinate')
-    plt.ylabel('Y Coordinate')
+    plt.title("Coordinate Alignment Between DEM and Band Data")
+    plt.xlabel("X Coordinate")
+    plt.ylabel("Y Coordinate")
 
     # Save the figure with auto-incremented index in the designated folder
-    filename = os.path.join(folder_name, f'coordinate_alignment_{next_index}.png')
+    filename = os.path.join(folder_name, f"coordinate_alignment_{next_index}.png")
     plt.savefig(filename, dpi=200)
 
     logging.info(f"Coordinate alignment analysis saved to {filename} (index: {next_index})")
@@ -242,23 +258,20 @@ def visualize_coordinate_alignment(df_dem, df_allbands, precision, folder_name="
         "common_points": len(common_coords),
         "dem_overlap_pct": overlap_dem,
         "bands_overlap_pct": overlap_bands,
-        "saved_index": next_index
+        "saved_index": next_index,
     }
+
 
 def analyze_kdtree_matching(df_dem, df_allbands, precision, max_distance=1.0):
     """Analyze potential matches using K-d tree nearest neighbor search"""
-    from scipy.spatial import cKDTree
     import numpy as np
+    from scipy.spatial import cKDTree
 
     # Round coordinates for consistent analysis
-    df_dem = df_dem.with_columns([
-        pl.col("Xw").round(precision),
-        pl.col("Yw").round(precision)
-    ])
-    df_allbands = df_allbands.with_columns([
-        pl.col("Xw").round(precision),
-        pl.col("Yw").round(precision)
-    ])
+    df_dem = df_dem.with_columns([pl.col("Xw").round(precision), pl.col("Yw").round(precision)])
+    df_allbands = df_allbands.with_columns(
+        [pl.col("Xw").round(precision), pl.col("Yw").round(precision)]
+    )
 
     # Extract coordinates as numpy arrays
     dem_coords = np.array(list(zip(df_dem["Xw"].to_list(), df_dem["Yw"].to_list())))
@@ -298,5 +311,5 @@ def analyze_kdtree_matching(df_dem, df_allbands, precision, max_distance=1.0):
         "no_matches": int(no_matches),
         "exact_pct": exact_pct,
         "build_time": build_time,
-        "query_time": query_time
+        "query_time": query_time,
     }

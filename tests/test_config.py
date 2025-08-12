@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import yaml
 
 from src.Common.config_object import config_object
@@ -34,11 +35,10 @@ def test_config_minimal_tmp(tmp_path):
             }
         },
     }
-    
+
     cfg_path = tmp_path / "config.yml"
     cfg_path.write_text(yaml.safe_dump(cfg))
-    
+
     # Should not raise
     c = config_object(str(cfg_path))
     assert c.base_path == str(tmp_path)
-

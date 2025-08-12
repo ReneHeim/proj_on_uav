@@ -1,14 +1,14 @@
 import logging
+import time
+from datetime import datetime
 
 import polars as pl
 from tqdm import tqdm
-import time
-from datetime import datetime
 
 from src.Common.rpv import rpv_df_preprocess, rpv_fit
 
 
-def process_weekly_data(weeks_dics,band ,debug=False, n_samples_bins= 2000):
+def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=2000):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -37,59 +37,68 @@ def process_weekly_data(weeks_dics,band ,debug=False, n_samples_bins= 2000):
         for row in tqdm(gdf.to_dicts(), desc=f"{week}", ncols=80):
             try:
                 # Extract plot information
-                plot_id = row.get('ifz_id', None)
-                cult = row.get('cult', None)
-                treatment = row.get('trt', None)
-                geometry = row.get('geometry', None)
+                plot_id = row.get("ifz_id", None)
+                cult = row.get("cult", None)
+                treatment = row.get("trt", None)
+                geometry = row.get("geometry", None)
 
-                dg = pl.read_parquet(row['paths'])
+                dg = pl.read_parquet(row["paths"])
                 dg = rpv_df_preprocess(dg, debug)
                 rpv_result = rpv_fit(dg, n_samples_bins=n_samples_bins, band=band)
                 rho0, k, theta, rc, rmse, nrmse = rpv_result
 
-
                 # Add to results collection with proper types
-                all_results.append({
-                    'week': str(week) if week is not None else None,
-                    'plot_id': int(plot_id) if isinstance(plot_id,
-                                                          (int, str, float)) and plot_id is not None else None,
-                    'cultivar': str(cult) if cult is not None else None,
-                    'treatment': str(treatment) if treatment is not None else None,
-                    'rho0': float(rho0) if rho0 is not None else None,
-                    'k': float(k) if k is not None else None,
-                    'theta': float(theta) if theta is not None else None,
-                    'rc': float(rc) if rc is not None else None,
-                    'rmse': float(rmse) if rmse is not None else None,
-                    'nrmse': float(nrmse) if nrmse is not None else None,
-                    'geometry': str(geometry) if geometry is not None else None,
-                    'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'status': 'success'
-                })
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "rho0": float(rho0) if rho0 is not None else None,
+                        "k": float(k) if k is not None else None,
+                        "theta": float(theta) if theta is not None else None,
+                        "rc": float(rc) if rc is not None else None,
+                        "rmse": float(rmse) if rmse is not None else None,
+                        "nrmse": float(nrmse) if nrmse is not None else None,
+                        "geometry": str(geometry) if geometry is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "success",
+                    }
+                )
             except Exception as e:
                 logging.warning(f"Error processing week {week}: {e}")
-                all_results.append({
-                    'week': str(week) if week is not None else None,
-                    'plot_id': int(plot_id) if isinstance(plot_id,
-                                                          (int, str, float)) and plot_id is not None else None,
-                    'cultivar': str(cult) if cult is not None else None,
-                    'treatment': str(treatment) if treatment is not None else None,
-                    'rho0': None,
-                    'k': None,
-                    'theta': None,
-                    'rc': None,
-                    'rmse': None,
-                    'nrmse': None,
-                    'geometry': str(geometry) if geometry is not None else None,
-                    'processed_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'status': f'error: {str(e)[:100]}'
-                })
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "rho0": None,
+                        "k": None,
+                        "theta": None,
+                        "rc": None,
+                        "rmse": None,
+                        "nrmse": None,
+                        "geometry": str(geometry) if geometry is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": f"error: {str(e)[:100]}",
+                    }
+                )
 
     # Create the final Polars DataFrame
     results_df = pl.DataFrame(all_results)
 
     # Print summary
     elapsed_time = time.time() - start_time
-    success_count = results_df.filter(pl.col('status') == 'success').height
+    success_count = results_df.filter(pl.col("status") == "success").height
     error_count = total_plots - success_count
 
     print(f"\n{'=' * 80}")

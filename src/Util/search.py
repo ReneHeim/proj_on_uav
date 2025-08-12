@@ -1,10 +1,10 @@
 import concurrent
-import re
-
-import logging
-from concurrent.futures import ThreadPoolExecutor
-import os
 import glob
+import logging
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor
+
 
 def order_path_list(group):
     """Return a list indexed by plot_id where present, preserving others at the end.
@@ -45,7 +45,7 @@ def search_directory(directory, objective):
     """
     try:
         # Use glob to find matching .parquet files in the current directory
-        pattern = os.path.join(directory, f'*{objective}*.parquet')
+        pattern = os.path.join(directory, f"*{objective}*.parquet")
         matches = glob.glob(pattern)
         if matches:
             return matches
@@ -73,22 +73,18 @@ def optimized_recursive_search(folders, objective, start_dir):
     logging.info(f"Looking for files containing '{objective}' in folders related to {folders}")
 
     results_by_week = {}
-    stats = {
-        "directories_checked": 0,
-        "files_found": 0,
-        "weeks_found": set()
-    }
+    stats = {"directories_checked": 0, "files_found": 0, "weeks_found": set()}
 
     # Walk through all directories
     for root, dirs, _ in os.walk(start_dir):
         stats["directories_checked"] += 1
 
         # Skip system folders and hidden directories
-        dirs[:] = [d for d in dirs if '$' not in d and d not in IGNORE_DIRS]
+        dirs[:] = [d for d in dirs if "$" not in d and d not in IGNORE_DIRS]
 
         is_relevant = any(folder in root for folder in folders) if folders else True
 
-        week_match = re.search(r'week\d+', root)
+        week_match = re.search(r"week\d+", root)
         week_id = week_match.group() if week_match else None
 
         if is_relevant or week_id:
@@ -100,13 +96,13 @@ def optimized_recursive_search(folders, objective, start_dir):
             if matching_files:
                 if not week_id:
                     for file in matching_files:
-                        file_week_match = re.search(r'week\d+', file)
+                        file_week_match = re.search(r"week\d+", file)
                         if file_week_match:
                             week_id = file_week_match.group()
                             break
 
                 if not week_id:
-                    week_id = 'unknown'
+                    week_id = "unknown"
 
                 if week_id not in results_by_week:
                     results_by_week[week_id] = []
@@ -122,4 +118,3 @@ def optimized_recursive_search(folders, objective, start_dir):
     logging.info(f"Weeks found: {sorted(list(stats['weeks_found']))}")
 
     return results_by_week
-

@@ -1,35 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-#----------------------------------------------------------------------------
+# ----------------------------------------------------------------------------
 # Created By  : Rene HJ Heim
 # Created Date: 2022/07/08
 # version ='1.0'
 # ---------------------------------------------------------------------------
 
-'''
+"""
 This code copiles all Common that will be called later by other codes. For the sake of clarity
 these Common are defined in this separated piece of code.
-'''
+"""
 import logging
+import math
 import os
+from timeit import default_timer as timer
 
 import affine
 import matplotlib.pyplot as plt
-
 import numpy as np
-import math
-
-from timeit import default_timer as timer
 import polars as pl
 import rasterio as rio
 from pyproj import Transformer
 from rasterio.enums import Resampling
-from rasterio.warp import reproject, calculate_default_transform
+from rasterio.warp import calculate_default_transform, reproject
 
 
 def pixelToWorldCoords(pX, pY, geoTransform):
-    ''' Input image pixel coordinates and get world coordinates according to geotransform using gdal
-    '''
+    """Input image pixel coordinates and get world coordinates according to geotransform using gdal"""
 
     def applyGeoTransform(inX, inY, geoTransform):
         outX = geoTransform[0] + inX * geoTransform[1] + inY * geoTransform[2]
@@ -39,12 +36,12 @@ def pixelToWorldCoords(pX, pY, geoTransform):
     mX, mY = applyGeoTransform(pX, pY, geoTransform)
     return mX, mY
 
-def worldToPixelCoords(wX, wY, geoTransform, dtype='int'):
-    ''' Input world coordinates and get pixel coordinates according to reverse geotransform using gdal
-    '''
-    reverse_transform = ~ affine.Affine.from_gdal(*geoTransform)
+
+def worldToPixelCoords(wX, wY, geoTransform, dtype="int"):
+    """Input world coordinates and get pixel coordinates according to reverse geotransform using gdal"""
+    reverse_transform = ~affine.Affine.from_gdal(*geoTransform)
     px, py = reverse_transform * (wX, wY)
-    if dtype == 'int':
+    if dtype == "int":
         px, py = int(px + 0.5), int(py + 0.5)
     else:
         px, py = px + 0.5, py + 0.5
@@ -58,21 +55,19 @@ def xyval(A):
     :return: x and y of each pixel and the associated value
     """
     import numpy as np
+
     x, y = np.indices(A.shape)
     return x.ravel(), y.ravel(), A.ravel()
 
 
-
-
 def to_numpy2(transform):
-    return np.array([transform.a,
-                     transform.b,
-                     transform.c,
-                     transform.d,
-                     transform.e,
-                     transform.f, 0, 0, 1], dtype='float64').reshape((3,3))
+    return np.array(
+        [transform.a, transform.b, transform.c, transform.d, transform.e, transform.f, 0, 0, 1],
+        dtype="float64",
+    ).reshape((3, 3))
 
-def xy_np(transform, rows, cols, offset='center'):
+
+def xy_np(transform, rows, cols, offset="center"):
     if isinstance(rows, int) and isinstance(cols, int):
         pts = np.array([[rows, cols, 1]]).T
     else:
@@ -81,15 +76,15 @@ def xy_np(transform, rows, cols, offset='center'):
         pts[0] = rows
         pts[1] = cols
 
-    if offset == 'center':
+    if offset == "center":
         coff, roff = (0.5, 0.5)
-    elif offset == 'ul':
+    elif offset == "ul":
         coff, roff = (0, 0)
-    elif offset == 'ur':
+    elif offset == "ur":
         coff, roff = (1, 0)
-    elif offset == 'll':
+    elif offset == "ll":
         coff, roff = (0, 1)
-    elif offset == 'lr':
+    elif offset == "lr":
         coff, roff = (1, 1)
     else:
         raise ValueError("Invalid offset")
@@ -112,7 +107,7 @@ def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32
 
             rows, cols = np.indices((rst.height, rst.width))
             rows_flat, cols_flat = rows.flatten(), cols.flatten()
-            Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset='center')
+            Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset="center")
 
             if transform_to_utm:
                 transformer = Transformer.from_crs(rst.crs, target_crs, always_xy=True)
@@ -125,26 +120,24 @@ def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32
 
             band_values = b_all.reshape(num_bands, -1).T
 
-            data = {
-                'Xw': pl.Series(Xw),
-                'Yw': pl.Series(Yw)
-            }
+            data = {"Xw": pl.Series(Xw), "Yw": pl.Series(Yw)}
             for idx in range(num_bands):
-                data[f'band{idx + 1}'] = pl.Series(band_values[:, idx])
+                data[f"band{idx + 1}"] = pl.Series(band_values[:, idx])
             df_allbands = pl.DataFrame(data)
-
 
         end_bands = timer()
         logging.info(
-            f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds")
+            f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds"
+        )
         return df_allbands
     except Exception as e:
         logging.error(f"Error reading bands from {each_ortho}: {e}")
         raise
 
 
-
-def coregister_and_resample(input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest):
+def coregister_and_resample(
+    input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest
+):
     """
     Reproject and resample the input raster (orthophoto) to match the reference raster (DEM).
     If target_resolution is provided (e.g., (10, 10)), the output will be resampled to that resolution.
@@ -163,11 +156,7 @@ def coregister_and_resample(input_path, ref_path, output_path, target_resolution
                 # If a target resolution is provided, recalculate transform for the new resolution
                 # We'll use calculate_default_transform but override the resolution
                 dst_transform, dst_width, dst_height = calculate_default_transform(
-                    src.crs,
-                    ref_crs,
-                    ref_width,
-                    ref_height,
-                    *ref_bounds
+                    src.crs, ref_crs, ref_width, ref_height, *ref_bounds
                 )
 
                 # Now adjust the transform for the target resolution
@@ -182,18 +171,22 @@ def coregister_and_resample(input_path, ref_path, output_path, target_resolution
                 x_min, y_min, x_max, y_max = ref_bounds
                 dst_width = int((x_max - x_min) / xres)
                 dst_height = int((y_max - y_min) / abs(yres))
-                dst_transform = rio.transform.from_bounds(x_min, y_min, x_max, y_max, dst_width, dst_height)
+                dst_transform = rio.transform.from_bounds(
+                    x_min, y_min, x_max, y_max, dst_width, dst_height
+                )
             else:
                 # Use the reference transform and size directly
                 dst_transform, dst_width, dst_height = ref_transform, ref_width, ref_height
 
             dst_kwargs = src.meta.copy()
-            dst_kwargs.update({
-                "crs": ref_crs,
-                "transform": dst_transform,
-                "width": dst_width,
-                "height": dst_height,
-            })
+            dst_kwargs.update(
+                {
+                    "crs": ref_crs,
+                    "transform": dst_transform,
+                    "width": dst_width,
+                    "height": dst_height,
+                }
+            )
 
             # Create output directory if it doesn't exist
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -207,7 +200,7 @@ def coregister_and_resample(input_path, ref_path, output_path, target_resolution
                         src_crs=src.crs,
                         dst_transform=dst_transform,
                         dst_crs=ref_crs,
-                        resampling=resampling
+                        resampling=resampling,
                     )
 
         logging.info(f"Co-registration and resampling completed. Output saved to {output_path}")
@@ -253,20 +246,20 @@ def check_alignment(dem_path, ortho_path):
             y_offset = (ortho_transform.f - dem_transform.f) / dem_res[1]
 
             # If x_offset and y_offset are close to integers, we consider them aligned
-            if not (abs(x_offset - round(x_offset)) < 1e-6 and abs(y_offset - round(y_offset)) < 1e-6):
+            if not (
+                abs(x_offset - round(x_offset)) < 1e-6 and abs(y_offset - round(y_offset)) < 1e-6
+            ):
                 logging.info(f"Pixel alignment mismatch: x_offset={x_offset}, y_offset={y_offset}")
                 return False
 
             # If we reach here, DEM and orthophoto are aligned
-            logging.info(f" DEM and orthophoto are aligned: x_offset={x_offset}, y_offset={y_offset}")
+            logging.info(
+                f" DEM and orthophoto are aligned: x_offset={x_offset}, y_offset={y_offset}"
+            )
             return True
     except Exception as e:
         logging.error(f"Error checking alignment: {e}")
         return False
-
-
-
-
 
 
 def latlon_to_utm32n_series(lat_deg, lon_deg):
@@ -278,59 +271,63 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
       (easting, northing) in meters.
     """
     # WGS84 ellipsoid constants
-    a = 6378137.0                       # semi-major axis (meters)
-    f = 1 / 298.257223563               # flattening
-    e2 = 2*f - f**2                     # eccentricity squared
+    a = 6378137.0  # semi-major axis (meters)
+    f = 1 / 298.257223563  # flattening
+    e2 = 2 * f - f**2  # eccentricity squared
     e = math.sqrt(e2)
 
     # UTM parameters for Zone 32N
     k0 = 0.9996
-    E0 = 500000.0                       # false easting
-    N0 = 0.0                            # false northing (northern hemisphere)
-    lambda0 = math.radians(9.0)         # central meridian for Zone 32N (9°E)
+    E0 = 500000.0  # false easting
+    N0 = 0.0  # false northing (northern hemisphere)
+    lambda0 = math.radians(9.0)  # central meridian for Zone 32N (9°E)
 
     # Convert input latitude and longitude from degrees to radians
     phi = math.radians(lat_deg)
     lam = math.radians(lon_deg)
 
     # Compute auxiliary values
-    N_val = a / math.sqrt(1 - e2 * math.sin(phi)**2)
-    T = math.tan(phi)**2
+    N_val = a / math.sqrt(1 - e2 * math.sin(phi) ** 2)
+    T = math.tan(phi) ** 2
     # Second eccentricity squared
     ep2 = e2 / (1 - e2)
-    C = ep2 * math.cos(phi)**2
+    C = ep2 * math.cos(phi) ** 2
     A = (lam - lambda0) * math.cos(phi)
 
     # Meridional arc length (M)
     M = a * (
-          (1 - e2/4 - 3*e2**2/64 - 5*e2**3/256) * phi
-        - (3*e2/8 + 3*e2**2/32 + 45*e2**3/1024) * math.sin(2*phi)
-        + (15*e2**2/256 + 45*e2**3/1024) * math.sin(4*phi)
-        - (35*e2**3/3072) * math.sin(6*phi)
+        (1 - e2 / 4 - 3 * e2**2 / 64 - 5 * e2**3 / 256) * phi
+        - (3 * e2 / 8 + 3 * e2**2 / 32 + 45 * e2**3 / 1024) * math.sin(2 * phi)
+        + (15 * e2**2 / 256 + 45 * e2**3 / 1024) * math.sin(4 * phi)
+        - (35 * e2**3 / 3072) * math.sin(6 * phi)
     )
 
     # Calculate Easting and Northing using standard UTM series formulas
     easting = E0 + k0 * N_val * (
-          A
-        + (1 - T + C) * A**3 / 6
-        + (5 - 18*T + T**2 + 72*C - 58*ep2) * A**5 / 120
+        A + (1 - T + C) * A**3 / 6 + (5 - 18 * T + T**2 + 72 * C - 58 * ep2) * A**5 / 120
     )
 
     northing = N0 + k0 * (
-          M
-        + N_val * math.tan(phi) * (
-              A**2 / 2
-            + (5 - T + 9*C + 4*C**2) * A**4 / 24
-            + (61 - 58*T + T**2 + 600*C - 330*ep2) * A**6 / 720
+        M
+        + N_val
+        * math.tan(phi)
+        * (
+            A**2 / 2
+            + (5 - T + 9 * C + 4 * C**2) * A**4 / 24
+            + (61 - 58 * T + T**2 + 600 * C - 330 * ep2) * A**6 / 720
         )
     )
 
     return easting, northing
 
-def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny=1500, max_bands=6, clip=(2, 98)):
+
+def plotting_raster(
+    df_merged, path, file_name, bands_prefix="band", nx=1500, ny=1500, max_bands=6, clip=(2, 98)
+):
     import os
-    import numpy as np
+
     import matplotlib.pyplot as plt
+    import numpy as np
 
     if df_merged is None or df_merged.is_empty():
         logging.error(f"No data found for {file_name}")
@@ -367,7 +364,9 @@ def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny
 
     fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows), squeeze=False)
     for ax, (band, grid) in zip(axes.ravel(), means):
-        im = ax.imshow(grid, origin="lower", extent=extent, cmap="viridis", interpolation="bilinear")
+        im = ax.imshow(
+            grid, origin="lower", extent=extent, cmap="viridis", interpolation="bilinear"
+        )
         ax.set_title(band)
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
@@ -375,7 +374,15 @@ def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny
 
     lo, hi = np.nanpercentile(elev, clip)
     ax_elev = axes.ravel()[len(means)]
-    im = ax_elev.imshow(elev, origin="lower", extent=extent, cmap="terrain", vmin=lo, vmax=hi, interpolation="bilinear")
+    im = ax_elev.imshow(
+        elev,
+        origin="lower",
+        extent=extent,
+        cmap="terrain",
+        vmin=lo,
+        vmax=hi,
+        interpolation="bilinear",
+    )
     ax_elev.set_title("Elevation")
     ax_elev.set_xlabel("X (m)")
     ax_elev.set_ylabel("Y (m)")
@@ -400,7 +407,7 @@ def plotting_raster(df_merged, path, file_name, bands_prefix="band", nx=1500, ny
         ax.set_title(b)
         ax.set_xlabel("Value")
         ax.set_ylabel("Count")
-    for ax in axes_h.ravel()[len(bands):]:
+    for ax in axes_h.ravel()[len(bands) :]:
         ax.axis("off")
 
     fig_h.tight_layout()

@@ -32,28 +32,22 @@ def main():
 
     ## Import dataframe
 
-
     paths = glob.glob(os.path.join(config.main_extract_out, "*.parquet"))
 
     if not paths:
         raise RuntimeError(f"No parquet files found in {config.main_extract_out}")
     df = pl.read_parquet(paths[0])
 
-
-
     ## Apply OSAVI index filtering
     df = OSAVI_index_filtering(df)
     df = excess_green_filter(df)
     print(df.columns)
 
-
-
-    #Plot heatmaps
+    # Plot heatmaps
     # plot_heatmap(df, "OSAVI", config.main_extract_out)
     # plot_heatmap(df, "ExcessGreen", config.main_extract_out)
 
-
-    #Plot Spectrograms
+    # Plot Spectrograms
     bands_wavelength_list = [475, 560, 668, 717, 842]
 
     # plot_spectrogram(df,bands_wavelength_list=bands_wavelength_list,n_bands=5)
@@ -62,7 +56,6 @@ def main():
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
     dfs = load_by_polygon(str(config.main_extract_out), str(config.main_extract_out_polygons_df))
-
 
 
 if __name__ == "__main__":

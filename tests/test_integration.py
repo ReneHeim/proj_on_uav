@@ -3,16 +3,17 @@ Integration tests for the complete UAV reflectance extraction pipeline.
 Tests the full workflow from data loading to RPV model fitting.
 """
 
-import tempfile
 import shutil
-from pathlib import Path
 import subprocess
-import yaml
-import pytest
-import polars as pl
+import tempfile
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
+import polars as pl
+import pytest
 import rasterio as rio
+import yaml
 from rasterio.transform import from_bounds
 
 
@@ -35,7 +36,7 @@ def create_test_data(tmp_path: Path):
     data = np.zeros((5, 10, 10), dtype=np.float32)
     for b in range(5):
         data[b, :, :] = (b + 1) * 0.1 + np.random.random((10, 10)) * 0.05
-    
+
     with rio.open(
         ortho_path,
         "w",
@@ -74,8 +75,8 @@ def create_test_data(tmp_path: Path):
 
     # Create polygon
     gdf = gpd.GeoDataFrame(
-        {"id": [1], "plot_id": ["plot_1"]}, 
-        geometry=gpd.GeoSeries.from_wkt(["POLYGON((1 1,9 1,9 9,1 9,1 1))"])
+        {"id": [1], "plot_id": ["plot_1"]},
+        geometry=gpd.GeoSeries.from_wkt(["POLYGON((1 1,9 1,9 9,1 9,1 1))"]),
     )
     gdf.set_crs("EPSG:32632", inplace=True)
     gdf.to_file(poly_path, driver="GPKG")
@@ -119,12 +120,12 @@ def create_config(data_paths, tmp_path: Path):
         },
         "outputs": {
             "paths": {
-                "main_out": str(data_paths["out_path"]), 
-                "plot_out": str(data_paths["out_path"] / "plots")
+                "main_out": str(data_paths["out_path"]),
+                "plot_out": str(data_paths["out_path"] / "plots"),
             }
         },
     }
-    
+
     cfg_path = tmp_path / "config.yml"
     cfg_path.write_text(yaml.safe_dump(cfg))
     return cfg_path
@@ -141,7 +142,7 @@ def test_complete_pipeline_integration():
         proc = subprocess.run(
             ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
             capture_output=True,
-            text=True
+            text=True,
         )
         assert proc.returncode == 0, f"Extraction failed: {proc.stderr}"
 
@@ -153,15 +154,23 @@ def test_complete_pipeline_integration():
         proc = subprocess.run(
             ["python", "-m", "src.02_filtering", "--config", str(config_path)],
             capture_output=True,
-            text=True
+            text=True,
         )
         assert proc.returncode == 0, f"Filtering failed: {proc.stderr}"
 
         # Step 3: RPV modeling (smoke test)
         proc = subprocess.run(
-            ["python", "-m", "src.03_RPV_modelling", "--config", str(config_path), "--band", "band1"],
+            [
+                "python",
+                "-m",
+                "src.03_RPV_modelling",
+                "--config",
+                str(config_path),
+                "--band",
+                "band1",
+            ],
             capture_output=True,
-            text=True
+            text=True,
         )
         # RPV might fail without real data, but CLI should work
         assert proc.returncode in [0, 1], f"RPV modeling failed unexpectedly: {proc.stderr}"
@@ -178,7 +187,7 @@ def test_data_flow_validation():
         subprocess.run(
             ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
             capture_output=True,
-            check=True
+            check=True,
         )
 
         # Verify extracted data structure
@@ -187,7 +196,7 @@ def test_data_flow_validation():
 
         # Load and validate extracted data
         df = pl.read_parquet(parquet_files[0])
-        
+
         # Check required columns exist
         required_cols = ["Xw", "Yw", "elev", "band1", "band2", "band3", "band4", "band5"]
         for col in required_cols:
@@ -204,23 +213,23 @@ def test_error_handling():
     """Test error handling in the pipeline."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
-        
+
         # Test with missing config file
         proc = subprocess.run(
             ["python", "-m", "src.01_main_extract_data", "--config", "nonexistent.yml"],
             capture_output=True,
-            text=True
+            text=True,
         )
         assert proc.returncode != 0, "Should fail with missing config file"
 
         # Test with invalid config
         invalid_config = tmp_path / "invalid.yml"
         invalid_config.write_text("invalid: yaml: content")
-        
+
         proc = subprocess.run(
             ["python", "-m", "src.01_main_extract_data", "--config", str(invalid_config)],
             capture_output=True,
-            text=True
+            text=True,
         )
         assert proc.returncode != 0, "Should fail with invalid config"
 
@@ -231,7 +240,7 @@ def test_memory_efficiency():
         import psutil
     except ImportError:
         pytest.skip("psutil not available for memory monitoring")
-    
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp_path = Path(tmp_dir)
         data_paths = create_test_data(tmp_path)
@@ -245,7 +254,7 @@ def test_memory_efficiency():
         subprocess.run(
             ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
             capture_output=True,
-            check=True
+            check=True,
         )
 
         final_memory = process.memory_info().rss

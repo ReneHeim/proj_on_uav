@@ -8,6 +8,7 @@ import polars as pl
 from matplotlib import pyplot as plt
 from rasterio.warp import transform
 
+
 # ------------------------------
 # Calculate Viewing Angles
 # ------------------------------
@@ -41,15 +42,17 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         # ------------------------------------------------------------------
         # 1. components of the view vector (camera  minus  ground point)
         # ------------------------------------------------------------------
-        df_merged = df_merged.with_columns([
-            (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
-            (pl.lit(xcam, dtype=pl.Float32) - pl.col("Xw")).alias("delta_x"),
-            (pl.lit(ycam, dtype=pl.Float32) - pl.col("Yw")).alias("delta_y")
-        ])
+        df_merged = df_merged.with_columns(
+            [
+                (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
+                (pl.lit(xcam, dtype=pl.Float32) - pl.col("Xw")).alias("delta_x"),
+                (pl.lit(ycam, dtype=pl.Float32) - pl.col("Yw")).alias("delta_y"),
+            ]
+        )
 
         # horizontal distance
         df_merged = df_merged.with_columns(
-            ((pl.col("delta_x")**2 + pl.col("delta_y")**2).sqrt()).alias("distance_xy")
+            ((pl.col("delta_x") ** 2 + pl.col("delta_y") ** 2).sqrt()).alias("distance_xy")
         )
 
         # ------------------------------------------------------------------
@@ -57,13 +60,13 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         #    angle_rad kept for backward compatibility
         # ------------------------------------------------------------------
         df_merged = df_merged.with_columns(
-            pl.arctan2(pl.col("distance_xy"),            # NOTE: distance first,
-                       pl.col("delta_z"))                #       height second
-              .alias("angle_rad")
+            pl.arctan2(
+                pl.col("distance_xy"), pl.col("delta_z")  # NOTE: distance first,
+            ).alias(  #       height second
+                "angle_rad"
+            )
         ).with_columns(
-            (pl.col("angle_rad") * 180 / np.pi)          # radians → degrees
-              .round(2)
-              .alias("vza")
+            (pl.col("angle_rad") * 180 / np.pi).round(2).alias("vza")  # radians → degrees
         )
 
         # ------------------------------------------------------------------
@@ -78,9 +81,7 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         df_merged = df_merged.with_columns(
             ((pl.col("vaa_rad") * 180 / np.pi) - saa).alias("vaa_temp")
         )
-        df_merged = df_merged.with_columns(
-            (((pl.col("vaa_temp") + 360) % 360)).alias("vaa")
-        )
+        df_merged = df_merged.with_columns((((pl.col("vaa_temp") + 360) % 360)).alias("vaa"))
 
         # ------------------------------------------------------------------
         # 4. masking logic (unchanged)
@@ -88,24 +89,28 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         p05 = df_merged.select(pl.col("elev").quantile(0.02, interpolation="nearest")).item()
         p95 = df_merged.select(pl.col("elev").quantile(0.98, interpolation="nearest")).item()
 
-        df_merged = df_merged.with_columns([
-            pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
-            pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa"),
-            pl.when((pl.col("elev") < p05) | (pl.col("elev") > p95))
-              .then(None)
-              .otherwise(pl.col("elev"))
-              .alias("elev")
-        ])
+        df_merged = df_merged.with_columns(
+            [
+                pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
+                pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa"),
+                pl.when((pl.col("elev") < p05) | (pl.col("elev") > p95))
+                .then(None)
+                .otherwise(pl.col("elev"))
+                .alias("elev"),
+            ]
+        )
 
         # ------------------------------------------------------------------
         # 5. Stash constants (unchanged)
         # ------------------------------------------------------------------
-        df_merged = df_merged.with_columns([
-            pl.lit(xcam, dtype=pl.Float32).alias("xcam"),
-            pl.lit(ycam, dtype=pl.Float32).alias("ycam"),
-            pl.lit(sunelev, dtype=pl.Float32).alias("sunelev"),
-            pl.lit(saa,     dtype=pl.Float32).alias("saa")
-        ])
+        df_merged = df_merged.with_columns(
+            [
+                pl.lit(xcam, dtype=pl.Float32).alias("xcam"),
+                pl.lit(ycam, dtype=pl.Float32).alias("ycam"),
+                pl.lit(sunelev, dtype=pl.Float32).alias("sunelev"),
+                pl.lit(saa, dtype=pl.Float32).alias("saa"),
+            ]
+        )
 
         end_angles = timer()
         logging.info(f"Calculated angles in {end_angles - start_angles:.2f} seconds")
@@ -117,8 +122,7 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         raise
 
 
-
-def get_camera_position(cam_path, name, target_crs=None ):
+def get_camera_position(cam_path, name, target_crs=None):
     """
     Extract the 3D position of a specific camera/image from a text file.
 
@@ -140,20 +144,38 @@ def get_camera_position(cam_path, name, target_crs=None ):
     """
     start = timer()
     try:
-        campos = pl.read_csv(cam_path, separator='\t', skip_rows=2, has_header=False)
-        campos.columns = ['PhotoID', 'X', 'Y', 'Z', 'Omega', 'Phi', 'Kappa', 'r11', 'r12', 'r13',
-                          'r21', 'r22', 'r23', 'r31', 'r32', 'r33']
-        campos = campos.with_columns([
-            pl.col("X").cast(pl.Float32),
-            pl.col("Y").cast(pl.Float32),
-            pl.col("Z").cast(pl.Float32)
-        ])
-        campos1 = campos.filter(pl.col('PhotoID').str.contains(name))
-        lon, lat, zcam = campos1['X'][0], campos1['Y'][0], campos1['Z'][0]
+        campos = pl.read_csv(cam_path, separator="\t", skip_rows=2, has_header=False)
+        campos.columns = [
+            "PhotoID",
+            "X",
+            "Y",
+            "Z",
+            "Omega",
+            "Phi",
+            "Kappa",
+            "r11",
+            "r12",
+            "r13",
+            "r21",
+            "r22",
+            "r23",
+            "r31",
+            "r32",
+            "r33",
+        ]
+        campos = campos.with_columns(
+            [
+                pl.col("X").cast(pl.Float32),
+                pl.col("Y").cast(pl.Float32),
+                pl.col("Z").cast(pl.Float32),
+            ]
+        )
+        campos1 = campos.filter(pl.col("PhotoID").str.contains(name))
+        lon, lat, zcam = campos1["X"][0], campos1["Y"][0], campos1["Z"][0]
 
         if target_crs is not None:
-            lon , lat = transform('EPSG:4326', target_crs, [lon], [lat])
-            lon , lat = lon[0], lat[0]
+            lon, lat = transform("EPSG:4326", target_crs, [lon], [lat])
+            lon, lat = lon[0], lat[0]
 
         end = timer()
         logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
@@ -162,70 +184,71 @@ def get_camera_position(cam_path, name, target_crs=None ):
         logging.error(f"Error retrieving camera position for {name}: {e}")
         raise
 
+
 def plot_angles(df_merged, lon, lat, zcam, path, file_name):
     """
     Plot viewing angles for the merged data.
-    
+
     Args:
         df_merged: Polars DataFrame with angle data
         lon: Camera longitude
-        lat: Camera latitude  
+        lat: Camera latitude
         zcam: Camera altitude
         path: Output path for plots
         file_name: Name of the file being processed
     """
-    import matplotlib.pyplot as plt
     import os
-    
+
+    import matplotlib.pyplot as plt
+
     # Create necessary directories
     top_down_dir = os.path.join(path, "top_down")
     side_view_dir = os.path.join(path, "side_view")
     view_3d_dir = os.path.join(path, "3d_view")
-    
+
     for dir_path in [top_down_dir, side_view_dir, view_3d_dir]:
         os.makedirs(dir_path, exist_ok=True)
-    
+
     # Sample before
     if df_merged.shape[0] > 10000:
         df_sample = df_merged.sample(n=10000, with_replacement=False)
     else:
         df_sample = df_merged
 
-    
     # Top-down view
     plt.figure(figsize=(10, 8))
-    plt.scatter(df_sample['Xw'], df_sample['Yw'], c=df_sample['vza'], cmap='viridis', s=1)
-    plt.scatter([lon], [lat], c='red', label="Drone")
-    plt.colorbar(label='View Zenith Angle (degrees)')
-    plt.xlabel('X (m)')
-    plt.ylabel('Y (m)')
-    plt.title(f'View Zenith Angle - {file_name}')
+    plt.scatter(df_sample["Xw"], df_sample["Yw"], c=df_sample["vza"], cmap="viridis", s=1)
+    plt.scatter([lon], [lat], c="red", label="Drone")
+    plt.colorbar(label="View Zenith Angle (degrees)")
+    plt.xlabel("X (m)")
+    plt.ylabel("Y (m)")
+    plt.title(f"View Zenith Angle - {file_name}")
     plt.savefig(os.path.join(top_down_dir, f"angle_data_{file_name}.png"), dpi=200)
     plt.close()
-    
+
     # Side view
     plt.figure(figsize=(10, 8))
-    plt.scatter(df_sample['Xw'], df_sample['elev'], c=df_sample['vza'], cmap='viridis', s=1)
-    plt.scatter([lon], [zcam], c='red', label="Drone")
-    plt.colorbar(label='View Zenith Angle (degrees)')
-    plt.xlabel('X (m)')
-    plt.ylabel('Elevation (m)')
-    plt.title(f'View Zenith Angle vs Elevation - {file_name}')
+    plt.scatter(df_sample["Xw"], df_sample["elev"], c=df_sample["vza"], cmap="viridis", s=1)
+    plt.scatter([lon], [zcam], c="red", label="Drone")
+    plt.colorbar(label="View Zenith Angle (degrees)")
+    plt.xlabel("X (m)")
+    plt.ylabel("Elevation (m)")
+    plt.title(f"View Zenith Angle vs Elevation - {file_name}")
     plt.savefig(os.path.join(side_view_dir, f"angle_data_{file_name}.png"), dpi=200)
     plt.close()
-    
+
     # 3D view
     fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(111, projection='3d')
-    scatter = ax.scatter(df_sample['Xw'], df_sample['Yw'], df_sample['elev'],
-                        c=df_sample['vza'], cmap='viridis', s=1)
-    plt.colorbar(scatter, label='View Zenith Angle (degrees)')
-    ax.scatter([lon], [lat], [zcam], c='red', label="Drone")
+    ax = fig.add_subplot(111, projection="3d")
+    scatter = ax.scatter(
+        df_sample["Xw"], df_sample["Yw"], df_sample["elev"], c=df_sample["vza"], cmap="viridis", s=1
+    )
+    plt.colorbar(scatter, label="View Zenith Angle (degrees)")
+    ax.scatter([lon], [lat], [zcam], c="red", label="Drone")
 
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.set_zlabel('Elevation (m)')
-    ax.set_title(f'3D View Zenith Angle - {file_name}')
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    ax.set_zlabel("Elevation (m)")
+    ax.set_title(f"3D View Zenith Angle - {file_name}")
     plt.savefig(os.path.join(view_3d_dir, f"angle_data_{file_name}.png"), dpi=200)
     plt.close()
-

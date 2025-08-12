@@ -7,4 +7,3 @@ def test_script_02_filter_e2e(tmp_path: Path):
     # Here we only sanity-run the CLI to ensure it accepts --help
     proc = subprocess.run(["python", "-m", "src.02_filtering", "--help"], capture_output=True)
     assert proc.returncode == 0
-
