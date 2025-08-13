@@ -7,6 +7,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
+
 def main():
     """Entry point for the uav-rpv command."""
     # Import the main function from the script file
@@ -15,9 +16,10 @@ def main():
     module = importlib.util.module_from_spec(spec)
     sys.modules["rpv_modelling_script"] = module
     spec.loader.exec_module(module)
-    
+
     # Call the main function
     return module.main()
+
 
 if __name__ == "__main__":
     main()

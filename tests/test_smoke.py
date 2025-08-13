@@ -10,4 +10,3 @@ def test_scripts_help():
         proc = subprocess.run(script, capture_output=True)
         assert proc.returncode == 0
         assert b"--config" in proc.stdout or b"--config" in proc.stderr
-

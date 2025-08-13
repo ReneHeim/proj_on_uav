@@ -17,4 +17,3 @@ def test_convert_to_timezone_named():
     dt = datetime(2024, 1, 1, 12, 0, 0)
     z = convert_to_timezone(dt, "Europe/Berlin")
     assert z.tzinfo is not None
-

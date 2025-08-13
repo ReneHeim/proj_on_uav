@@ -5,8 +5,8 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import rasterio as rio
-from rasterio.transform import from_bounds
 import yaml
+from rasterio.transform import from_bounds
 
 
 def _write_multiband_tif(path: Path, width=10, height=10, count=5, crs="EPSG:32632"):
@@ -57,7 +57,9 @@ def _write_camera_file(path: Path, photo_id: str):
 
 
 def _write_polygon(path: Path, crs="EPSG:32632"):
-    gdf = gpd.GeoDataFrame({"id": [1]}, geometry=gpd.GeoSeries.from_wkt(["POLYGON((0 0,10 0,10 10,0 10,0 0))"]))
+    gdf = gpd.GeoDataFrame(
+        {"id": [1]}, geometry=gpd.GeoSeries.from_wkt(["POLYGON((0 0,10 0,10 10,0 10,0 0))"])
+    )
     gdf.set_crs(crs, inplace=True)
     # write to GeoPackage
     gdf.to_file(path, driver="GPKG")
@@ -108,7 +110,9 @@ def test_script_01_extract_e2e(tmp_path: Path):
     cfg_path.write_text(yaml.safe_dump(cfg))
 
     # run script 01
-    proc = subprocess.run(["python", "-m", "src.01_main_extract_data", "--config", str(cfg_path)], capture_output=True)
+    proc = subprocess.run(
+        ["python", "-m", "src.01_main_extract_data", "--config", str(cfg_path)], capture_output=True
+    )
     assert proc.returncode == 0, proc.stderr.decode()
 
     # expect at least one parquet output
@@ -118,4 +122,3 @@ def test_script_01_extract_e2e(tmp_path: Path):
         print(proc.stdout.decode())
         print(proc.stderr.decode())
     assert outputs, "No parquet produced by extract script"
-

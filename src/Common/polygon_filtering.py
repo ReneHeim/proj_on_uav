@@ -1,18 +1,19 @@
-import matplotlib.pyplot as plt
-import numpy as np
+import concurrent.futures
 import logging
-import time
 import os
 import signal
-import pandas as pd
-import concurrent.futures
+import time
 from functools import partial
 
-from shapely.geometry import Point
 import geopandas as gpd
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 import polars as pl
 from pyproj import CRS
+from shapely.geometry import Point
 from shapely.geometry.geo import box
+
 
 # Not used
 def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
@@ -78,12 +79,14 @@ def is_pos_inside_polygon(lat: float, lon: float, config: dict) -> bool:
 
 class TimeoutException(Exception):
     """Exception raised when a function times out."""
+
     pass
 
 
 def setup_timeout(max_runtime_seconds):
     """Set up a timeout handler for Unix systems."""
-    if os.name != 'nt':  # Not Windows
+    if os.name != "nt":  # Not Windows
+
         def timeout_handler(signum, frame):
             raise TimeoutException("Function timed out")
 
@@ -93,7 +96,7 @@ def setup_timeout(max_runtime_seconds):
 
 def disable_timeout():
     """Disable the timeout alarm if on Unix."""
-    if os.name != 'nt':
+    if os.name != "nt":
         signal.alarm(0)
 
 
@@ -114,10 +117,10 @@ def load_and_prepare_polygons(polygon_path, target_crs):
         # Check if bounds suggest geographic coordinates
         bounds = gdf_poly.total_bounds
         is_likely_geographic = (
-                abs(bounds[0]) <= 180 and
-                abs(bounds[1]) <= 90 and
-                abs(bounds[2]) <= 180 and
-                abs(bounds[3]) <= 90
+            abs(bounds[0]) <= 180
+            and abs(bounds[1]) <= 90
+            and abs(bounds[2]) <= 180
+            and abs(bounds[3]) <= 90
         )
 
         # Handle CRS conversion if needed
@@ -152,15 +155,15 @@ def apply_polygon_shrinkage(gdf_poly, shrinkage):
     phase_start = time.time()
 
     # Pre-compute areas once
-    gdf_poly['area'] = gdf_poly.geometry.area
+    gdf_poly["area"] = gdf_poly.geometry.area
 
     # Calculate buffer distance and store in a numpy array for vectorized operation
-    buffer_distances = -1 * np.sqrt(gdf_poly['area'].values) * shrinkage
+    buffer_distances = -1 * np.sqrt(gdf_poly["area"].values) * shrinkage
 
     # Apply buffer with parallel processing | Exclude small areas to avoid too muh shrinkage
-    gdf_poly['geometry'] = [
-        geom.buffer(dist) if dist > -area ** 0.4 else geom
-        for geom, dist, area in zip(gdf_poly.geometry, buffer_distances, gdf_poly['area'])
+    gdf_poly["geometry"] = [
+        geom.buffer(dist) if dist > -(area**0.4) else geom
+        for geom, dist, area in zip(gdf_poly.geometry, buffer_distances, gdf_poly["area"])
     ]
 
     # Remove empty geometries
@@ -216,7 +219,6 @@ def check_data_polygon_overlap(df, polygons_gdf):
     # Get the total bounds of all polygons
     poly_bounds = polygons_gdf.total_bounds  # [xmin, ymin, xmax, ymax]
 
-
     # Check for potential overlap of bounding boxes
     overlap_x = min(data_bounds[2], poly_bounds[2]) - max(data_bounds[0], poly_bounds[0])
     overlap_y = min(data_bounds[3], poly_bounds[3]) - max(data_bounds[1], poly_bounds[1])
@@ -236,7 +238,9 @@ def check_data_polygon_overlap(df, polygons_gdf):
 
         if overlapping_polygons == 0:
             has_overlap = False
-            logging.warning("Bounding boxes overlap, but no individual polygons intersect data extent")
+            logging.warning(
+                "Bounding boxes overlap, but no individual polygons intersect data extent"
+            )
         else:
             logging.info(f"Found {overlapping_polygons} polygons that may contain points")
 
@@ -270,12 +274,12 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
     data_box_gdf = gpd.GeoDataFrame(geometry=[data_box], crs=gdf_poly.crs)
 
     # Plot polygons
-    gdf_poly.plot(ax=ax, alpha=0.5, edgecolor='red', facecolor='lightcoral',
-                  label='Polygon Areas')
+    gdf_poly.plot(ax=ax, alpha=0.5, edgecolor="red", facecolor="lightcoral", label="Polygon Areas")
 
     # Plot data bounds with distinct style
-    data_box_gdf.plot(ax=ax, facecolor='none', edgecolor='blue',
-                      linestyle='--', linewidth=2, label='Data Bounds')
+    data_box_gdf.plot(
+        ax=ax, facecolor="none", edgecolor="blue", linestyle="--", linewidth=2, label="Data Bounds"
+    )
 
     # Add polygon IDs as text on each polygon
     for idx, poly in gdf_poly.iterrows():
@@ -283,24 +287,26 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
         centroid = poly.geometry.centroid
 
         # Determine the polygon ID to display
-        if 'id' in poly:
-            poly_id = poly['id']
-        elif 'plot_id' in poly:
-            poly_id = poly['plot_id']
+        if "id" in poly:
+            poly_id = poly["id"]
+        elif "plot_id" in poly:
+            poly_id = poly["plot_id"]
         else:
             poly_id = f"Plot {idx}"
 
         # Add text annotation with the polygon ID
         ax.text(
-            centroid.x, centroid.y,
+            centroid.x,
+            centroid.y,
             poly_id,
             fontsize=9,
-            ha='center', va='center',
-            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3')
+            ha="center",
+            va="center",
+            bbox=dict(facecolor="white", alpha=0.7, edgecolor="none", boxstyle="round,pad=0.3"),
         )
 
     # Calculate minimum distance between polygons and data bounds
-    min_distance = float('inf')
+    min_distance = float("inf")
     closest_poly_idx = None
 
     for idx, poly in gdf_poly.iterrows():
@@ -310,7 +316,7 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
             closest_poly_idx = idx
 
     # Create a line connecting closest points if we found a minimum distance
-    if closest_poly_idx is not None and min_distance < float('inf'):
+    if closest_poly_idx is not None and min_distance < float("inf"):
         # Get the closest polygon
         closest_poly = gdf_poly.iloc[closest_poly_idx].geometry
 
@@ -323,20 +329,33 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
         poly_centroid = closest_poly.centroid
 
         # Draw connection line
-        ax.plot([data_centroid.x, poly_centroid.x],
-                [data_centroid.y, poly_centroid.y],
-                'k-', alpha=0.6, linewidth=1.5, linestyle=':')
+        ax.plot(
+            [data_centroid.x, poly_centroid.x],
+            [data_centroid.y, poly_centroid.y],
+            "k-",
+            alpha=0.6,
+            linewidth=1.5,
+            linestyle=":",
+        )
 
         # Add distance text at midpoint
         midpoint_x = (data_centroid.x + poly_centroid.x) / 2
         midpoint_y = (data_centroid.y + poly_centroid.y) / 2
 
         # Format distance nicely - show in kilometers if large, meters if small
-        distance_text = f"≈ {min_distance:.1f} m" if min_distance < 1000 else f"≈ {min_distance / 1000:.2f} km"
+        distance_text = (
+            f"≈ {min_distance:.1f} m" if min_distance < 1000 else f"≈ {min_distance / 1000:.2f} km"
+        )
 
-        ax.text(midpoint_x, midpoint_y, distance_text,
-                fontsize=10, ha='center', va='center',
-                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+        ax.text(
+            midpoint_x,
+            midpoint_y,
+            distance_text,
+            fontsize=10,
+            ha="center",
+            va="center",
+            bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.5"),
+        )
 
     # Determine axis limits to show both
     x_min = min(data_bounds[0], poly_bounds[0])
@@ -366,30 +385,29 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
     if min_distance > 5 * avg_dim:
         # Areas are far apart, add an inset with the global view
         axins = ax.inset_axes([0.05, 0.05, 0.3, 0.3])
-        gdf_poly.plot(ax=axins, color='red', alpha=0.5)
-        data_box_gdf.plot(ax=axins, color='blue', alpha=0.5)
+        gdf_poly.plot(ax=axins, color="red", alpha=0.5)
+        data_box_gdf.plot(ax=axins, color="blue", alpha=0.5)
         axins.set_title("Overview")
         axins.set_xticks([])
         axins.set_yticks([])
 
-
     # Set title and labels
     ax.set_title("No Overlap Between Data and Polygons", fontsize=14)
-    ax.set_xlabel('Easting (m)', fontsize=12)
-    ax.set_ylabel('Northing (m)', fontsize=12)
+    ax.set_xlabel("Easting (m)", fontsize=12)
+    ax.set_ylabel("Northing (m)", fontsize=12)
     ax.grid(True, alpha=0.3)
-    ax.legend(loc='upper left')
+    ax.legend(loc="upper left")
 
     # Save the plot
     plt.tight_layout()
 
     if plots_out is not None:
         os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
-        output_path = f'{plots_out}/polygon_filtering_data/no_overlap_{img_name}.png'
+        output_path = f"{plots_out}/polygon_filtering_data/no_overlap_{img_name}.png"
         plt.savefig(output_path, dpi=300)
         logging.info(f"No overlap plot saved to {output_path}")
     else:
-        plt.savefig(f'no_overlap_issue.png', dpi=300)
+        plt.savefig(f"no_overlap_issue.png", dpi=300)
 
     # Only display if we have enough time remaining
     if debug == True:
@@ -420,13 +438,11 @@ def process_chunk(chunk_indices, df, polygons_gdf, target_crs, id_field="id"):
         # Use vectorized approach for faster point creation from 30 seconds to 0.5 seconds
 
         points_gdf = gpd.GeoDataFrame(
-            chunk_pd,
-            geometry=gpd.points_from_xy(chunk_pd['Xw'], chunk_pd['Yw']),
-            crs=target_crs
+            chunk_pd, geometry=gpd.points_from_xy(chunk_pd["Xw"], chunk_pd["Yw"]), crs=target_crs
         )
 
         # Initialize plot_id column with None
-        points_gdf['plot_id'] = None
+        points_gdf["plot_id"] = None
 
         # For each polygon, find points within it and assign plot ID
         for idx, polygon in polygons_gdf.iterrows():
@@ -436,15 +452,16 @@ def process_chunk(chunk_indices, df, polygons_gdf, target_crs, id_field="id"):
                 # Get the ID from the polygon
                 plot_id = polygon[id_field] if id_field in polygon else f"plot_{idx}"
                 # Assign the ID to all points within this polygon
-                points_gdf.loc[mask, 'plot_id'] = plot_id
+                points_gdf.loc[mask, "plot_id"] = plot_id
 
         # Return only points that got assigned a plot_id (i.e., are in any polygon)
-        result = points_gdf[points_gdf['plot_id'].notna()]
+        result = points_gdf[points_gdf["plot_id"].notna()]
         return result if not result.empty else None
 
     except Exception as e:
         logging.error(f"Error processing chunk {start_idx}-{end_idx}: {e}")
         return None
+
 
 def prepare_chunks(df):
     """Prepare chunk boundaries for parallel processing."""
@@ -462,8 +479,9 @@ def prepare_chunks(df):
     max_workers = min(available_cpus, n_chunks)
 
     # Prepare chunk indices
-    chunk_indices = [(i * points_per_chunk, min((i + 1) * points_per_chunk, n_points))
-                     for i in range(n_chunks)]
+    chunk_indices = [
+        (i * points_per_chunk, min((i + 1) * points_per_chunk, n_points)) for i in range(n_chunks)
+    ]
 
     logging.info(f"Prepared {n_chunks} chunks with ~{points_per_chunk:,} points each")
     logging.info(f"Will use {max_workers} workers for processing")
@@ -471,17 +489,16 @@ def prepare_chunks(df):
     return chunk_indices, max_workers, n_points, n_chunks
 
 
-def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target_crs, id_field,
-                            n_chunks):
+def process_chunks_parallel(
+    df, chunk_indices, max_workers, polygons_gdf, target_crs, id_field, n_chunks
+):
     """Process chunks in parallel using ThreadPoolExecutor."""
     phase_start = time.time()
 
     # Use a partial function with fixed arguments
-    process_func = partial(process_chunk,
-                           df=df,
-                           polygons_gdf=polygons_gdf,
-                           target_crs=target_crs,
-                           id_field=id_field)
+    process_func = partial(
+        process_chunk, df=df, polygons_gdf=polygons_gdf, target_crs=target_crs, id_field=id_field
+    )
 
     filtered_chunks = []
     processed_count = 0
@@ -489,8 +506,9 @@ def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target
     # Process chunks in parallel with timeout awareness
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
-        future_to_chunk = {executor.submit(process_func, chunk_idx): i
-                           for i, chunk_idx in enumerate(chunk_indices)}
+        future_to_chunk = {
+            executor.submit(process_func, chunk_idx): i for i, chunk_idx in enumerate(chunk_indices)
+        }
 
         # Process results as they complete
         for future in concurrent.futures.as_completed(future_to_chunk):
@@ -508,7 +526,8 @@ def process_chunks_parallel(df, chunk_indices, max_workers, polygons_gdf, target
             # Log progress periodically
             if processed_count % max(1, n_chunks // 10) == 0:
                 logging.info(
-                    f"Processed {processed_count}/{n_chunks} chunks ({(processed_count / n_chunks * 100):.1f}%)")
+                    f"Processed {processed_count}/{n_chunks} chunks ({(processed_count / n_chunks * 100):.1f}%)"
+                )
 
     return filtered_chunks, processed_count, time.time() - phase_start
 
@@ -526,7 +545,9 @@ def combine_chunk_results(filtered_chunks, n_points, phase_time):
 
         logging.info(f"Points inside polygons: {points_after:,} ({100 - percentage_filtered:.2f}%)")
         logging.info(f"Points filtered out: {points_filtered:,} ({percentage_filtered:.2f}%)")
-        logging.info(f"Filtered points in {phase_time:.2f}s ({points_after / phase_time:.2f} points/s)")
+        logging.info(
+            f"Filtered points in {phase_time:.2f}s ({points_after / phase_time:.2f} points/s)"
+        )
 
         # Clean up and convert back to Polars
         gdf_filtered = gdf_filtered.drop(columns=["geometry"])
@@ -562,7 +583,7 @@ def plot_results(
     fig, ax = plt.subplots(1, 1, figsize=(12, 10))
 
     # Plot polygons with a semi-transparent fill
-    gdf_poly.plot(ax=ax, alpha=0.3, edgecolor='black')
+    gdf_poly.plot(ax=ax, alpha=0.3, edgecolor="black")
 
     points_after = len(gdf_filtered)
 
@@ -570,12 +591,15 @@ def plot_results(
     if points_after > sample_for_debug:
         # Ensure truly random sampling by using numpy's random state
         import numpy as np
+
         np.random.seed()  # Use system time as seed for true randomness
 
         # For pandas DataFrame
         if isinstance(gdf_filtered, pd.DataFrame):
             # Take a fully random sample (not sequential)
-            random_indices = np.random.choice(points_after, size=min(sample_for_debug, points_after), replace=False)
+            random_indices = np.random.choice(
+                points_after, size=min(sample_for_debug, points_after), replace=False
+            )
             sample_df = gdf_filtered.iloc[random_indices]
 
         # For GeoDataFrame
@@ -584,50 +608,52 @@ def plot_results(
             sample_df = gdf_filtered.sample(min(sample_for_debug, points_after), random_state=None)
 
         # For Polars DataFrame
-        elif hasattr(gdf_filtered, 'sample') and callable(getattr(gdf_filtered, 'sample')):
+        elif hasattr(gdf_filtered, "sample") and callable(getattr(gdf_filtered, "sample")):
             # If it's a Polars DataFrame with sample method
             sample_df = gdf_filtered.sample(n=min(sample_for_debug, points_after))
             # Convert to pandas for the rest of the processing
-            if hasattr(sample_df, 'to_pandas'):
+            if hasattr(sample_df, "to_pandas"):
                 sample_df = sample_df.to_pandas()
 
         # Fallback to manual random sampling
         else:
             logging.info(f"Using manual random sampling for {type(gdf_filtered)}")
             # Convert to pandas first if needed
-            if hasattr(gdf_filtered, 'to_pandas'):
+            if hasattr(gdf_filtered, "to_pandas"):
                 temp_df = gdf_filtered.to_pandas()
             else:
                 temp_df = pd.DataFrame(gdf_filtered)
 
-            random_indices = np.random.choice(len(temp_df), size=min(sample_for_debug, len(temp_df)), replace=False)
+            random_indices = np.random.choice(
+                len(temp_df), size=min(sample_for_debug, len(temp_df)), replace=False
+            )
             sample_df = temp_df.iloc[random_indices]
 
         # Create GeoDataFrame from the sampled points
         sample_points = gpd.GeoDataFrame(
             sample_df,
-            geometry=gpd.points_from_xy(sample_df['Xw'], sample_df['Yw']),
+            geometry=gpd.points_from_xy(sample_df["Xw"], sample_df["Yw"]),
             crs=target_crs,
         )
 
         # Plot sampled points
 
-
-        sample_points[sample_points.band1 != 0 ].plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Valid Points')
-        sample_points[sample_points.band1 == 0 ].plot(ax=ax, markersize=3, color='grey', alpha=0.6, label='Null Points')
-
-
-
+        sample_points[sample_points.band1 != 0].plot(
+            ax=ax, markersize=3, color="green", alpha=0.6, label="Valid Points"
+        )
+        sample_points[sample_points.band1 == 0].plot(
+            ax=ax, markersize=3, color="grey", alpha=0.6, label="Null Points"
+        )
 
         title = f"Points Inside Polygons (Random Sample of {len(sample_points):,} from {points_after:,} total)   "
     else:
         # Plot all points if few enough
         inside_points = gpd.GeoDataFrame(
             gdf_filtered,
-            geometry=[Point(x, y) for x, y in zip(gdf_filtered['Xw'], gdf_filtered['Yw'])],
-            crs=target_crs
+            geometry=[Point(x, y) for x, y in zip(gdf_filtered["Xw"], gdf_filtered["Yw"])],
+            crs=target_crs,
         )
-        inside_points.plot(ax=ax, markersize=3, color='green', alpha=0.6, label='Points Inside')
+        inside_points.plot(ax=ax, markersize=3, color="green", alpha=0.6, label="Points Inside")
         title = f"All {points_after:,} Points Inside Polygons"
 
     # Add polygon IDs as text on each polygon
@@ -636,61 +662,62 @@ def plot_results(
         centroid = poly.geometry.centroid
 
         # Determine the polygon ID to display
-        if 'id' in poly:
-            poly_id = poly['id']
-        elif 'plot_id' in poly:
-            poly_id = poly['plot_id']
+        if "id" in poly:
+            poly_id = poly["id"]
+        elif "plot_id" in poly:
+            poly_id = poly["plot_id"]
         else:
             poly_id = f"plot {idx}"
 
         # Add text annotation with the polygon ID
         plt.text(
-            centroid.x, centroid.y,
+            centroid.x,
+            centroid.y,
             poly_id,
             fontsize=10,
-            ha='center', va='center',
-            bbox=dict(facecolor='white', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3')
+            ha="center",
+            va="center",
+            bbox=dict(facecolor="white", alpha=0.7, edgecolor="none", boxstyle="round,pad=0.3"),
         )
 
     # Add a color-coded point count per polygon if we have points
-    if points_after > 0 and 'plot_id' in gdf_filtered.columns:
+    if points_after > 0 and "plot_id" in gdf_filtered.columns:
         # Get count by polygon
 
-        gdf_filtered = gdf_filtered[gdf_filtered.band1 != 0 ]
-        polygon_counts = gdf_filtered.groupby('plot_id').size()
-
+        gdf_filtered = gdf_filtered[gdf_filtered.band1 != 0]
+        polygon_counts = gdf_filtered.groupby("plot_id").size()
 
         # Add a table with counts to the figure
         if len(polygon_counts) > 0:
             cell_text = [[f"{id}", f"{count}"] for id, count in polygon_counts.items()]
             count_table = plt.table(
                 cellText=cell_text,
-                colLabels=['Polygon ID', 'Valid Point Count'],
-                loc='lower right',
-                cellLoc='center',
-                bbox=[0.65, 0.02, 0.3, min(0.3, 0.02 * len(polygon_counts))]
+                colLabels=["Polygon ID", "Valid Point Count"],
+                loc="lower right",
+                cellLoc="center",
+                bbox=[0.65, 0.02, 0.3, min(0.3, 0.02 * len(polygon_counts))],
             )
             count_table.auto_set_font_size(False)
             count_table.set_fontsize(9)
             for key, cell in count_table.get_celld().items():
                 if key[0] == 0:  # Header row
-                    cell.set_text_props(weight='bold')
+                    cell.set_text_props(weight="bold")
 
     ax.set_title(title)
     ax.grid(True, alpha=0.3)
-    ax.legend(loc='upper left')
+    ax.legend(loc="upper left")
 
     # Improve axis appearance
-    ax.set_xlabel('Easting (m)')
-    ax.set_ylabel('Northing (m)')
+    ax.set_xlabel("Easting (m)")
+    ax.set_ylabel("Northing (m)")
 
     # Create data bounding box as polygon for better visualization
     data_box = box(data_bounds[0], data_bounds[1], data_bounds[2], data_bounds[3])
     data_box_gdf = gpd.GeoDataFrame(geometry=[data_box], crs=gdf_poly.crs)
 
-    data_box_gdf.plot(ax=ax, facecolor='none', edgecolor='blue',
-                      linestyle='--', linewidth=2, label='Data Bounds')
-
+    data_box_gdf.plot(
+        ax=ax, facecolor="none", edgecolor="blue", linestyle="--", linewidth=2, label="Data Bounds"
+    )
 
     # Save the plot
     plt.tight_layout()
@@ -703,6 +730,7 @@ def plot_results(
     # Show plot first, then close
     plt.show()
     plt.close()
+
 
 def filter_df_by_polygon(
     df,
@@ -770,7 +798,9 @@ def filter_df_by_polygon(
         if not has_overlap:
             logging.warning("No overlap between data and polygons. Returning None.")
             if debug:
-                plot_no_overlap(polygons_gdf, data_bounds, img_name=img_name, plots_out=plots_out, debug=debug)
+                plot_no_overlap(
+                    polygons_gdf, data_bounds, img_name=img_name, plots_out=plots_out, debug=debug
+                )
             return None
 
         # --- PHASE 5: Prepare chunks for parallel processing ---
@@ -778,9 +808,13 @@ def filter_df_by_polygon(
 
         # --- PHASE 6: Process chunks in parallel ---
         filtered_chunks, processed_count, phase_time = process_chunks_parallel(
-            df, chunk_indices, max_workers, polygons_gdf, target_crs,
+            df,
+            chunk_indices,
+            max_workers,
+            polygons_gdf,
+            target_crs,
             id_field,  # This is the default id_field, you can make it a parameter
-            n_chunks
+            n_chunks,
         )
 
         # Check if we processed anything
@@ -801,15 +835,24 @@ def filter_df_by_polygon(
             # --- PHASE 8: Debug visualization ---
         try:
             gdf_filtered = pd.concat(filtered_chunks, ignore_index=True)
-            plot_results(polygons_gdf, gdf_filtered, target_crs, polygon_basename,data_bounds, sample_for_debug, plots_out, img_name )
+            plot_results(
+                polygons_gdf,
+                gdf_filtered,
+                target_crs,
+                polygon_basename,
+                data_bounds,
+                sample_for_debug,
+                plots_out,
+                img_name,
+            )
         except Exception as e:
             logging.error(f"Error generating debug plot: {e}")
         return result_df
 
-
     except Exception as e:
         logging.error(f"Error in polygon filtering: {str(e)}")
         import traceback
+
         logging.error(traceback.format_exc())
         return df
 

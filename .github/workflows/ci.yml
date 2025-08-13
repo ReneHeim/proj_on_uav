@@ -150,3 +150,23 @@ jobs:
           cat outdated.txt
           exit 1
         fi
+
+  autofix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v4
+        with: { python-version: "3.12" }
+      - run: pip install pre-commit && pre-commit run -a || true
+      - name: Commit & push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: auto-format [skip ci]"
+          branch: ${{ github.head_ref || github.ref_name }}
+          file_pattern: "*.py"
+
+

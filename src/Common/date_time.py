@@ -1,4 +1,5 @@
 import logging
+
 import pytz
 
 
@@ -15,12 +16,12 @@ def convert_to_timezone(dt, timezone_str):
     """
     try:
         # Handle UTC with offset format (e.g., "UTC+1", "UTC-5")
-        if timezone_str.startswith("UTC") and ('+' in timezone_str or '-' in timezone_str):
-            if '+' in timezone_str:
-                offset = int(timezone_str.split('+')[1])
+        if timezone_str.startswith("UTC") and ("+" in timezone_str or "-" in timezone_str):
+            if "+" in timezone_str:
+                offset = int(timezone_str.split("+")[1])
                 tz = pytz.FixedOffset(offset * 60)  # Convert hours to minutes
-            elif '-' in timezone_str:
-                offset = int(timezone_str.split('-')[1])
+            elif "-" in timezone_str:
+                offset = int(timezone_str.split("-")[1])
                 tz = pytz.FixedOffset(-offset * 60)  # Negative offset
             return dt.replace(tzinfo=tz)
         # Handle plain "UTC"
