@@ -10,14 +10,14 @@
 This code copiles all Common that will be called later by other codes. For the sake of clarity
 these Common are defined in this separated piece of code.
 """
-import logging
 import math
 import os
 from timeit import default_timer as timer
-
-import affine
+import logging
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import uniform_filter
+import affine
 import polars as pl
 import rasterio as rio
 from pyproj import Transformer
@@ -322,6 +322,8 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
 
 
 # python
+# python
+# python
 def plotting_raster(
         df_merged,
         path,
@@ -332,23 +334,149 @@ def plotting_raster(
         max_bands=6,
         clip=(2, 98),
         debug=False,
+        fill_empty=False,
+        occupancy_target=None,
+        min_bins=50,
+        plot_density=False,
+        density_log=False,
+        density_cmap="magma",
+        density_clip=(2, 98),
+        scatter_quicklook=False,
+        scatter_max=200000,
+        scatter_alpha=0.25,
+        scatter_size=1.0,
+        density_vmin=None,
+        density_vmax=None,
+        density_discrete=False,
+        auto_figsize=True,          # enable auto sizing based on grid density
+        dpi=200,                    # DPI used for sizing; also used for saving
+        pixels_per_bin=4,         # desired pixels per grid cell (bin)
+        min_panel_size=(4.0, 3.5),  # per-panel min size in inches (w, h)
+        max_panel_size=(60.0, 120.0) # per-panel max size in inches (w, h)
 ):
-    import os
-    import logging
-    import matplotlib.pyplot as plt
-    import numpy as np
+    """
+    Parameters
+    ----------
+    df_merged : DataFrame-like
+        Input table with at least:
+        - Xw (float): world X coordinate (meters)
+        - Yw (float): world Y coordinate (meters)
+        - <bands_prefix>* (float): band columns (e.g., band1, band2, ...)
+        - elev (float, optional): per-point elevation
+        Supports Polars or Pandas.
+
+    path : str
+        Base output directory. A subfolder 'bands_data' will be created inside it.
+
+    file_name : str
+        Base name (without extension) used for saved image files.
+
+    bands_prefix : str, default "band"
+        Prefix used to auto-detect band columns to rasterize.
+
+    nx : int, default 1500
+        Number of grid bins along X (columns). Higher → finer grid, but sparser bins.
+
+    ny : int, default 1500
+        Number of grid bins along Y (rows).
+
+    max_bands : int, default 6
+        Maximum number of band panels rendered, even if more bands exist.
+
+    clip : tuple(int, int), default (2, 98)
+        Percentile clip for color scaling of band and elevation panels.
+
+    debug : bool, default False
+        If True, logs detailed diagnostics (counts, coverage, percentiles, file paths).
+
+    fill_empty : bool, default False
+        If True, fills NaN grid cells for visualization with a simple 3×3 neighborhood average.
+        Recommended only for display; analytics should use the unfilled grid.
+
+    occupancy_target : float or None, default None
+        If set to a value in (0, 1], the function auto-coarsens nx, ny until at least this
+        fraction of grid cells are non-empty. Useful to avoid overly sparse grids.
+
+    min_bins : int, default 50
+        Lower bound for nx and ny during auto-coarsening governed by occupancy_target.
+
+    plot_density : bool, default False
+        If True, includes a panel showing point density (2D bin counts).
+
+    density_log : bool, default False
+        If True, uses log1p scaling on density counts for visualization. Leave False when
+        counts are already small (e.g., 0–6).
+
+    density_cmap : str, default "magma"
+        Colormap used for the density panel.
+
+    density_clip : tuple(int, int), default (2, 98)
+        Percentile clip for density color scaling when explicit vmin/vmax are not provided.
+
+    scatter_quicklook : bool, default False
+        If True, saves a raw XY scatter quicklook image (sampled if needed) to validate spatial distribution.
+
+    scatter_max : int, default 200000
+        Maximum number of points to draw in the scatter quicklook (random sample if exceeded).
+
+    scatter_alpha : float, default 0.25
+        Alpha (transparency) for scatter points in the quicklook.
+
+    scatter_size : float, default 1.0
+        Marker size for scatter points in the quicklook.
+
+    density_vmin : float or None, default None
+        Explicit minimum value for density color scale. For small integer counts, set to 0.
+
+    density_vmax : float or None, default None
+        Explicit maximum value for density color scale. For small integer counts, set to e.g. 6.
+
+    density_discrete : bool, default False
+        If True, uses discrete color levels for density (e.g., one color per integer count).
+
+    auto_figsize : bool, default True
+        If True, figure size adapts to grid density so each cell has enough pixels, reducing
+        rendering artifacts for very fine grids.
+
+    dpi : int, default 200
+        DPI used both for figure rendering/saving and for computing automatic figure size.
+
+    pixels_per_bin : float, default 4
+        Desired pixels per grid cell when auto_figsize=True. Larger values produce larger, crisper panels.
+
+    min_panel_size : tuple(float, float), default (4.0, 3.5)
+        Minimum per-panel (width, height) in inches when auto sizing.
+
+    max_panel_size : tuple(float, float), default (60.0, 120.0)
+        Maximum per-panel (width, height) in inches when auto sizing.
+
+    Notes
+    -----
+    - Per-cell means are computed using only finite band values and divide by the number
+      of valid samples in each bin (band-specific counts).
+    - Many NaNs indicate a grid that is too fine for point density; lower nx/ny,
+      enable occupancy_target, or use fill_empty=True for display.
+    - Outputs are saved as PNGs in '{path}/bands_data':
+        * panels_<file_name>.png
+        * band_distributions_<file_name>.png
+        * scatter_quicklook_<file_name>.png (if scatter_quicklook=True)
+    """
+
+
 
     if debug:
         logging.info(
             f"[plotting_raster] start: file_name={file_name}, nx={nx}, ny={ny}, "
-            f"max_bands={max_bands}, clip={clip}, bands_prefix='{bands_prefix}'"
+            f"max_bands={max_bands}, clip={clip}, bands_prefix='{bands_prefix}', "
+            f"fill_empty={fill_empty}, occupancy_target={occupancy_target}, "
+            f"plot_density={plot_density}, density_log={density_log}, "
+            f"auto_figsize={auto_figsize}, dpi={dpi}, pixels_per_bin={pixels_per_bin}"
         )
 
     # Basic presence/emptiness checks
     try:
         is_empty = df_merged is None or (hasattr(df_merged, "is_empty") and df_merged.is_empty())
     except Exception:
-        # Fallback for cases where df_merged is pandas or similar without is_empty
         is_empty = df_merged is None or (len(df_merged) == 0)
 
     if is_empty:
@@ -376,7 +504,6 @@ def plotting_raster(
         logging.error(f"[plotting_raster] Failed to extract Xw/Yw arrays: {e}")
         return
 
-    # Basic stats on inputs
     if debug:
         def safe_stats(arr, name):
             n = arr.size
@@ -396,7 +523,6 @@ def plotting_raster(
             except Exception:
                 pass
             logging.info(msg)
-
         safe_stats(x, "Xw")
         safe_stats(y, "Yw")
 
@@ -420,12 +546,13 @@ def plotting_raster(
             f"[plotting_raster] Extent: xmin={xmin:.3f}, xmax={xmax:.3f}, "
             f"ymin={ymin:.3f}, ymax={ymax:.3f}"
         )
-        if not np.isfinite([xmin, xmax, ymin, ymax]).all():
-            logging.warning("[plotting_raster] Non-finite extent detected.")
 
-    # Define bins
-    xbins = np.linspace(xmin, xmax, nx + 1)
-    ybins = np.linspace(ymin, ymax, ny + 1)
+    def make_bins(nx, ny):
+        xbins = np.linspace(xmin, xmax, nx + 1)
+        ybins = np.linspace(ymin, ymax, ny + 1)
+        return xbins, ybins
+
+    xbins, ybins = make_bins(nx, ny)
     if debug:
         logging.info(
             f"[plotting_raster] Bins: nx+1={len(xbins)}, ny+1={len(ybins)}, "
@@ -433,21 +560,52 @@ def plotting_raster(
         )
 
     # Compute bin counts (y first as rows, x as cols)
-    counts, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
+    counts_all, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
+    total_points = int(counts_all.sum())
+    zero_bins = int((counts_all == 0).sum())
+    total_bins = counts_all.size
+    occupancy = 1.0 - (zero_bins / total_bins if total_bins else 0.0)
     if debug:
-        total_points = int(counts.sum())
-        zero_bins = int((counts == 0).sum())
-        total_bins = counts.size
         logging.info(
             f"[plotting_raster] 2D counts: points={total_points}, bins={total_bins}, "
-            f"zero_bins={zero_bins} ({(100*zero_bins/total_bins if total_bins else 0):.2f}%)"
+            f"zero_bins={zero_bins} ({(100*zero_bins/total_bins if total_bins else 0):.2f}%), "
+            f"occupancy={occupancy:.3f}"
         )
+
+    # Optional adaptive coarsening to reach an occupancy target
+    if occupancy_target is not None and 0 < occupancy_target <= 1.0 and occupancy < occupancy_target:
+        if debug:
+            logging.info(
+                f"[plotting_raster] Adaptive coarsening to reach occupancy_target={occupancy_target}"
+            )
+        cur_nx, cur_ny = nx, ny
+        while (cur_nx > min_bins or cur_ny > min_bins):
+            cur_nx = max(min_bins, int(cur_nx * 0.8))
+            cur_ny = max(min_bins, int(cur_ny * 0.8))
+            xbins, ybins = make_bins(cur_nx, cur_ny)
+            counts_all, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
+            zero_bins = int((counts_all == 0).sum())
+            total_bins = counts_all.size
+            occupancy = 1.0 - (zero_bins / total_bins if total_bins else 0.0)
+            if debug:
+                logging.info(
+                    f"[plotting_raster] Coarsened to {cur_nx}x{cur_ny} bins; occupancy={occupancy:.3f}"
+                )
+            if occupancy >= occupancy_target:
+                nx, ny = cur_nx, cur_ny
+                break
+        if debug:
+            logging.info(f"[plotting_raster] Final grid: nx={nx}, ny={ny}, occupancy={occupancy:.3f}")
+
+    # Recompute bins/counts if changed
+    xbins, ybins = make_bins(nx, ny)
+    counts_all, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
 
     def grid_mean(series, name="unknown"):
         v_full = series.to_numpy()
-        # Apply same coordinate mask then finite mask on values
         v = v_full[m]
         vm = np.isfinite(v)
+
         if debug:
             n = v.size
             n_finite = int(vm.sum())
@@ -465,22 +623,25 @@ def plotting_raster(
                 except Exception:
                     pass
 
-        # Weighted sum per grid cell
+        # Weighted sums and VALID counts per grid cell
         sums, _, _ = np.histogram2d(y[vm], x[vm], bins=[ybins, xbins], weights=v[vm])
+        counts_valid, _, _ = np.histogram2d(y[vm], x[vm], bins=[ybins, xbins])
 
-        # Avoid division by zero; where counts == 0 -> NaN
-        grid = np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
+        # Mean over valid values only
+        grid = np.divide(sums, counts_valid, out=np.full_like(sums, np.nan), where=counts_valid > 0)
 
         if debug:
-            # Coverage stats for the resulting grid
             n_cells = grid.size
             n_nan_cells = int(np.isnan(grid).sum())
             n_finite_cells = n_cells - n_nan_cells
+            zero_bins_all = int((counts_all == 0).sum())
+            zero_bins_valid = int((counts_valid == 0).sum())
             logging.info(
                 f"[plotting_raster] {name}: grid size={grid.shape}, "
                 f"finite_cells={n_finite_cells}/{n_cells} "
                 f"({(100*n_finite_cells/max(n_cells,1)):.2f}%), "
-                f"nan_cells={n_nan_cells}"
+                f"nan_cells={n_nan_cells}, "
+                f"zero_bins_all={zero_bins_all}, zero_bins_valid={zero_bins_valid}"
             )
             if n_finite_cells > 0:
                 try:
@@ -492,73 +653,125 @@ def plotting_raster(
                 except Exception:
                     pass
 
+        # Optional simple hole-filling
+        if fill_empty:
+            val = grid.copy()
+            mask = np.isfinite(val).astype(float)
+            val[np.isnan(val)] = 0.0
+            num = uniform_filter(val, size=3, mode="nearest")
+            den = uniform_filter(mask, size=3, mode="nearest")
+            filled = np.divide(num, den, out=np.full_like(num, np.nan), where=den > 0)
+            grid = np.where(np.isfinite(grid), grid, filled)
+            if debug:
+                n_after = grid.size - int(np.isnan(grid).sum())
+                logging.info(
+                    f"[plotting_raster] {name}: filled empty bins -> finite_cells={n_after}/{grid.size}"
+                )
+
         return grid
 
-    # Pick bands
+    # Select bands
     bands = [c for c in df_merged.columns if isinstance(c, str) and c.startswith(bands_prefix)]
     bands = bands[:max_bands]
     if debug:
         logging.info(f"[plotting_raster] Bands discovered (limited to {max_bands}): {bands}")
 
-    # Compute band means and elevation
+    # Build panels (optional density, band grids, elevation)
+    panels = []
+
+    # Density panel
+    if plot_density:
+        if density_log:
+            density_grid = np.log1p(counts_all.astype(float))
+            density_desc = "log1p(counts)"
+        else:
+            density_grid = counts_all.astype(float)
+            density_desc = "counts"
+
+        if density_vmin is not None or density_vmax is not None:
+            vmin = 0.0 if density_vmin is None else float(density_vmin)
+            vmax = float(np.nanmax(density_grid)) if density_vmax is None else float(density_vmax)
+        else:
+            try:
+                vmin, vmax = np.nanpercentile(density_grid, density_clip)
+            except Exception:
+                vmin, vmax = (np.nanmin(density_grid), np.nanmax(density_grid))
+
+        if density_discrete:
+            import matplotlib as mpl
+            boundaries = np.arange(np.floor(vmin), np.ceil(vmax) + 1)
+            norm = mpl.colors.BoundaryNorm(boundaries=boundaries, ncolors=256)
+            density_kwargs = dict(cmap=density_cmap, norm=norm)
+        else:
+            density_kwargs = dict(cmap=density_cmap, vmin=vmin, vmax=vmax)
+
+        if debug:
+            logging.info(
+                f"[plotting_raster] Density panel: {density_desc}, "
+                f"range=({vmin},{vmax}), discrete={density_discrete}, "
+                f"max_count={int(np.nanmax(counts_all))}"
+            )
+
+        panels.append(("point_density", density_grid, density_kwargs))
+
+    # Band means
     means = []
     for b in bands:
         try:
             means.append((b, grid_mean(df_merged[b], name=b)))
         except Exception as e:
             logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
+    panels.extend((b, g, dict(cmap="viridis")) for (b, g) in means)
 
+    # Elevation
     if "elev" not in df_merged.columns:
         logging.warning("[plotting_raster] Column 'elev' not found; elevation panel will be empty.")
         elev = np.full((ny, nx), np.nan)
     else:
         elev = grid_mean(df_merged["elev"], name="elev")
+    try:
+        lo_e, hi_e = np.nanpercentile(elev, clip)
+    except Exception:
+        lo_e, hi_e = (np.nan, np.nan)
+    panels.append(("elevation", elev, dict(cmap="terrain", vmin=lo_e, vmax=hi_e)))
 
-    # Plotting panels
-    n_panels = len(means) + 1
+    # Figure layout
+    n_panels = len(panels)
     cols = min(3, n_panels)
     rows = int(np.ceil(n_panels / cols))
     extent = [xmin, xmax, ymin, ymax]
 
-    if debug:
-        logging.info(
-            f"[plotting_raster] Figure layout: rows={rows}, cols={cols}, n_panels={n_panels}, "
-            f"extent={extent}"
-        )
+    # Auto figure size that respects bin density
+    def clamp(val, lo, hi):
+        return max(lo, min(val, hi))
 
-    fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows), squeeze=False)
-    for ax, (band, grid) in zip(axes.ravel(), means):
-        im = ax.imshow(
-            grid, origin="lower", extent=extent, cmap="viridis", interpolation="bilinear"
-        )
-        ax.set_title(band)
+    if auto_figsize:
+        # Desired per-panel size from grid density (pixels per bin -> inches)
+        panel_w_in = clamp((nx * pixels_per_bin) / dpi, min_panel_size[0], max_panel_size[0])
+        panel_h_in = clamp((ny * pixels_per_bin) / dpi, min_panel_size[1], max_panel_size[1])
+        # Total figure size
+        fig_w = cols * panel_w_in
+        fig_h = rows * panel_h_in
+        if debug:
+            logging.info(
+                f"[plotting_raster] Auto figsize: panel=({panel_w_in:.2f}in, {panel_h_in:.2f}in), "
+                f"figure=({fig_w:.2f}in, {fig_h:.2f}in) at dpi={dpi}"
+            )
+        figsize = (fig_w, fig_h)
+    else:
+        # Fallback to legacy sizing
+        figsize = (5 * cols, 4 * rows)
+        if debug:
+            logging.info(f"[plotting_raster] Fixed figsize: {figsize}")
+
+    # Create panels figure
+    fig, axes = plt.subplots(rows, cols, figsize=figsize, squeeze=False, dpi=dpi)
+    for ax, (title, grid, kw) in zip(axes.ravel(), panels):
+        im = ax.imshow(grid, origin="lower", extent=extent, interpolation="bilinear", **kw)
+        ax.set_title(title)
         ax.set_xlabel("X (m)")
         ax.set_ylabel("Y (m)")
         fig.colorbar(im, ax=ax, shrink=0.85)
-
-    # Elevation percentile clip
-    try:
-        lo, hi = np.nanpercentile(elev, clip)
-        if debug:
-            logging.info(f"[plotting_raster] Elev clip percentiles {clip}: vmin={lo:.6g}, vmax={hi:.6g}")
-    except Exception as e:
-        logging.warning(f"[plotting_raster] Failed to compute elevation percentiles: {e}")
-        lo, hi = (np.nan, np.nan)
-
-    ax_elev = axes.ravel()[len(means)]
-    im = ax_elev.imshow(
-        elev,
-        origin="lower",
-        extent=extent,
-        cmap="terrain",
-        vmin=lo if np.isfinite(lo) else None,
-        vmax=hi if np.isfinite(hi) else None,
-        interpolation="bilinear",
-    )
-    ax_elev.set_title("Elevation")
-    ax_elev.set_xlabel("X (m)")
-    ax_elev.set_ylabel("Y (m)")
-    fig.colorbar(im, ax=ax_elev, shrink=0.85)
 
     # Hide unused axes
     for ax in axes.ravel()[n_panels:]:
@@ -566,15 +779,53 @@ def plotting_raster(
 
     fig.tight_layout()
     panels_path = os.path.join(outdir, f"panels_{file_name}.png")
-    fig.savefig(panels_path, dpi=200)
+    fig.savefig(panels_path, dpi=dpi)
     if debug:
         logging.info(f"[plotting_raster] Saved panels to: {panels_path}")
     plt.close(fig)
 
-    # Histograms
+    # Optional raw XY scatter quicklook
+    if scatter_quicklook:
+        try:
+            n = x.size
+            if n > scatter_max:
+                idx = np.random.choice(n, size=scatter_max, replace=False)
+                xs, ys = x[idx], y[idx]
+                sampled = scatter_max
+            else:
+                xs, ys = x, y
+                sampled = n
+
+            if debug:
+                logging.info(f"[plotting_raster] Scatter quicklook: plotting {sampled} points")
+
+            # Scale scatter figure to preserve aspect and visibility
+            width_m = xmax - xmin
+            height_m = ymax - ymin
+            aspect = width_m / max(height_m, 1e-9)
+            base_w = 10.0
+            fig_w = base_w
+            fig_h = max(6.0, base_w / max(aspect, 1e-6))
+            fig_s, ax_s = plt.subplots(figsize=(fig_w, fig_h), dpi=dpi)
+            ax_s.scatter(xs, ys, s=scatter_size, alpha=scatter_alpha, c="k")
+            ax_s.set_title("XY point scatter quicklook")
+            ax_s.set_xlabel("X (m)")
+            ax_s.set_ylabel("Y (m)")
+            ax_s.set_aspect("equal", adjustable="box")
+            fig_s.tight_layout()
+            scatter_path = os.path.join(outdir, f"scatter_quicklook_{file_name}.png")
+            fig_s.savefig(scatter_path, dpi=dpi)
+            if debug:
+                logging.info(f"[plotting_raster] Saved scatter quicklook to: {scatter_path}")
+            plt.close(fig_s)
+        except Exception as e:
+            logging.error(f"[plotting_raster] Failed scatter quicklook: {e}")
+
+    # Histograms for band distributions
     cols_h = min(3, len(bands))
     rows_h = int(np.ceil(len(bands) / cols_h)) if cols_h > 0 else 1
-    fig_h, axes_h = plt.subplots(rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False)
+    # Modest size; independent of grid density
+    fig_h, axes_h = plt.subplots(rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False, dpi=dpi)
 
     for ax, b in zip(axes_h.ravel(), bands):
         try:
@@ -585,8 +836,7 @@ def plotting_raster(
                 ax.hist(v, bins=50, range=(lo_h, hi_h))
                 if debug:
                     logging.info(
-                        f"[plotting_raster] Hist {b}: n={v.size}, "
-                        f"clip_range=({lo_h:.6g},{hi_h:.6g})"
+                        f"[plotting_raster] Hist {b}: n={v.size}, clip_range=({lo_h:.6g},{hi_h:.6g})"
                     )
             else:
                 if debug:
@@ -602,7 +852,7 @@ def plotting_raster(
 
     fig_h.tight_layout()
     hist_path = os.path.join(outdir, f"band_distributions_{file_name}.png")
-    fig_h.savefig(hist_path, dpi=200)
+    fig_h.savefig(hist_path, dpi=dpi)
     if debug:
         logging.info(f"[plotting_raster] Saved histograms to: {hist_path}")
     plt.close(fig_h)
