@@ -129,7 +129,7 @@ def rpv_fit(df, band, n_samples_bins):
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)
 
-    k_prior, lam = 1, 0.05
+    k_prior, lam = 1, 0.5
 
     def resid(pars, sza, vza, raa, R):
         rho0, k, theta = pars
@@ -138,7 +138,7 @@ def rpv_fit(df, band, n_samples_bins):
         return np.concatenate([data_err, [prior_err]])
 
     p0 = [np.median(R), 0.1, 0]  # bowl-centred
-    bounds = ([1e-3, 0.0, -1], [1.1, 3, 1])
+    bounds = ([1e-3, 0.0, -1], [2, 3, 1])
 
     res = least_squares(
         resid,
