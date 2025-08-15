@@ -324,7 +324,6 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
 # python
 # python
 # python
-# python
 from typing import Iterable, List, Optional, Sequence, Tuple, Dict, Any
 
 import logging
