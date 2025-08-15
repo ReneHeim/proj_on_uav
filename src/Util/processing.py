@@ -8,7 +8,7 @@ from tqdm import tqdm
 from src.Common.rpv import rpv_df_preprocess, rpv_fit
 
 
-def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=2000):
+def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=2000, sample_total_dataset=500_000):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -42,8 +42,19 @@ def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=2000):
                 treatment = row.get("trt", None)
                 geometry = row.get("geometry", None)
 
+
+
                 dg = pl.read_parquet(row["paths"])
+
+                if len(dg) < sample_total_dataset:
+                    dg = dg.sample(sample_total_dataset,with_replacement=True)
+                else:
+                    dg = dg.sample(sample_total_dataset)
                 dg = rpv_df_preprocess(dg, debug)
+
+
+
+
                 rpv_result = rpv_fit(dg, n_samples_bins=n_samples_bins, band=band)
                 rho0, k, theta, rc, rmse, nrmse = rpv_result
 
