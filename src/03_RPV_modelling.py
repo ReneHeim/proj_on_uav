@@ -10,6 +10,7 @@ import polars as pl
 from colorama import Fore, Style, init
 from tqdm import tqdm
 
+from Util.plotting import plot_df
 from src.Common.config_object import config_object
 from src.Common.rpv import *
 from src.Util.logging import logging_config
@@ -20,6 +21,8 @@ IGNORE_DIRS = {"System Volume Information"}
 PATTERN_TMPL = "*{obj}*.parquet"
 
 init(autoreset=True)
+
+
 
 
 def main():
@@ -71,10 +74,14 @@ def main():
             out_dir = Path(base_dir) / "RPV_Results" / "V8"
             out_dir.mkdir(parents=True, exist_ok=True)
 
+
+            plot_df(week,gdf,band)
+
             if (out_dir / f"rpv_{week}_{band}_results.csv").exists():
                 continue
 
-            result = process_weekly_data({week: gdf}, band=band)
+
+            result = process_weekly_data({week: gdf}, band=band,sample_total_dataset=500_000)
             result.drop("geometry").write_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
 
 

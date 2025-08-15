@@ -321,46 +321,210 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
     return easting, northing
 
 
+# python
 def plotting_raster(
-    df_merged, path, file_name, bands_prefix="band", nx=1500, ny=1500, max_bands=6, clip=(2, 98)
+        df_merged,
+        path,
+        file_name,
+        bands_prefix="band",
+        nx=1500,
+        ny=1500,
+        max_bands=6,
+        clip=(2, 98),
+        debug=False,
 ):
     import os
-
+    import logging
     import matplotlib.pyplot as plt
     import numpy as np
 
-    if df_merged is None or df_merged.is_empty():
-        logging.error(f"No data found for {file_name}")
+    if debug:
+        logging.info(
+            f"[plotting_raster] start: file_name={file_name}, nx={nx}, ny={ny}, "
+            f"max_bands={max_bands}, clip={clip}, bands_prefix='{bands_prefix}'"
+        )
+
+    # Basic presence/emptiness checks
+    try:
+        is_empty = df_merged is None or (hasattr(df_merged, "is_empty") and df_merged.is_empty())
+    except Exception:
+        # Fallback for cases where df_merged is pandas or similar without is_empty
+        is_empty = df_merged is None or (len(df_merged) == 0)
+
+    if is_empty:
+        logging.error(f"[plotting_raster] No data found for {file_name}")
         return
 
+    # Column checks
+    required_cols = ["Xw", "Yw"]
+    missing_required = [c for c in required_cols if c not in df_merged.columns]
+    if missing_required:
+        logging.error(f"[plotting_raster] Missing required columns: {missing_required}")
+        return
+
+    # Prepare output
     outdir = os.path.join(path, "bands_data")
     os.makedirs(outdir, exist_ok=True)
+    if debug:
+        logging.info(f"[plotting_raster] Output directory: {outdir}")
 
-    x = df_merged["Xw"].to_numpy()
-    y = df_merged["Yw"].to_numpy()
-    m = ~np.isnan(x) & ~np.isnan(y)
+    # Extract coordinates
+    try:
+        x = df_merged["Xw"].to_numpy()
+        y = df_merged["Yw"].to_numpy()
+    except Exception as e:
+        logging.error(f"[plotting_raster] Failed to extract Xw/Yw arrays: {e}")
+        return
+
+    # Basic stats on inputs
+    if debug:
+        def safe_stats(arr, name):
+            n = arr.size
+            n_nan = int(np.isnan(arr).sum())
+            n_inf = int(np.isinf(arr).sum())
+            n_finite = int(np.isfinite(arr).sum())
+            msg = (
+                f"[plotting_raster] {name}: size={n}, n_nan={n_nan}, n_inf={n_inf}, "
+                f"n_finite={n_finite}"
+            )
+            try:
+                if n_finite > 0:
+                    msg += (
+                        f", min={np.nanmin(arr):.3f}, max={np.nanmax(arr):.3f}, "
+                        f"mean={np.nanmean(arr):.3f}"
+                    )
+            except Exception:
+                pass
+            logging.info(msg)
+
+        safe_stats(x, "Xw")
+        safe_stats(y, "Yw")
+
+    # Mask invalid coordinates
+    m = ~np.isnan(x) & ~np.isnan(y) & np.isfinite(x) & np.isfinite(y)
+    if debug:
+        logging.info(
+            f"[plotting_raster] Coord mask: kept={int(m.sum())}/{x.size} "
+            f"({(100*m.mean() if x.size else 0):.2f}%)"
+        )
     x, y = x[m], y[m]
+
+    if x.size == 0 or y.size == 0:
+        logging.warning("[plotting_raster] No finite coordinates after masking; aborting.")
+        return
 
     xmin, xmax = float(np.nanmin(x)), float(np.nanmax(x))
     ymin, ymax = float(np.nanmin(y)), float(np.nanmax(y))
+    if debug:
+        logging.info(
+            f"[plotting_raster] Extent: xmin={xmin:.3f}, xmax={xmax:.3f}, "
+            f"ymin={ymin:.3f}, ymax={ymax:.3f}"
+        )
+        if not np.isfinite([xmin, xmax, ymin, ymax]).all():
+            logging.warning("[plotting_raster] Non-finite extent detected.")
+
+    # Define bins
     xbins = np.linspace(xmin, xmax, nx + 1)
     ybins = np.linspace(ymin, ymax, ny + 1)
+    if debug:
+        logging.info(
+            f"[plotting_raster] Bins: nx+1={len(xbins)}, ny+1={len(ybins)}, "
+            f"dx~={(xmax - xmin) / max(nx, 1):.3f}, dy~={(ymax - ymin) / max(ny, 1):.3f}"
+        )
+
+    # Compute bin counts (y first as rows, x as cols)
     counts, _, _ = np.histogram2d(y, x, bins=[ybins, xbins])
+    if debug:
+        total_points = int(counts.sum())
+        zero_bins = int((counts == 0).sum())
+        total_bins = counts.size
+        logging.info(
+            f"[plotting_raster] 2D counts: points={total_points}, bins={total_bins}, "
+            f"zero_bins={zero_bins} ({(100*zero_bins/total_bins if total_bins else 0):.2f}%)"
+        )
 
-    def grid_mean(series):
-        v = series.to_numpy()[m]
+    def grid_mean(series, name="unknown"):
+        v_full = series.to_numpy()
+        # Apply same coordinate mask then finite mask on values
+        v = v_full[m]
         vm = np.isfinite(v)
+        if debug:
+            n = v.size
+            n_finite = int(vm.sum())
+            n_nan = int(np.isnan(v).sum())
+            logging.info(
+                f"[plotting_raster] {name}: values after coord-mask size={n}, "
+                f"finite={n_finite} ({(100*n_finite/max(n,1)):.2f}%), nan={n_nan}"
+            )
+            if n_finite > 0:
+                try:
+                    logging.info(
+                        f"[plotting_raster] {name}: min={np.nanmin(v):.6g}, "
+                        f"max={np.nanmax(v):.6g}, mean={np.nanmean(v):.6g}"
+                    )
+                except Exception:
+                    pass
+
+        # Weighted sum per grid cell
         sums, _, _ = np.histogram2d(y[vm], x[vm], bins=[ybins, xbins], weights=v[vm])
-        return np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
 
-    bands = [c for c in df_merged.columns if c.startswith(bands_prefix)][:max_bands]
-    means = [(b, grid_mean(df_merged[b])) for b in bands]
-    elev = grid_mean(df_merged["elev"])
+        # Avoid division by zero; where counts == 0 -> NaN
+        grid = np.divide(sums, counts, out=np.full_like(sums, np.nan), where=counts > 0)
 
+        if debug:
+            # Coverage stats for the resulting grid
+            n_cells = grid.size
+            n_nan_cells = int(np.isnan(grid).sum())
+            n_finite_cells = n_cells - n_nan_cells
+            logging.info(
+                f"[plotting_raster] {name}: grid size={grid.shape}, "
+                f"finite_cells={n_finite_cells}/{n_cells} "
+                f"({(100*n_finite_cells/max(n_cells,1)):.2f}%), "
+                f"nan_cells={n_nan_cells}"
+            )
+            if n_finite_cells > 0:
+                try:
+                    p2, p50, p98 = np.nanpercentile(grid, [2, 50, 98])
+                    logging.info(
+                        f"[plotting_raster] {name}: grid percentiles p2={p2:.6g}, "
+                        f"p50={p50:.6g}, p98={p98:.6g}"
+                    )
+                except Exception:
+                    pass
+
+        return grid
+
+    # Pick bands
+    bands = [c for c in df_merged.columns if isinstance(c, str) and c.startswith(bands_prefix)]
+    bands = bands[:max_bands]
+    if debug:
+        logging.info(f"[plotting_raster] Bands discovered (limited to {max_bands}): {bands}")
+
+    # Compute band means and elevation
+    means = []
+    for b in bands:
+        try:
+            means.append((b, grid_mean(df_merged[b], name=b)))
+        except Exception as e:
+            logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
+
+    if "elev" not in df_merged.columns:
+        logging.warning("[plotting_raster] Column 'elev' not found; elevation panel will be empty.")
+        elev = np.full((ny, nx), np.nan)
+    else:
+        elev = grid_mean(df_merged["elev"], name="elev")
+
+    # Plotting panels
     n_panels = len(means) + 1
     cols = min(3, n_panels)
     rows = int(np.ceil(n_panels / cols))
     extent = [xmin, xmax, ymin, ymax]
+
+    if debug:
+        logging.info(
+            f"[plotting_raster] Figure layout: rows={rows}, cols={cols}, n_panels={n_panels}, "
+            f"extent={extent}"
+        )
 
     fig, axes = plt.subplots(rows, cols, figsize=(5 * cols, 4 * rows), squeeze=False)
     for ax, (band, grid) in zip(axes.ravel(), means):
@@ -372,15 +536,23 @@ def plotting_raster(
         ax.set_ylabel("Y (m)")
         fig.colorbar(im, ax=ax, shrink=0.85)
 
-    lo, hi = np.nanpercentile(elev, clip)
+    # Elevation percentile clip
+    try:
+        lo, hi = np.nanpercentile(elev, clip)
+        if debug:
+            logging.info(f"[plotting_raster] Elev clip percentiles {clip}: vmin={lo:.6g}, vmax={hi:.6g}")
+    except Exception as e:
+        logging.warning(f"[plotting_raster] Failed to compute elevation percentiles: {e}")
+        lo, hi = (np.nan, np.nan)
+
     ax_elev = axes.ravel()[len(means)]
     im = ax_elev.imshow(
         elev,
         origin="lower",
         extent=extent,
         cmap="terrain",
-        vmin=lo,
-        vmax=hi,
+        vmin=lo if np.isfinite(lo) else None,
+        vmax=hi if np.isfinite(hi) else None,
         interpolation="bilinear",
     )
     ax_elev.set_title("Elevation")
@@ -388,28 +560,52 @@ def plotting_raster(
     ax_elev.set_ylabel("Y (m)")
     fig.colorbar(im, ax=ax_elev, shrink=0.85)
 
+    # Hide unused axes
     for ax in axes.ravel()[n_panels:]:
         ax.axis("off")
 
     fig.tight_layout()
-    fig.savefig(os.path.join(outdir, f"panels_{file_name}.png"), dpi=200)
+    panels_path = os.path.join(outdir, f"panels_{file_name}.png")
+    fig.savefig(panels_path, dpi=200)
+    if debug:
+        logging.info(f"[plotting_raster] Saved panels to: {panels_path}")
     plt.close(fig)
 
+    # Histograms
     cols_h = min(3, len(bands))
-    rows_h = int(np.ceil(len(bands) / cols_h))
+    rows_h = int(np.ceil(len(bands) / cols_h)) if cols_h > 0 else 1
     fig_h, axes_h = plt.subplots(rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False)
+
     for ax, b in zip(axes_h.ravel(), bands):
-        v = df_merged[b].to_numpy()[m]
-        v = v[np.isfinite(v)]
-        if v.size:
-            lo, hi = np.percentile(v, clip)
-            ax.hist(v, bins=50, range=(lo, hi))
+        try:
+            v = df_merged[b].to_numpy()[m]
+            v = v[np.isfinite(v)]
+            if v.size:
+                lo_h, hi_h = np.percentile(v, clip)
+                ax.hist(v, bins=50, range=(lo_h, hi_h))
+                if debug:
+                    logging.info(
+                        f"[plotting_raster] Hist {b}: n={v.size}, "
+                        f"clip_range=({lo_h:.6g},{hi_h:.6g})"
+                    )
+            else:
+                if debug:
+                    logging.info(f"[plotting_raster] Hist {b}: no finite values after masking.")
+        except Exception as e:
+            logging.error(f"[plotting_raster] Failed histogram for {b}: {e}")
         ax.set_title(b)
         ax.set_xlabel("Value")
         ax.set_ylabel("Count")
-    for ax in axes_h.ravel()[len(bands) :]:
+
+    for ax in axes_h.ravel()[len(bands):]:
         ax.axis("off")
 
     fig_h.tight_layout()
-    fig_h.savefig(os.path.join(outdir, f"band_distributions_{file_name}.png"), dpi=200)
+    hist_path = os.path.join(outdir, f"band_distributions_{file_name}.png")
+    fig_h.savefig(hist_path, dpi=200)
+    if debug:
+        logging.info(f"[plotting_raster] Saved histograms to: {hist_path}")
     plt.close(fig_h)
+
+    if debug:
+        logging.info("[plotting_raster] done.")
