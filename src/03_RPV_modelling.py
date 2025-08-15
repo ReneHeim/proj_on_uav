@@ -10,7 +10,7 @@ import polars as pl
 from colorama import Fore, Style, init
 from tqdm import tqdm
 
-from Util.plotting import plot_df
+from src.Util.plotting import plot_df
 from src.Common.config_object import config_object
 from src.Common.rpv import *
 from src.Util.logging import logging_config
