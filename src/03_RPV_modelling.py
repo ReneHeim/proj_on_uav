@@ -68,9 +68,14 @@ def main():
     # Create rpvs for each
     for week, gdf in weeks_dics.items():
         for band in band:
-            result = process_weekly_data({week: gdf}, band=band)
             out_dir = Path(base_dir) / "RPV_Results" / "V6"
             out_dir.mkdir(parents=True, exist_ok=True)
+
+            if (out_dir / f"rpv_{week}_{band}_results.csv").exists():
+                continue
+
+            result = process_weekly_data({week: gdf}, band=band)
+
             result.drop("geometry").write_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
 
 
