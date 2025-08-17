@@ -70,19 +70,29 @@ def main():
 
     # Create rpvs for each
     for week, gdf in weeks_dics.items():
+        out_dir = Path(base_dir) / "RPV_Results" / "V9" / week
+        out_dir.mkdir(parents=True, exist_ok=True)
+        plot_df(week, gdf, out_dir)
+
         for band in bands:
-            out_dir = Path(base_dir) / "RPV_Results" / "V8"
-            out_dir.mkdir(parents=True, exist_ok=True)
-
-
-            plot_df(week,gdf,band)
-
             if (out_dir / f"rpv_{week}_{band}_results.csv").exists():
                 continue
-
-
             result = process_weekly_data({week: gdf}, band=band,sample_total_dataset=500_000)
             result.drop("geometry").write_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
+
+
+    # Create Plots of RPV results
+    df_all_rpv = pd.DataFrame()
+    for week, gdf in weeks_dics.items():
+        out_dir = Path(base_dir) / "RPV_Results" / "V9" / week
+        for band in bands:
+            df_rpv = pd.read_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
+            df_rpv["week"] = week
+            df_rpv["band"] = band
+            df_all_rpv = pd.concat([df_all_rpv, df_rpv])
+    df_all_rpv.reset_index(inplace=True)
+
+    df_all_rpv.to_csv(str(Path(base_dir) / "RPV_Results" / "V9"  / "rpv_results.csv"))
 
 
 if __name__ == "__main__":
