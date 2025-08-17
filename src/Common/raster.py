@@ -324,7 +324,6 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
 # python
 # python
 # python
-# python
 from typing import Iterable, List, Optional, Sequence, Tuple, Dict, Any
 
 import logging
@@ -734,7 +733,6 @@ def _band_kde_plot(
         plt.close(fig_k)
     except Exception as e:
         logging.error(f"[plotting_raster] Failed to create band KDE chart: {e}")
-# python
 from scipy.ndimage import gaussian_filter1d
 
 def _kde1d_fast(

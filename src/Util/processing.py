@@ -46,7 +46,7 @@ def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=2000, samp
 
                 dg = pl.read_parquet(row["paths"])
 
-                if sample_total_dataset != None:
+                if sample_total_dataset is not None:
                     if len(dg) < sample_total_dataset:
                         dg = dg.sample(sample_total_dataset,with_replacement=True)
                     else:
