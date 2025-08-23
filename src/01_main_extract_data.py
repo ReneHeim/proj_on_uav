@@ -235,7 +235,8 @@ def process_orthophoto(
 
         # PART 5: plot and save the merged data
 
-        plotting_raster(df_merged, source["plot out"] / "bands_data", file)
+        plotting_raster(df_merged, source["plot out"] / "bands_data", file,ny=380,
+            nx=630,band_kde=False, auto_figsize=False)
 
         plot_angles(df_merged, lon, lat, zcam, source["plot out"] / "angles_data", file)
 
