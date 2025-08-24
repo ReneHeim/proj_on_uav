@@ -164,7 +164,7 @@ def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
     # search for files without plotid:
 
     bad = files_without_plot_id(
-        Path(r"D:\20240603_week0\metashape\20241205_products_uav_data\output\extract")
+        Path(folder)
     )
     if len(bad) > 0:
         print(f"Found band {bad} files")

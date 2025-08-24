@@ -25,6 +25,7 @@ def OSAVI_index_filtering(df, removal_threshold=None):
         - No in-place modification: always returns new DataFrame.
         - Will log and raise on error.
         - OSAVI: (1+0.16)*(NIR-Red)/(NIR+Red+0.16), with NIR=band5, Red=band3.
+        - https://www.microimages.com/documentation/TechGuides/81VegIndices.pdf
     """
     try:
         # Ensure required columns exist

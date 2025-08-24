@@ -56,7 +56,7 @@ def search_directory(directory, objective):
     return None
 
 
-def optimized_recursive_search(folders, objective, start_dir):
+def optimized_recursive_search(folders, objective, start_dir, remove_unkwown=True):
     """
     Search for parquet files matching an objective in relevant directories.
 
@@ -112,6 +112,9 @@ def optimized_recursive_search(folders, objective, start_dir):
                 stats["files_found"] += len(matching_files)
 
                 logging.info(f"Found {len(matching_files)} files for {week_id} in {root}")
+
+    if remove_unkwown:
+        results_by_week.pop("unknown", None)
 
     logging.info(f"Search complete: checked {stats['directories_checked']} directories")
     logging.info(f"Found {stats['files_found']} files across {len(stats['weeks_found'])} weeks")
