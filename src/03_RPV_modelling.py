@@ -98,10 +98,9 @@ def main():
     for week, gdf in weeks_dics.items():
         out_dir = Path(base_dir) / "stats" / "V1" / week
         out_dir.mkdir(parents=True, exist_ok=True)
-        for band in bands:
-            if (out_dir / f"stats_{week}_{band}.csv").exists():
-                continue
-            result = process_weekly_data_stats({week: gdf}, band=band, filter={})
+        if (out_dir / f"stats_{week}_{band}.csv").exists():
+            continue
+        result = process_weekly_data_stats({week: gdf},filter={}, out = out_dir)
 
 
 

@@ -10,10 +10,7 @@ import logging
 
 
 def plot_df(week, gdf, out_dir):
-
     for path in list(gdf["paths"]):
-
-
         try:
             name = Path(path).stem
             if (out_dir / "bands_data" / f"panels_{name}.png").exists():

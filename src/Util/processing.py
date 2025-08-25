@@ -1,16 +1,26 @@
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 from tqdm import tqdm
 
+from Common.raster import plotting_raster
 from src.Common.rpv import rpv_fit
 
 
-def rpv_df_preprocess(df, debug=False):
+def df_preprocess(df, debug=False, load_indeces=False):
     EPS = 1e-2  # Tolerance for floating point comparison
+
+    #Drop NaN and nulls
+    len_before = len(df)
+    df = df.fill_nan(None)
+    df = df.drop_nulls()
+    logging.info(f"Dropped {len_before - len(df)} NaN and nulls the: {round((len_before - len(df))/len_before * 100,3)} %")
+
+
 
     if "vx" in df.columns:
         vx = df["vx"]
@@ -55,6 +65,8 @@ def rpv_df_preprocess(df, debug=False):
 
     Y = 0.16
     osavi_formula = (1 + Y) * (df["band5"] - df["band3"]) / (df["band5"] + df["band3"] + Y)
+    #if load_indeces:
+        #TODO load indeces
 
     # Check or create columns
     for col, formula in [
@@ -64,7 +76,7 @@ def rpv_df_preprocess(df, debug=False):
         ("NDVI", ndvi_formula),
         ("raa", raa_formula),
         ("excess_green", excess_green_formula),
-        ("osavi", osavi_formula),
+        ("OSAVI", osavi_formula),
     ]:
         if col in df.columns and debug == True:
             if not np.allclose(df[col], formula, atol=EPS):
@@ -119,7 +131,7 @@ def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, 
                         dg = dg.sample(sample_total_dataset,with_replacement=True)
                     else:
                         dg = dg.sample(sample_total_dataset)
-                dg = rpv_df_preprocess(dg, debug)
+                dg = df_preprocess(dg, debug)
 
 
                 if filter:
@@ -200,21 +212,40 @@ def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, 
 
     return results_df
 
-def process_stats(dg,band):
-    import polars.selectors as cs
-
-    #print number of nans
-    print(f"Number of df len : {len(dg)}")
-    df_clean = (
-        dg.with_columns(pl.all().nan_to_null())  # convert NaN → null (no-op for non-floats)
-        .drop_nulls()  # drop any row containing a null
-    )
-    print(f"Number of df len : {len(df_clean)}")
-
-
+def process_stats(dg, path, week, out):
+        try:
+            name = Path(path).stem
+            print(path)
+            if (out / "bands_data" / f"panels_{name}.png").exists():
+                logging.info(f"Skipping {name} as it already exists")
+                return
+        except Exception as e:
+            print(e)
+            return
 
 
-def process_weekly_data_stats(weeks_dics, band, debug=False, filter = {}):
+        plotting_raster(
+            dg,
+            out,
+            path.stem,
+            custom_columuns=["OSAVI", "NDVI", "excess_green"],
+            bands_prefix=None,
+            debug=True,
+            ny=380,
+            nx=630,
+            dpi=500,
+            auto_figsize=True,
+            density_discrete=True,
+        )
+
+
+
+
+
+
+
+
+def process_weekly_data_stats(weeks_dics, out ,debug=False, filter = {}):
     print(f"\n{'=' * 80}")
     print(f"{'Stats ANALYSIS STARTING':^80}")
     print(f"{'=' * 80}\n")
@@ -243,7 +274,7 @@ def process_weekly_data_stats(weeks_dics, band, debug=False, filter = {}):
 
                 dg = pl.read_parquet(row["paths"])
 
-                dg = rpv_df_preprocess(dg, debug)
+                dg = df_preprocess(dg, debug)
 
 
                 if filter:
@@ -253,9 +284,7 @@ def process_weekly_data_stats(weeks_dics, band, debug=False, filter = {}):
                         dg = dg.filter(pl.col(filter["column"]) < filter["threshold"])
 
 
-
-                rpv_result = process_stats(dg,band=band)
-                rho0, k, theta, rc, rmse, nrmse = rpv_result
+                process_stats(dg,path=Path(row["paths"]),week = week , out = out)
 
                 # Add to results collection with proper types
                 all_results.append(
@@ -284,12 +313,6 @@ def process_weekly_data_stats(weeks_dics, band, debug=False, filter = {}):
                         ),
                         "cultivar": str(cult) if cult is not None else None,
                         "treatment": str(treatment) if treatment is not None else None,
-                        "rho0": None,
-                        "k": None,
-                        "theta": None,
-                        "rc": None,
-                        "rmse": None,
-                        "nrmse": None,
                         "geometry": str(geometry) if geometry is not None else None,
                         "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "status": f"error: {str(e)[:100]}",

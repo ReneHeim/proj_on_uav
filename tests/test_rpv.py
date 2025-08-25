@@ -1,6 +1,6 @@
 import polars as pl
 
-from src.Util.processing import rpv_df_preprocess
+from src.Util.processing import df_preprocess
 from src.Common.rpv import rpv_fit
 
 
@@ -21,7 +21,7 @@ def test_rpv_preprocess_and_fit():
             "band2": [0.2, 0.2, 0.2, 0.2],
         }
     )
-    df = rpv_df_preprocess(df)
+    df = df_preprocess(df)
     assert all(c in df.columns for c in ["vza", "vaa", "sza", "NDVI", "raa"])
 
     # band reflectance within [0,1] is required by rpv_fit sampling
