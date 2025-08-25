@@ -75,7 +75,7 @@ def rpv_df_preprocess(df, debug=False):
     return df
 
 
-def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None , filter ={}):
+def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None , filter ={}):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -199,3 +199,101 @@ def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=5000, samp
         print(results_df.head(5))
 
     return results_df
+
+def process_stats(dg,band):
+    import polars.selectors as cs
+
+    #print number of nans
+    print(f"Number of df len : {len(dg)}")
+    df_clean = (
+        dg.with_columns(pl.all().nan_to_null())  # convert NaN → null (no-op for non-floats)
+        .drop_nulls()  # drop any row containing a null
+    )
+    print(f"Number of df len : {len(df_clean)}")
+
+
+
+
+def process_weekly_data_stats(weeks_dics, band, debug=False, filter = {}):
+    print(f"\n{'=' * 80}")
+    print(f"{'Stats ANALYSIS STARTING':^80}")
+    print(f"{'=' * 80}\n")
+
+    # Create a list to collect all results
+    all_results = []
+    total_plots = sum(len(gdf) for gdf in weeks_dics.values())
+
+    print(f"Total plots to process: {total_plots}\n")
+    start_time = time.time()
+
+    # Process each week
+    for week, gdf in weeks_dics.items():
+        print(f"\nProcessing {week.upper()} - {len(gdf)} plots")
+
+        # Process each plot with a progress bar
+        for row in tqdm(gdf.to_dicts(), desc=f"{week}", ncols=80):
+            try:
+                # Extract plot information
+                plot_id = row.get("ifz_id", None)
+                cult = row.get("cult", None)
+                treatment = row.get("trt", None)
+                geometry = row.get("geometry", None)
+
+
+
+                dg = pl.read_parquet(row["paths"])
+
+                dg = rpv_df_preprocess(dg, debug)
+
+
+                if filter:
+                    if filter["sign"] == ">":
+                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"] )
+                    if filter["sign"] == "<":
+                        dg = dg.filter(pl.col(filter["column"]) < filter["threshold"])
+
+
+
+                rpv_result = process_stats(dg,band=band)
+                rho0, k, theta, rc, rmse, nrmse = rpv_result
+
+                # Add to results collection with proper types
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "success",
+                    }
+                )
+            except Exception as e:
+                logging.warning(f"Error processing week {week}: {e}")
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "rho0": None,
+                        "k": None,
+                        "theta": None,
+                        "rc": None,
+                        "rmse": None,
+                        "nrmse": None,
+                        "geometry": str(geometry) if geometry is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": f"error: {str(e)[:100]}",
+                    }
+                )
+
+
