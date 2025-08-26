@@ -64,6 +64,7 @@ deploy:  ## Deploy to PyPI (requires TWINE_USERNAME and TWINE_PASSWORD)
 	$(PY) -m build
 	twine upload dist/*
 
+
 docs:  ## Build documentation
 	cd Documentation && jupyter-book build . || echo "Documentation build failed - check if jupyter-book is installed"
 
