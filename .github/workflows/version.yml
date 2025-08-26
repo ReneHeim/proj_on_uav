@@ -14,10 +14,23 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-python@v5
       - run: pip install bump2version build
+
+      - name: Configure git user
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config --local user.name "Mak8427"
+          git config --local user.email "davide.mattioli.2001@gmail.com"
+
       - id: part
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.major }}" = "true" ]; then echo part=major >> $GITHUB_OUTPUT; elif [ "${{ github.event_name }}" = "pull_request" ]; then echo part=minor >> $GITHUB_OUTPUT; else echo part=patch >> $GITHUB_OUTPUT; fi
-      - run: bump2version ${{ steps.part.outputs.part }}
+      
+
+      # bump and push commit + tag back to the repo
+      - name: Bump version
+        run: |
+          bump2version ${{ steps.part.outputs.part }}
+          git push --follow-tags
       # build artifacts only for MINOR/MAJOR (non-push events)
       - if: github.event_name != 'push'
         run: python -m build
