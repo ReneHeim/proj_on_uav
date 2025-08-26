@@ -31,6 +31,16 @@ jobs:
         run: |
           bump2version ${{ steps.part.outputs.part }}
           git push --follow-tags
+
+      - name: Sync version bump back to dev
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          git fetch origin dev
+          git checkout dev
+          git merge --ff-only main || git merge --no-ff -m "Sync version bump from main"
+          git push origin dev
+    
+
       # build artifacts only for MINOR/MAJOR (non-push events)
       - if: github.event_name != 'push'
         run: python -m build
