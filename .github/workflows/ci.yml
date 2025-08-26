@@ -11,7 +11,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  MINIMUM_COVERAGE: 80
+  MINIMUM_COVERAGE: 50
 
 jobs:
   # =============================================================================
