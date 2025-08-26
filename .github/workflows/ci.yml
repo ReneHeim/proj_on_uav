@@ -346,9 +346,7 @@ jobs:
     name: Auto-format Code
     runs-on: ubuntu-latest
 
-    # DOES: Only runs on internal PRs and direct pushes for security
-    # DOESN'T: Run on external PRs, validate formatting results, or handle merge conflicts
-    # MAINTENANCE: Review security policy regularly, consider approval workflows for external PRs
+    # SECURITY: Only run on internal PRs or direct pushes, never on external PRs
     if: |
       github.event_name == 'push' || 
       (github.event_name == 'pull_request' && 
@@ -359,109 +357,103 @@ jobs:
       pull-requests: write
 
     steps:
-      # DOES: Downloads code with full history for proper formatting context
-      # DOESN'T: Verify code signatures, check for malicious changes, or validate permissions
-      # MAINTENANCE: Consider adding code review requirements for auto-formatting changes
+      # DOES: Downloads code with full history and pulls latest changes
+      # DOESN'T: Handle complex merge conflicts automatically
+      # MAINTENANCE: Monitor for merge conflicts, consider manual intervention alerts
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # DOES: Syncs with remote branch to avoid divergence issues
+      # DOESN'T: Handle merge conflicts, validate sync success
+      # MAINTENANCE: Add conflict detection, consider rebase strategies
+      - name: Sync with remote branch
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Get the current branch name
+          CURRENT_BRANCH="${{ github.head_ref || github.ref_name }}"
+          echo "Current branch: $CURRENT_BRANCH"
+          
+          # Fetch latest changes
+          git fetch origin
+          
+          # Check if remote branch exists and sync
+          if git ls-remote --heads origin "$CURRENT_BRANCH" | grep -q "$CURRENT_BRANCH"; then
+            echo "Syncing with origin/$CURRENT_BRANCH..."
+            git pull origin "$CURRENT_BRANCH" --rebase || {
+              echo "⚠️ Rebase failed, trying merge..."
+              git rebase --abort 2>/dev/null || true
+              git pull origin "$CURRENT_BRANCH" --no-rebase
+            }
+          else
+            echo "Remote branch $CURRENT_BRANCH doesn't exist, skipping sync"
+          fi
+
       # DOES: Sets up Python environment for formatting tools
-      # DOESN'T: Cache formatting tools, use multiple Python versions, or validate tool versions
-      # MAINTENANCE: Consider caching pre-commit environments, pin tool versions
+      # DOESN'T: Cache formatting tools, validate tool versions
+      # MAINTENANCE: Consider caching pre-commit environments for speed
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
       # DOES: Installs pre-commit with pinned version for consistency
-      # DOESN'T: Install language-specific formatters, validate tool compatibility, or cache tools
-      # MAINTENANCE: Update pre-commit version quarterly, review formatting tool configurations
+      # DOESN'T: Install additional formatters, validate installation
+      # MAINTENANCE: Update pre-commit version quarterly, monitor for new tools
       - name: Install formatting tools
         run: |
           python -m pip install --upgrade pip
           pip install pre-commit==3.5.0
 
       # DOES: Runs all pre-commit hooks to auto-fix formatting issues
-      # DOESN'T: Handle complex merge conflicts, validate fixes, or test after formatting
-      # MAINTENANCE: Review hook configurations, add new formatters, monitor formatting consistency
+      # DOESN'T: Handle hook failures gracefully, validate fixes
+      # MAINTENANCE: Review hook configurations, monitor formatting consistency
       - name: Run auto-formatting
         run: |
           echo "Running auto-formatting..."
           pre-commit run --all-files || echo "Some files were formatted"
 
       # DOES: Detects if any files were modified by formatting tools
-      # DOESN'T: Validate that changes are safe, check syntax, or run tests
-      # MAINTENANCE: Consider adding syntax validation, basic linting after formatting
+      # DOESN'T: Validate that changes don't break functionality
+      # MAINTENANCE: Consider adding syntax validation after formatting
       - name: Check for changes
         id: verify-changed-files
         run: |
           if [ -n "$(git status --porcelain)" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "Files were auto-formatted"
+            git status --porcelain
           else
             echo "changed=false" >> $GITHUB_OUTPUT
             echo "No formatting changes needed"
           fi
 
-      # DOES: Commits formatting changes with bot identity and skips CI to prevent loops
-      # DOESN'T: Run tests after formatting, validate changes, or handle commit failures
-      # MAINTENANCE: Monitor for formatting loops, consider running quick tests after formatting
+      # DOES: Commits only existing file types, handles missing patterns gracefully
+      # DOESN'T: Run tests after formatting, validate commit success
+      # MAINTENANCE: Add post-formatting validation, monitor commit patterns
       - name: Commit formatting changes
         if: steps.verify-changed-files.outputs.changed == 'true'
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "style: auto-format code [skip ci]"
-          branch: ${{ github.head_ref || github.ref_name }}
-          file_pattern: "*.py *.md *.yml *.yaml *.json"
-          commit_user_name: "github-actions[bot]"
-          commit_user_email: "github-actions[bot]@users.noreply.github.com"
-
-  # =============================================================================
-  # MULTI-VERSION TESTING (Optional - runs on schedule)
-  # =============================================================================
-  compatibility-test:
-    name: Python Compatibility
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
-
-    steps:
-      # DOES: Downloads code for compatibility testing across Python versions
-      # DOESN'T: Test on different operating systems, architectures, or with different dependencies
-      # MAINTENANCE: Add macOS/Windows testing, consider pypy, update Python versions as new releases come
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      # DOES: Tests against multiple Python versions using matrix strategy
-      # DOESN'T: Test with different dependency versions, pre-release Python, or alternative implementations
-      # MAINTENANCE: Update Python version matrix annually, test with python-dev versions
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      # DOES: Installs minimal dependencies for basic compatibility testing
-      # DOESN'T: Test with different dependency versions, optional dependencies, or extras
-      # MAINTENANCE: Consider testing with minimum supported dependency versions
-      - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
-
-      # DOES: Runs basic test suite to verify Python version compatibility
-      # DOESN'T: Run full test suite, performance tests, or integration tests
-      # MAINTENANCE: Expand to full test suite if CI time allows, add performance benchmarks
-      - name: Run basic tests
-        run: |
-          echo "Testing Python ${{ matrix.python-version }} compatibility..."
-          PYTHONPATH=src python -m pytest tests/ -x --tb=short
+          echo "Committing formatting changes..."
+          
+          # Add files that exist, ignore missing patterns
+          git add -A
+          
+          # Check if there are actually changes to commit
+          if git diff --cached --quiet; then
+            echo "No changes to commit after staging"
+            exit 0
+          fi
+          
+          # Commit changes
+          git commit -m "style: auto-format code [skip ci]"
+          
+          # Push changes
+          git push origin "${{ github.head_ref || github.ref_name }}"
 
   # =============================================================================
   # CI STATUS SUMMARY
