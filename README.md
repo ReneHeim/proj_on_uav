@@ -9,7 +9,7 @@
 
 This repository provides a Python pipeline to extract multi-angular reflectance and geometry from UAV orthophotos, filter data spatially using polygons, and fit RPV models per plot and week.
 
-version: 0.5.1
+version: 0.6.0
 
 ## Features
 
