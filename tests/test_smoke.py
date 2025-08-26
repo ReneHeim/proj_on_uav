@@ -3,7 +3,7 @@ import subprocess
 
 def test_scripts_help():
     for script in [
-        ["python", "-m", "main_extract_data", "--help"],
+        ["python", "-m", "main_extract", "--help"],
         ["python", "-m", "filtering", "--help"],
         ["python", "-m", "RPV_modelling", "--help"],
     ]:
