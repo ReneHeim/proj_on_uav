@@ -54,9 +54,9 @@ def df_preprocess(df, debug=False, load_indeces=False):
     cos_vza = (df["vz"] / (df["v_norm"] + 1e-12)).clip(-1.0, 1.0)  # 1  guard /0 and range
     vza_formula = np.degrees(np.arccos(cos_vza))
     vaa_formula = np.where(
-        (df["vx"] == 0) & (df["vy"] == 0),
+        (df["vx"].to_numpy() == 0) & (df["vy"].to_numpy() == 0),
         np.nan,
-        np.degrees(np.arctan2(df["vx"], df["vy"])) % 360
+        np.degrees(np.arctan2(df["vx"].to_numpy(), df["vy"].to_numpy())) % 360
     )
 
     sza_formula = 90 - df["sunelev"]
