@@ -111,7 +111,7 @@ def test_script_01_extract_e2e(tmp_path: Path):
 
     # run script 01
     proc = subprocess.run(
-        ["python", "-m", "src.01_main_extract_data", "--config", str(cfg_path)], capture_output=True
+        ["python", "-m", "main_extract", "--config", str(cfg_path)], capture_output=True
     )
     assert proc.returncode == 0, proc.stderr.decode()
 
