@@ -1,18 +1,18 @@
 # Update 2.1
 
 ---
-## Customization 
+## Customization
 
 -  Added Precision Value in config_file.yaml
 
 
 
 ---
-##  Refactoring 
+##  Refactoring
 - **Alpha**: Changed from Single Function to Multi function Currently in _Polars.py
 
 ---
-## Optimisation 
+## Optimisation
 - Dataframe managed from Pandas to Polars
 
 
@@ -61,6 +61,6 @@
 - Verified alignment and resampling functionalities with test datasets to ensure accurate co-registration.
 - Validated modularized processing pipeline for robustness and performance.
 
---- 
+---
 
 This update enhances the pipeline’s precision, modularity, and performance, ensuring it can handle large geospatial datasets efficiently while maintaining spatial integrity.

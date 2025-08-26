@@ -1,8 +1,9 @@
-import polars as pl
-from pathlib import Path
-from src.Utils.extract_data.raster import plotting_raster
 import logging
+from pathlib import Path
 
+import polars as pl
+
+from src.Utils.extract_data.raster import plotting_raster
 
 
 def plot_df(week, gdf, out_dir):
@@ -13,7 +14,7 @@ def plot_df(week, gdf, out_dir):
                 logging.info(f"Skipping {name} as it already exists")
                 continue
         except Exception as e:
-                continue
+            continue
 
         try:
             df = pl.read_parquet(path)

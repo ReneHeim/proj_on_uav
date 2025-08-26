@@ -512,7 +512,6 @@ def process_chunks_parallel(
 
         # Process results as they complete
         for future in concurrent.futures.as_completed(future_to_chunk):
-
             chunk_idx = future_to_chunk[future]
             processed_count += 1
 

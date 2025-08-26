@@ -1,42 +1,168 @@
-# .github/workflows/version.yml
 name: versioning
 on:
   push: { branches: [dev] }
   pull_request: { types: [closed], branches: [main] }
   workflow_dispatch: { inputs: { major: { type: boolean, default: false } } }
-permissions: { contents: write }
+permissions:
+  contents: write
+  pull-requests: read
+  issues: read
 jobs:
   bump_and_release:
+    # CONDITION: Only runs when:
+    # - Manual trigger (workflow_dispatch)
+    # - PR is merged into main (not just closed)
+    # - Push to dev branch
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true || github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     steps:
+      # SETUP: Checkout with full history (needed for versioning and tagging)
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
+      
+      # SETUP: Install Python (version not pinned - could cause issues)
       - uses: actions/setup-python@v5
+      
+      # INSTALL: bump2version for semantic versioning, build for creating Python packages
       - run: pip install bump2version build
 
+      # GIT CONFIG: Set up git identity for commits
+      # DOES: Uses the GitHub actor (user who triggered the workflow)
+      # DOESN'T: Validate if the actor has permission to push to the repo
       - name: Configure git user
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --local user.name "Mak8427"
-          git config --local user.email "davide.mattioli.2001@gmail.com"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
+      # VERSION LOGIC: Determines which part of version to bump
+      # DOES: 
+      # - major: Only when manually triggered with major=true
+      # - minor: When PR is merged to main
+      # - patch: When pushing to dev branch
+      # DOESN'T: 
+      # - Consider commit messages for conventional commits
+      # - Validate the current version format
+      # - Handle pre-release versions
       - id: part
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.major }}" = "true" ]; then echo part=major >> $GITHUB_OUTPUT; elif [ "${{ github.event_name }}" = "pull_request" ]; then echo part=minor >> $GITHUB_OUTPUT; else echo part=patch >> $GITHUB_OUTPUT; fi
-      
 
-      # bump and push commit + tag back to the repo
+      # VERSION BUMP: Updates version and creates git tag
+      # DOES:
+      # - Reads current version from configuration file
+      # - Increments the specified part (major/minor/patch)
+      # - Creates a new git commit with version changes
+      # - Creates a git tag with the new version
+      # - Pushes both commit and tag to the repository
+      # DOESN'T:
+      # - Validate if the version bump is appropriate
+      # - Check if the tag already exists (could fail if tag exists)
+      # - Handle push failures (e.g., if branch is protected)
       - name: Bump version
+        if: github.event_name == 'push'
         run: |
           bump2version ${{ steps.part.outputs.part }}
           git push --follow-tags
-      # build artifacts only for MINOR/MAJOR (non-push events)
+      - name: Bump Major version
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          git config --local user.name "${{ github.actor }}"
+          git config --local user.email "${{ github.actor }}@users.noreply.github.com"
+          bump2version ${{ steps.part.outputs.part }}
+          git push --follow-tags
+
+      # DEV SYNC: Syncs version bump from main back to dev branch
+      # DOES:
+      # - Only runs when a PR is merged to main
+      # - Fetches latest dev branch
+      # - Attempts fast-forward merge first (clean history)
+      # - Falls back to regular merge if fast-forward fails
+      # - Pushes updated dev branch
+      # DOESN'T:
+      # - Handle merge conflicts automatically
+      # - Check if dev branch exists
+      # - Verify the merge was successful before pushing
+      # - Handle cases where dev branch has diverged significantly
+      - name: Sync version bump back to dev
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          git fetch origin dev
+          git checkout dev
+          if ! git merge --ff-only main; then
+            echo "Fast-forward merge failed, attempting regular merge..."
+            git merge --no-ff -m "Sync version bump from main" main
+          fi
+          git push origin dev
+
+      # BUILD: Creates Python packages (wheel and source distribution)
+      # DOES: 
+      # - Only runs for minor/major releases (not patch releases from dev pushes)
+      # - Creates dist/ directory with built packages
+      # DOESN'T:
+      # - Validate the build was successful
+      # - Run tests before building
+      # - Sign the packages
       - if: github.event_name != 'push'
         run: python -m build
 
-      # create GitHub Release with the built artifacts
-      - if: github.event_name != 'push'
+      # RELEASE NOTES: Generates detailed release notes from PR information
+      # DOES:
+      # - Only runs when PR is merged
+      # - Fetches PR title, body, and all comments
+      # - Formats into markdown with contributors
+      # - Stores in step output for later use
+      # DOESN'T:
+      # - Filter out bot comments or irrelevant comments
+      # - Handle very long PR descriptions gracefully
+      # - Sanitize markdown content that might break formatting
+      # - Generate notes for manual releases (workflow_dispatch)
+      - name: Build release notes from PR
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        uses: actions/github-script@v7
+        id: notes
+        with:
+          script: |
+            const n = context.payload.pull_request.number;
+            const {data: pr} = await github.rest.pulls.get({owner: context.repo.owner, repo: context.repo.repo, pull_number: n});
+            const comments = await github.paginate(github.rest.issues.listComments, {owner: context.repo.owner, repo: context.repo.repo, issue_number: n});
+            const lines = [`### ${pr.title} (#${n})`, pr.body||'', '---', '#### Comments:', ...comments.map(c=>`- @${c.user.login}: ${c.body}`)];
+            core.setOutput('md', lines.join('\n'));
+
+      # GITHUB RELEASE: Creates release with detailed notes for PR merges
+      # DOES:
+      # - Only runs when PR is merged to main
+      # - Uses the detailed release notes from previous step
+      # - Attaches built Python packages to the release
+      # - Marks as latest release
+      # - Uses the git tag created by bump2version
+      # DOESN'T:
+      # - Validate that the tag exists before creating release
+      # - Handle special characters in release notes properly
+      # - Create draft releases for review
+      # - Set up release discussions
+      - name: Create GitHub release (PR merge)
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          printf "%s" '${{ steps.notes.outputs.md }}' > RELEASE_NOTES.md
+          ver="$(git describe --tags --abbrev=0)"
+          gh release create "$ver" --title "$ver" --notes-file RELEASE_NOTES.md --latest dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # GITHUB RELEASE: Creates simple release for manual triggers
+      # DOES:
+      # - Only runs for workflow_dispatch events
+      # - Creates release with basic automated message
+      # - Attaches built Python packages
+      # - Uses the version part (major/minor) in the notes
+      # DOESN'T:
+      # - Include detailed changelog information
+      # - Allow custom release notes input
+      # - Create pre-releases for major versions
+      # - Notify specific teams or users about the release
+      - name: Create GitHub release (manual trigger)
+        if: github.event_name == 'workflow_dispatch'
         run: gh release create "$(git describe --tags --abbrev=0)" dist/* --latest --notes "Automated ${{ steps.part.outputs.part }} release"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

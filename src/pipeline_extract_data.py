@@ -16,8 +16,13 @@ import pysolar as solar
 from rasterio.enums import Resampling
 from tqdm import tqdm
 
-from src.Utils.extract_data.camera import calculate_angles, get_camera_position, plot_angles
 from src.Common.config_object import config_object
+from src.Common.logging import logging_config
+from src.Utils.extract_data.camera import (
+    calculate_angles,
+    get_camera_position,
+    plot_angles,
+)
 from src.Utils.extract_data.date_time import convert_to_timezone
 from src.Utils.extract_data.merge_analysis import merge_data
 from src.Utils.extract_data.polygon_filtering import filter_df_by_polygon
@@ -27,7 +32,6 @@ from src.Utils.extract_data.raster import (
     plotting_raster,
     read_orthophoto_bands,
 )
-from src.Common.logging import logging_config
 
 
 # ------------------------------
@@ -235,8 +239,15 @@ def process_orthophoto(
 
         # PART 5: plot and save the merged data
 
-        plotting_raster(df_merged, source["plot out"] / "bands_data", file,ny=380,
-            nx=630,band_kde=False, auto_figsize=False)
+        plotting_raster(
+            df_merged,
+            source["plot out"] / "bands_data",
+            file,
+            ny=380,
+            nx=630,
+            band_kde=False,
+            auto_figsize=False,
+        )
 
         plot_angles(df_merged, lon, lat, zcam, source["plot out"] / "angles_data", file)
 

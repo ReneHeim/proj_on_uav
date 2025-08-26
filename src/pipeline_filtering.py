@@ -5,12 +5,9 @@ import os
 import polars as pl
 
 from src.Common.config_object import config_object
-from src.Utils.filtering.data_loader import load_by_polygon
-from src.Utils.filtering.filters import (
-    OSAVI_index_filtering,
-    excess_green_filter,
-)
 from src.Common.logging import logging_config
+from src.Utils.filtering.data_loader import load_by_polygon
+from src.Utils.filtering.filters import OSAVI_index_filtering, excess_green_filter
 
 
 def main():
@@ -52,8 +49,6 @@ def main():
     # add_mask_and_plot(df,"ExcessGreen",0.03)
 
     dfs = load_by_polygon(str(config.main_extract_out), str(config.main_extract_out_polygons_df))
-
-
 
 
 if __name__ == "__main__":

@@ -33,9 +33,9 @@ Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. 
 
 For each ground sampling that was performed in the field, you will need an associated coordinate and provide a csv file containing these coordinates.
 
-NO HEADER  
-"id_1","lon_1","lat_1"  
-"id_2","lon_2","lat_2"  
+NO HEADER
+"id_1","lon_1","lat_1"
+"id_2","lon_2","lat_2"
 "id_i","lon_i","lat_i"
 
 ### Metashape

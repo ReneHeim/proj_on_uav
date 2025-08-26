@@ -1,0 +1,85 @@
+name: Tests & Quality
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  PYTHON_VERSION: "3.12"
+  MINIMUM_COVERAGE: 50
+
+jobs:
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-xdist pre-commit
+
+      - name: Set up pre-commit hooks
+        run: pre-commit install
+
+      - name: Run code quality checks
+        run: |
+          echo "Running pre-commit hooks..."
+          pre-commit run --all-files || true
+
+      - name: Run unit tests with coverage
+        run: |
+          echo "Running unit tests..."
+          PYTHONPATH=src python -m pytest tests/ \
+            -v \
+            --tb=short \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.MINIMUM_COVERAGE }} \
+            -n auto
+
+      - name: Run end-to-end tests
+        run: |
+          echo "Running E2E tests..."
+          PYTHONPATH=src python -m pytest tests/e2e/ -v --tb=short
+
+      - name: Run CLI smoke tests
+        run: |
+          echo "Running CLI smoke tests..."
+          PYTHONPATH=src python -m pytest tests/test_smoke.py -v
+
+      - name: Test Makefile targets
+        run: |
+          echo "Testing Makefile targets..."
+          make lint || true
+          make format || true
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
