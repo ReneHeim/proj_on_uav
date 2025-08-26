@@ -3,7 +3,7 @@
 [![CI](https://github.com/ReneHeim/proj_on_uav/workflows/CI/badge.svg)](https://github.com/ReneHeim/proj_on_uav/actions)
 [![Codecov](https://codecov.io/gh/ReneHeim/proj_on_uav/branch/dev/graph/badge.svg)](https://codecov.io/gh/ReneHeim/proj_on_uav)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202-blue)](LICENSE)
 
 ## Overview
 
