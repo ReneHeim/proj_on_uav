@@ -32,8 +32,8 @@ jobs:
       - name: Configure git user
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config --local user.name "${{ github.actor }}"
-          git config --local user.email "${{ github.actor }}@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
 
       # VERSION LOGIC: Determines which part of version to bump
       # DOES: 
