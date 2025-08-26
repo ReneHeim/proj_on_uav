@@ -7,8 +7,8 @@ import numpy as np
 import polars as pl
 from tqdm import tqdm
 
-from Utils.extract_data.raster import plotting_raster
-from Utils.RPV_modelling.rpv import rpv_fit
+from src.Utils.extract_data.raster import plotting_raster
+from src.Utils.RPV_modelling.rpv import rpv_fit
 
 
 def df_preprocess(df, debug=False, load_indeces=False):
