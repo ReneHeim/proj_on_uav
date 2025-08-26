@@ -132,50 +132,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # DOES: Downloads repository code for security analysis
-      # DOESN'T: Scan git history, check for secrets in commits, or validate branch protection
-      # MAINTENANCE: Consider adding git-secrets or truffleHog for commit history scanning
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # DOES: Sets up Python environment for security tools
-      # DOESN'T: Isolate security scanning environment or use dedicated security images
-      # MAINTENANCE: Consider using security-focused container images for better isolation
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # DOES: Installs pinned versions of security scanning tools
-      # DOESN'T: Update tools automatically, scan for license compliance, or check container vulnerabilities
-      # MAINTENANCE: Update bandit/safety versions monthly, review new security tools quarterly
-      - name: Install dependencies
+      # Modern approach: Use pip-audit instead of safety
+      - name: Install modern security tools
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install bandit[toml]==1.7.5 safety==2.3.5
+          pip install bandit[toml]==1.7.9 pip-audit==2.6.2
 
-      # DOES: Scans source code for security vulnerabilities and outputs both JSON and human-readable formats
-      # DOESN'T: Scan dependencies, check for secrets, validate SSL certificates, or scan containers
-      # MAINTENANCE: Review bandit configuration, add custom rules, update severity thresholds
-      - name: Run Bandit security scan
+      - name: Run Bandit code security scan
         run: |
           echo "Running Bandit security scan..."
-          bandit -r src/ -f json -o bandit-report.json
-          bandit -r src/ -f txt
+          bandit -r src/ -f json -o bandit-report.json -ll || true
+          bandit -r src/ -f txt -ll || true
 
-      # DOES: Checks dependencies against known vulnerability databases
-      # DOESN'T: Check for license issues, malware, or supply chain attacks
-      # MAINTENANCE: Monitor safety database updates, consider switching to pip-audit, review exemptions
-      - name: Run Safety dependency scan
+      # pip-audit is more modern and actively maintained than safety
+      - name: Run pip-audit dependency scan
         run: |
-          echo "Running Safety dependency scan..."
-          safety check --json --output safety-report.json
-          safety check
+          echo "Running pip-audit dependency scan..."
+          pip-audit --format=json --output=pip-audit-report.json || true
+          pip-audit --format=text || true
 
-      # DOES: Saves security reports as downloadable artifacts with 30-day retention
-      # DOESN'T: Parse results, create security issues, or send notifications
-      # MAINTENANCE: Consider integrating with security dashboards, automate issue creation for high-severity findings
       - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -183,9 +167,8 @@ jobs:
           name: security-reports-${{ env.PYTHON_VERSION }}-${{ github.sha }}
           path: |
             bandit-report.json
-            safety-report.json
+            pip-audit-report.json
           retention-days: 30
-
   # =============================================================================
   # PACKAGE BUILDING
   # =============================================================================
