@@ -18,6 +18,12 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.major }}" = "true" ]; then echo part=major >> $GITHUB_OUTPUT; elif [ "${{ github.event_name }}" = "pull_request" ]; then echo part=minor >> $GITHUB_OUTPUT; else echo part=patch >> $GITHUB_OUTPUT; fi
       - run: bump2version ${{ steps.part.outputs.part }}
+      # build artifacts only for MINOR/MAJOR (non-push events)
       - if: github.event_name != 'push'
-        run: python -m build && gh release create "$(git describe --tags --abbrev=0)" dist/* --latest --notes "Automated ${{ steps.part.outputs.part }} release"
-        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
+        run: python -m build
+
+      # create GitHub Release with the built artifacts
+      - if: github.event_name != 'push'
+        run: gh release create "$(git describe --tags --abbrev=0)" dist/* --latest --notes "Automated ${{ steps.part.outputs.part }} release"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
