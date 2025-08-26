@@ -442,39 +442,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install pre-commit==3.5.0
 
-      # DOES: Runs pre-commit but excludes workflow files to avoid permission issues
-      # DOESN'T: Format workflow files automatically (manual formatting required)
-      # MAINTENANCE: Manually format workflow files or use a separate process with proper permissions
-      - name: Run auto-formatting (excluding workflows)
+      # DOES: Runs existing pre-commit configuration while excluding workflow files
+      # DOESN'T: Override your carefully configured pre-commit settings
+      # MAINTENANCE: Update versions in your .pre-commit-config.yaml file, not in the workflow
+      - name: Run auto-formatting
         run: |
-          echo "Running auto-formatting (excluding workflow files)..."
-          # Create temporary pre-commit config that excludes workflows
-          cat > .pre-commit-config-temp.yaml << 'EOF'
-          exclude: '^\.github/workflows/.*\.ya?ml$'
-          repos:
-            - repo: https://github.com/pre-commit/pre-commit-hooks
-              rev: v4.4.0
-              hooks:
-                - id: trailing-whitespace
-                - id: end-of-file-fixer
-                - id: check-yaml
-                  exclude: '^\.github/workflows/.*\.ya?ml$'
-                - id: check-added-large-files
-            - repo: https://github.com/psf/black
-              rev: 23.7.0
-              hooks:
-                - id: black
-            - repo: https://github.com/pycqa/isort
-              rev: 5.12.0
-              hooks:
-                - id: isort
-          EOF
-          
-          # Run pre-commit with the temporary config
-          pre-commit run --config .pre-commit-config-temp.yaml --all-files || echo "Some files were formatted"
-          
-          # Clean up
-          rm -f .pre-commit-config-temp.yaml
+          echo "Running auto-formatting with project pre-commit config..."
+          pre-commit run --all-files || echo "Some files were formatted"
 
       - name: Check for changes (excluding workflows)
         id: verify-changed-files
