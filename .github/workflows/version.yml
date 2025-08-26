@@ -60,7 +60,15 @@ jobs:
       # - Check if the tag already exists (could fail if tag exists)
       # - Handle push failures (e.g., if branch is protected)
       - name: Bump version
+        if: github.event_name == 'push'
         run: |
+          bump2version ${{ steps.part.outputs.part }}
+          git push --follow-tags
+      - name: Bump Major version
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          git config --local user.name "${{ github.actor }}"
+          git config --local user.email "${{ github.actor }}@users.noreply.github.com"
           bump2version ${{ steps.part.outputs.part }}
           git push --follow-tags
 
