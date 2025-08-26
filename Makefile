@@ -111,4 +111,3 @@ dev-setup:  ## Complete development setup
 
 # Legacy targets for backward compatibility
 pre-commit: lint  ## Alias for lint
-

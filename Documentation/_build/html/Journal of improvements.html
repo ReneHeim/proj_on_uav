@@ -9,20 +9,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
     <title>Performance Improvement overe the last release &#8212; Multi-angular UAV Reflectance Extractor</title>
-  
-  
-  
+
+
+
   <script data-cfasync="false">
     document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
     document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
   </script>
-  
+
   <!-- Loaded before other Sphinx assets -->
   <link href="_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
 <link href="_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
 <link href="_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
 
-  
+
   <link href="_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
   <link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
 <link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
@@ -35,7 +35,7 @@
     <link rel="stylesheet" type="text/css" href="_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css?v=be8a1c11" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-thebe.css?v=4fa983c6" />
     <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
-  
+
   <!-- Pre-loaded scripts that we'll load fully later -->
   <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
 <link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
@@ -65,30 +65,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
-  
-  
+
+
   <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
 
-  
-  
+
+
   <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
-  
+
   <div id="pst-scroll-pixel-helper"></div>
-  
+
   <button type="button" class="btn rounded-pill" id="pst-back-to-top">
     <i class="fa-solid fa-arrow-up"></i>Back to top</button>
 
-  
+
   <input type="checkbox"
           class="sidebar-toggle"
           id="pst-primary-sidebar-checkbox"/>
   <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
-  
+
   <input type="checkbox"
           class="sidebar-toggle"
           id="pst-secondary-sidebar-checkbox"/>
   <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
-  
+
   <div class="search-button__wrapper">
     <div class="search-button__overlay"></div>
     <div class="search-button__search-container">
@@ -114,43 +114,43 @@
   <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
 </div>
 
-  
+
     <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
     </header>
-  
+
 
   <div class="bd-container">
     <div class="bd-container__inner bd-page-width">
-      
-      
-      
-      <div class="bd-sidebar-primary bd-sidebar">
-        
 
-  
+
+
+      <div class="bd-sidebar-primary bd-sidebar">
+
+
+
   <div class="sidebar-header-items sidebar-primary__section">
-    
-    
-    
-    
+
+
+
+
   </div>
-  
+
     <div class="sidebar-primary-items__start sidebar-primary__section">
         <div class="sidebar-primary-item">
 
-  
-    
-  
+
+
+
 
 <a class="navbar-brand logo" href="intro.html">
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
     <p class="title logo__title">Multi-angular UAV Reflectance Extractor</p>
-  
+
 </a></div>
         <div class="sidebar-primary-item">
 
@@ -165,7 +165,7 @@
  </script></div>
         <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
     <div class="bd-toc-item navbar-nav active">
-        
+
         <ul class="nav bd-sidenav bd-sidenav__home-link">
             <li class="toctree-l1">
                 <a class="reference internal" href="intro.html">
@@ -185,39 +185,39 @@
     </div>
 </nav></div>
     </div>
-  
-  
+
+
   <div class="sidebar-primary-items__end sidebar-primary__section">
   </div>
-  
+
   <div id="rtd-footer-container"></div>
 
 
       </div>
-      
+
       <main id="main-content" class="bd-main" role="main">
-        
-        
+
+
 
 <div class="sbt-scroll-pixel-helper"></div>
 
           <div class="bd-content">
             <div class="bd-article-container">
-              
+
               <div class="bd-header-article d-print-none">
 <div class="header-article-items header-article__inner">
-  
+
     <div class="header-article-items__start">
-      
+
         <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
   <span class="fa-solid fa-bars"></span>
 </button></div>
-      
+
     </div>
-  
-  
+
+
     <div class="header-article-items__end">
-      
+
         <div class="header-article-item">
 
 <div class="article-header-buttons">
@@ -231,15 +231,15 @@
     <i class="fab fa-github"></i>
   </button>
   <ul class="dropdown-menu">
-      
-      
-      
+
+
+
       <li><a href="https://github.com/ReneHeim/proj_on_uav" target="_blank"
    class="btn btn-sm btn-source-repository-button dropdown-item"
    title="Source repository"
    data-bs-placement="left" data-bs-toggle="tooltip"
 >
-  
+
 
 <span class="btn__icon-container">
   <i class="fab fa-github"></i>
@@ -247,16 +247,16 @@
 <span class="btn__text-container">Repository</span>
 </a>
 </li>
-      
-      
-      
-      
+
+
+
+
       <li><a href="https://github.com/ReneHeim/proj_on_uav/issues/new?title=Issue%20on%20page%20%2FJournal of improvements.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
 >
-  
+
 
 <span class="btn__icon-container">
   <i class="fas fa-lightbulb"></i>
@@ -264,7 +264,7 @@
 <span class="btn__text-container">Open issue</span>
 </a>
 </li>
-      
+
   </ul>
 </div>
 
@@ -278,15 +278,15 @@
     <i class="fas fa-download"></i>
   </button>
   <ul class="dropdown-menu">
-      
-      
-      
+
+
+
       <li><a href="_sources/Journal of improvements.ipynb" target="_blank"
    class="btn btn-sm btn-download-source-button dropdown-item"
    title="Download source file"
    data-bs-placement="left" data-bs-toggle="tooltip"
 >
-  
+
 
 <span class="btn__icon-container">
   <i class="fas fa-file"></i>
@@ -294,17 +294,17 @@
 <span class="btn__text-container">.ipynb</span>
 </a>
 </li>
-      
-      
-      
-      
+
+
+
+
       <li>
 <button onclick="window.print()"
   class="btn btn-sm btn-download-pdf-button dropdown-item"
   title="Print to PDF"
   data-bs-placement="left" data-bs-toggle="tooltip"
 >
-  
+
 
 <span class="btn__icon-container">
   <i class="fas fa-file-pdf"></i>
@@ -312,7 +312,7 @@
 <span class="btn__text-container">.pdf</span>
 </button>
 </li>
-      
+
   </ul>
 </div>
 
@@ -324,7 +324,7 @@
   title="Fullscreen mode"
   data-bs-placement="bottom" data-bs-toggle="tooltip"
 >
-  
+
 
 <span class="btn__icon-container">
   <i class="fas fa-expand"></i>
@@ -356,20 +356,20 @@ document.write(`
     <span class="fa-solid fa-list"></span>
 </button>
 </div></div>
-      
+
     </div>
-  
+
 </div>
 </div>
-              
-              
+
+
 
 <div id="jb-print-docs-body" class="onlyprint">
     <h1>Performance Improvement overe the last release</h1>
     <!-- Table of contents -->
     <div id="print-main-content">
         <div id="jb-print-toc">
-            
+
             <div>
                 <h2> Contents </h2>
             </div>
@@ -429,11 +429,11 @@ document.write(`
     </div>
 </div>
 
-              
-                
+
+
 <div id="searchbox"></div>
                 <article class="bd-article">
-                  
+
   <section class="tex2jax_ignore mathjax_ignore" id="performance-improvement-overe-the-last-release">
 <h1>Performance Improvement overe the last release<a class="headerlink" href="#performance-improvement-overe-the-last-release" title="Link to this heading">#</a></h1>
 <div class="cell docutils container">
@@ -994,25 +994,25 @@ document.write(`
 
     <span class="c1"># Merge DataFrames on &quot;Xw&quot; and &quot;Yw&quot; with explicit suffixes</span>
     <span class="n">df_merged</span> <span class="o">=</span> <span class="n">reduce</span><span class="p">(</span><span class="k">lambda</span> <span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">,</span> <span class="n">on</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;Xw&quot;</span><span class="p">,</span> <span class="s2">&quot;Yw&quot;</span><span class="p">],</span> <span class="n">suffixes</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;_dem&#39;</span><span class="p">,</span> <span class="s1">&#39;_bands&#39;</span><span class="p">)),</span> <span class="n">dfs</span><span class="p">)</span>
-    
+
     <span class="c1"># Ensure the &#39;elev&#39; column is appropriately handled</span>
     <span class="n">df_merged</span><span class="o">.</span><span class="n">rename</span><span class="p">(</span><span class="n">columns</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;elev_dem&#39;</span><span class="p">:</span> <span class="s1">&#39;elev&#39;</span><span class="p">},</span> <span class="n">inplace</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># Use the &#39;elev&#39; from df_dem</span>
-    
+
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Pandas merged DataFrame shape: </span><span class="si">{</span><span class="n">df_merged</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-    
+
     <span class="c1"># Calculate angles</span>
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
         <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">arctan</span><span class="p">((</span><span class="n">zcam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;elev&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">xcam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">(</span><span class="mi">90</span> <span class="o">-</span> <span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">180</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">)),</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;band1_bands&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vza&#39;</span><span class="p">])</span>
-    
+
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa_rad&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">df_merged</span><span class="o">.</span><span class="n">apply</span><span class="p">(</span>
         <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">math</span><span class="o">.</span><span class="n">acos</span><span class="p">((</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">ycam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span>
         <span class="o">-</span><span class="n">math</span><span class="o">.</span><span class="n">acos</span><span class="p">((</span><span class="n">ycam</span> <span class="o">-</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">])</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Xw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">xcam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;Yw&#39;</span><span class="p">]</span> <span class="o">-</span> <span class="n">ycam</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">round</span><span class="p">((</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa_rad&#39;</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="mi">180</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">pi</span><span class="p">))</span> <span class="o">-</span> <span class="n">saa</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;band1_bands&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="mi">65535</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span><span class="p">,</span> <span class="n">df_merged</span><span class="p">[</span><span class="s1">&#39;vaa&#39;</span><span class="p">])</span>
-    
+
     <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">,</span> <span class="n">file</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="s1">&#39;xcam&#39;</span><span class="p">,</span> <span class="n">xcam</span><span class="p">)</span>
     <span class="n">df_merged</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="s1">&#39;ycam&#39;</span><span class="p">,</span> <span class="n">ycam</span><span class="p">)</span>
@@ -1293,18 +1293,18 @@ Polars merged DataFrame shape: (10000028, 6)
 </div>
 <div class="cell_output docutils container">
 <div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>     cult  ifz_id  trt    ino  \
-0   aluco   90024  trt  False   
-1  capone   90023  trt  False   
-2  capone   90022  trt  False   
-3   aluco   90021  trt  False   
-4  capone   90020  trt  False   
+0   aluco   90024  trt  False
+1  capone   90023  trt  False
+2  capone   90022  trt  False
+3   aluco   90021  trt  False
+4  capone   90020  trt  False
 
-                                            geometry  
-0  POLYGON ((563629.94384 5713009.6478, 563630.38...  
-1  POLYGON ((563630.38403 5713012.31167, 563630.8...  
-2  POLYGON ((563630.82421 5713014.97555, 563631.2...  
-3  POLYGON ((563631.2644 5713017.63943, 563631.70...  
-4  POLYGON ((563631.70458 5713020.3033, 563632.14...  
+                                            geometry
+0  POLYGON ((563629.94384 5713009.6478, 563630.38...
+1  POLYGON ((563630.38403 5713012.31167, 563630.8...
+2  POLYGON ((563630.82421 5713014.97555, 563631.2...
+3  POLYGON ((563631.2644 5713017.63943, 563631.70...
+4  POLYGON ((563631.70458 5713020.3033, 563632.14...
 EPSG:4326
 </pre></div>
 </div>
@@ -2070,14 +2070,14 @@ IMG_0424_6
     <script>kernelName = 'python3'</script>
 
                 </article>
-              
 
-              
-              
-              
-              
+
+
+
+
+
                 <footer class="prev-next-footer d-print-none">
-                  
+
 <div class="prev-next-area">
     <a class="left-prev"
        href="intro.html"
@@ -2099,11 +2099,11 @@ IMG_0424_6
     </a>
 </div>
                 </footer>
-              
+
             </div>
-            
-            
-              
+
+
+
                 <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
 
 
@@ -2165,49 +2165,49 @@ IMG_0424_6
   </nav></div>
 
 </div></div>
-              
-            
+
+
           </div>
           <footer class="bd-footer-content">
-            
+
 <div class="bd-footer-content__inner container">
-  
+
   <div class="footer-item">
-    
+
 <p class="component-author">
 By Rene Heim,  Nathan Okole , Davide Mattioli
 </p>
 
   </div>
-  
+
   <div class="footer-item">
-    
+
 
   <p class="copyright">
-    
+
       © Copyright 2023.
       <br/>
-    
+
   </p>
 
   </div>
-  
+
   <div class="footer-item">
-    
+
   </div>
-  
+
   <div class="footer-item">
-    
+
   </div>
-  
+
 </div>
           </footer>
-        
+
 
       </main>
     </div>
   </div>
-  
+
   <!-- Scripts loaded after <body> so the DOM is not blocked -->
   <script src="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
 <script src="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>

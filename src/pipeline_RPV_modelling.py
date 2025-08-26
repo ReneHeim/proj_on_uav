@@ -7,17 +7,18 @@ import pandas as pd
 from colorama import init
 
 from src.Common.config_object import config_object
-from src.Utils.RPV_modelling.rpv import *
 from src.Common.logging import logging_config
-from src.Utils.RPV_modelling.processing import process_weekly_data_rpv , process_weekly_data_stats
 from src.Common.search import optimized_recursive_search, order_path_list
+from src.Utils.RPV_modelling.processing import (
+    process_weekly_data_rpv,
+    process_weekly_data_stats,
+)
+from src.Utils.RPV_modelling.rpv import *
 
 IGNORE_DIRS = {"System Volume Information"}
 PATTERN_TMPL = "*{obj}*.parquet"
 
 init(autoreset=True)
-
-
 
 
 def main():
@@ -67,14 +68,15 @@ def main():
     for week, gdf in weeks_dics.items():
         out_dir = Path(base_dir) / "RPV_Results" / "V12" / week
         out_dir.mkdir(parents=True, exist_ok=True)
-        #plot_df(week, gdf, out_dir)
+        # plot_df(week, gdf, out_dir)
 
         for band in bands:
             if (out_dir / f"rpv_{week}_{band}_results.csv").exists():
                 continue
-            result = process_weekly_data_rpv({week: gdf}, band=band,sample_total_dataset=500_000, filter={})
+            result = process_weekly_data_rpv(
+                {week: gdf}, band=band, sample_total_dataset=500_000, filter={}
+            )
             result.drop("geometry").write_csv(str(out_dir / f"rpv_{week}_{band}_results.csv"))
-
 
     # Create Plots of RPV results
     df_all_rpv = pd.DataFrame()
@@ -87,17 +89,15 @@ def main():
             df_all_rpv = pd.concat([df_all_rpv, df_rpv])
     df_all_rpv.reset_index(inplace=True)
 
-    df_all_rpv.to_csv(str(Path(base_dir) / "RPV_Results" / "V12"  / "rpv_results.csv"))
+    df_all_rpv.to_csv(str(Path(base_dir) / "RPV_Results" / "V12" / "rpv_results.csv"))
 
-    #Create statstics dfs
+    # Create statstics dfs
     for week, gdf in weeks_dics.items():
         out_dir = Path(base_dir) / "stats" / "V1" / week
         out_dir.mkdir(parents=True, exist_ok=True)
         if (out_dir / f"stats_{week}_{band}.csv").exists():
             continue
-        result = process_weekly_data_stats({week: gdf},filter={}, out = out_dir)
-
-
+        result = process_weekly_data_stats({week: gdf}, filter={}, out=out_dir)
 
 
 if __name__ == "__main__":

@@ -9,11 +9,11 @@ def rpv_2(angle_pack, rho0, k, theta, rc=1.0):
     s, v, dphi = np.radians(angle_pack)
     cs, cv = np.cos(s), np.cos(v)
     sin_s, sin_v = np.sin(s), np.sin(v)
-    g = np.arccos(np.clip(cs*cv + sin_s*sin_v*np.cos(dphi), -1.0, 1.0))
-    F = (1 - theta**2) / (1 + theta**2 + 2*theta*np.cos(g))**1.5
-    G = np.sqrt(np.tan(s)**2 + np.tan(v)**2 - 2*np.tan(s)*np.tan(v)*np.cos(dphi))
-    hot = 1 + (1 - rc)/(1 + G)
-    return rho0 * (cs**(k-1)) * (cv**(k-1)) * (cs + cv)**(k - 1) * F * hot
+    g = np.arccos(np.clip(cs * cv + sin_s * sin_v * np.cos(dphi), -1.0, 1.0))
+    F = (1 - theta**2) / (1 + theta**2 + 2 * theta * np.cos(g)) ** 1.5
+    G = np.sqrt(np.tan(s) ** 2 + np.tan(v) ** 2 - 2 * np.tan(s) * np.tan(v) * np.cos(dphi))
+    hot = 1 + (1 - rc) / (1 + G)
+    return rho0 * (cs ** (k - 1)) * (cv ** (k - 1)) * (cs + cv) ** (k - 1) * F * hot
 
 
 def rpv_1(angle_pack, rho0, k, theta, rc=1.0):
@@ -68,7 +68,6 @@ def rpv_fit(df, band, n_samples_bins):
 
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)
-
 
     def resid(pars, sza, vza, raa, R):
         rho0, k, theta = pars

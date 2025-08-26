@@ -29,4 +29,3 @@ def test_rpv_preprocess_and_fit():
     assert 0 < rho0 < 1
     assert 0 < k < 3
     assert -1 < theta < 1
-

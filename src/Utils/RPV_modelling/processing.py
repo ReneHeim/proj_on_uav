@@ -14,13 +14,13 @@ from src.Utils.RPV_modelling.rpv import rpv_fit
 def df_preprocess(df, debug=False, load_indeces=False):
     EPS = 1e-2  # Tolerance for floating point comparison
 
-    #Drop NaN and nulls
+    # Drop NaN and nulls
     len_before = len(df)
     df = df.fill_nan(None)
     df = df.drop_nulls()
-    logging.info(f"Dropped {len_before - len(df)} NaN and nulls the: {round((len_before - len(df))/len_before * 100,3)} %")
-
-
+    logging.info(
+        f"Dropped {len_before - len(df)} NaN and nulls the: {round((len_before - len(df))/len_before * 100,3)} %"
+    )
 
     if "vx" in df.columns:
         vx = df["vx"]
@@ -45,9 +45,11 @@ def df_preprocess(df, debug=False, load_indeces=False):
 
     if "v_norm" in df.columns:
         v_norm = df["v_norm"]
-        assert np.allclose(v_norm, np.sqrt(vx ** 2 + vy ** 2 + vz ** 2), atol=EPS), "v_norm mismatch"
+        assert np.allclose(
+            v_norm, np.sqrt(vx**2 + vy**2 + vz**2), atol=EPS
+        ), "v_norm mismatch"
     else:
-        v_norm = np.sqrt(vx ** 2 + vy ** 2 + vz ** 2)
+        v_norm = np.sqrt(vx**2 + vy**2 + vz**2)
         df = df.with_columns(pl.Series("v_norm", v_norm))
 
     # Formulas as expressions
@@ -56,7 +58,7 @@ def df_preprocess(df, debug=False, load_indeces=False):
     vaa_formula = np.where(
         (df["vx"].to_numpy() == 0) & (df["vy"].to_numpy() == 0),
         np.nan,
-        np.degrees(np.arctan2(df["vx"].to_numpy(), df["vy"].to_numpy())) % 360
+        np.degrees(np.arctan2(df["vx"].to_numpy(), df["vy"].to_numpy())) % 360,
     )
 
     sza_formula = 90 - df["sunelev"]
@@ -66,12 +68,12 @@ def df_preprocess(df, debug=False, load_indeces=False):
 
     # indexes
     ndvi_formula = (df["band5"] - df["band3"]) / (df["band5"] + df["band3"])
-    excess_green_formula = (2 * df["band2"] - df["band3"] - df["band1"])
+    excess_green_formula = 2 * df["band2"] - df["band3"] - df["band1"]
 
     Y = 0.16
     osavi_formula = (1 + Y) * (df["band5"] - df["band3"]) / (df["band5"] + df["band3"] + Y)
-    #if load_indeces:
-        #TODO load indeces
+    # if load_indeces:
+    # TODO load indeces
 
     # Check or create columns
     for col, formula in [
@@ -92,7 +94,9 @@ def df_preprocess(df, debug=False, load_indeces=False):
     return df
 
 
-def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None , filter ={}):
+def process_weekly_data_rpv(
+    weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None, filter={}
+):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -127,25 +131,20 @@ def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, 
                 treatment = row.get("trt", None)
                 geometry = row.get("geometry", None)
 
-
-
                 dg = pl.read_parquet(row["paths"])
 
                 if sample_total_dataset is not None:
                     if len(dg) < sample_total_dataset:
-                        dg = dg.sample(sample_total_dataset,with_replacement=True)
+                        dg = dg.sample(sample_total_dataset, with_replacement=True)
                     else:
                         dg = dg.sample(sample_total_dataset)
                 dg = df_preprocess(dg, debug)
 
-
                 if filter:
                     if filter["sign"] == ">":
-                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"] )
+                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"])
                     if filter["sign"] == "<":
                         dg = dg.filter(pl.col(filter["column"]) < filter["threshold"])
-
-
 
                 rpv_result = rpv_fit(dg, n_samples_bins=n_samples_bins, band=band)
                 rho0, k, theta, rc, rmse, nrmse = rpv_result
@@ -217,39 +216,33 @@ def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, 
 
     return results_df
 
+
 def process_stats(dg, path, week, out):
-        try:
-            name = Path(path).stem
-            if (out / "bands_data" / f"panels_{name}.png").exists():
-                logging.info(f"Skipping {name} as it already exists")
-                return
-        except Exception as e:
-            print(e)
+    try:
+        name = Path(path).stem
+        if (out / "bands_data" / f"panels_{name}.png").exists():
+            logging.info(f"Skipping {name} as it already exists")
             return
+    except Exception as e:
+        print(e)
+        return
+
+    plotting_raster(
+        dg,
+        out,
+        path.stem,
+        custom_columuns=["OSAVI", "NDVI", "excess_green"],
+        bands_prefix=None,
+        debug=True,
+        ny=380,
+        nx=630,
+        dpi=500,
+        auto_figsize=True,
+        density_discrete=True,
+    )
 
 
-        plotting_raster(
-            dg,
-            out,
-            path.stem,
-            custom_columuns=["OSAVI", "NDVI", "excess_green"],
-            bands_prefix=None,
-            debug=True,
-            ny=380,
-            nx=630,
-            dpi=500,
-            auto_figsize=True,
-            density_discrete=True,
-        )
-
-
-
-
-
-
-
-
-def process_weekly_data_stats(weeks_dics, out ,debug=False, filter = {}):
+def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
     print(f"\n{'=' * 80}")
     print(f"{'Stats ANALYSIS STARTING':^80}")
     print(f"{'=' * 80}\n")
@@ -274,21 +267,17 @@ def process_weekly_data_stats(weeks_dics, out ,debug=False, filter = {}):
                 treatment = row.get("trt", None)
                 geometry = row.get("geometry", None)
 
-
-
                 dg = pl.read_parquet(row["paths"])
 
                 dg = df_preprocess(dg, debug)
 
-
                 if filter:
                     if filter["sign"] == ">":
-                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"] )
+                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"])
                     if filter["sign"] == "<":
                         dg = dg.filter(pl.col(filter["column"]) < filter["threshold"])
 
-
-                process_stats(dg,path=Path(row["paths"]),week = week , out = out)
+                process_stats(dg, path=Path(row["paths"]), week=week, out=out)
 
                 # Add to results collection with proper types
                 all_results.append(
@@ -322,5 +311,3 @@ def process_weekly_data_stats(weeks_dics, out ,debug=False, filter = {}):
                         "status": f"error: {str(e)[:100]}",
                     }
                 )
-
-
