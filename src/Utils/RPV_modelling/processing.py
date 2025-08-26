@@ -220,7 +220,6 @@ def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, 
 def process_stats(dg, path, week, out):
         try:
             name = Path(path).stem
-            print(path)
             if (out / "bands_data" / f"panels_{name}.png").exists():
                 logging.info(f"Skipping {name} as it already exists")
                 return
