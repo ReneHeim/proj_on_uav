@@ -45,9 +45,7 @@ def df_preprocess(df, debug=False, load_indeces=False):
 
     if "v_norm" in df.columns:
         v_norm = df["v_norm"]
-        assert np.allclose(
-            v_norm, np.sqrt(vx**2 + vy**2 + vz**2), atol=EPS
-        ), "v_norm mismatch"
+        assert np.allclose(v_norm, np.sqrt(vx**2 + vy**2 + vz**2), atol=EPS), "v_norm mismatch"
     else:
         v_norm = np.sqrt(vx**2 + vy**2 + vz**2)
         df = df.with_columns(pl.Series("v_norm", v_norm))
