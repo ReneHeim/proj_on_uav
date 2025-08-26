@@ -1,0 +1,23 @@
+# .github/workflows/version.yml
+name: versioning
+on:
+  push: { branches: [dev] }
+  pull_request: { types: [closed], branches: [main] }
+  workflow_dispatch: { inputs: { major: { type: boolean, default: false } } }
+permissions: { contents: write }
+jobs:
+  bump_and_release:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true || github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+      - run: pip install bump2version build
+      - id: part
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.major }}" = "true" ]; then echo part=major >> $GITHUB_OUTPUT; elif [ "${{ github.event_name }}" = "pull_request" ]; then echo part=minor >> $GITHUB_OUTPUT; else echo part=patch >> $GITHUB_OUTPUT; fi
+      - run: bump2version ${{ steps.part.outputs.part }}
+      - if: github.event_name != 'push'
+        run: python -m build && gh release create "$(git describe --tags --abbrev=0)" dist/* --latest --notes "Automated ${{ steps.part.outputs.part }} release"
+        env: { GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }

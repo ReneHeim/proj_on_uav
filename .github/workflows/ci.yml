@@ -52,7 +52,7 @@ jobs:
     
     - name: Test CLI scripts
       run: |
-        python -m pytest tests/test_smoke.py -v
+        PYTHONPATH=src python -m pytest tests/test_smoke.py -v
     
     - name: Test Makefile targets
       run: |
