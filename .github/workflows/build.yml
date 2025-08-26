@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, dev]
   pull_request:
-    types: [opened, synchronize, closed]  # Added 'closed' type
+    types: [opened, synchronize, closed]
     branches: [main, dev]
 
 env:
@@ -14,7 +14,6 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
-    # Don't run build on closed PRs that aren't merged
     if: |
       github.event_name == 'push' || 
       (github.event_name == 'pull_request' && github.event.action != 'closed') ||
@@ -23,13 +22,31 @@ jobs:
     outputs:
       version: ${{ steps.get_version.outputs.version }}
       has_artifacts: ${{ steps.check_artifacts.outputs.has_artifacts }}
-    steps:
-      # ... (all your existing build steps remain the same) ...
+      is_merge_commit: ${{ steps.check_merge.outputs.is_merge_commit }}
 
+    steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      # NEW: Detect if this is a merge commit
+      - name: Check if merge commit
+        id: check_merge
+        run: |
+          # Check if commit message indicates a PR merge
+          COMMIT_MSG=$(git log -1 --pretty=%s)
+          echo "Commit message: $COMMIT_MSG"
+          
+          if [[ "$COMMIT_MSG" =~ ^Merge\ pull\ request\ #[0-9]+\ from\ .+ ]]; then
+            echo "is_merge_commit=true" >> $GITHUB_OUTPUT
+            echo "This is a PR merge commit"
+          else
+            echo "is_merge_commit=false" >> $GITHUB_OUTPUT
+            echo "This is not a PR merge commit"
+          fi
+
+      # ... (all your existing build steps remain the same) ...
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -171,17 +188,21 @@ jobs:
           
           echo "Build completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
-  # Fixed release job
+  # UPDATED: Release job that handles both PR merges and push events
   release:
     name: Create Release
     runs-on: ubuntu-latest
     needs: build
     if: |
-      github.event_name == 'pull_request' && 
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true && 
-      github.event.pull_request.base.ref == 'main' &&
-      needs.build.outputs.has_artifacts == 'true'
+      needs.build.outputs.has_artifacts == 'true' && (
+        (github.event_name == 'pull_request' && 
+         github.event.action == 'closed' &&
+         github.event.pull_request.merged == true && 
+         github.event.pull_request.base.ref == 'main') ||
+        (github.event_name == 'push' && 
+         github.ref == 'refs/heads/main' &&
+         needs.build.outputs.is_merge_commit == 'true')
+      )
 
     permissions:
       contents: write
@@ -190,6 +211,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download build artifacts
         uses: actions/download-artifact@v4
@@ -197,56 +220,135 @@ jobs:
           name: dist-${{ env.PYTHON_VERSION }}-${{ github.sha }}
           path: dist/
 
-      - name: Generate release notes from PR
+      # NEW: Get PR information for push events
+      - name: Get PR information from merge commit
+        id: pr_info
+        if: github.event_name == 'push'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commitMessage = `${{ github.event.head_commit.message }}`;
+            console.log('Commit message:', commitMessage);
+            
+            // Extract PR number from merge commit message
+            const prMatch = commitMessage.match(/Merge pull request #(\d+) from/);
+            
+            if (prMatch) {
+              const prNumber = parseInt(prMatch[1]);
+              console.log('Found PR number:', prNumber);
+              
+              try {
+                const { data: pr } = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_request_number: prNumber
+                });
+                
+                core.setOutput('pr_number', prNumber);
+                core.setOutput('pr_title', pr.title);
+                core.setOutput('pr_body', pr.body || '');
+                core.setOutput('pr_author', pr.user.login);
+                core.setOutput('pr_merged_at', pr.merged_at);
+                core.setOutput('pr_additions', pr.additions);
+                core.setOutput('pr_deletions', pr.deletions);
+                core.setOutput('pr_changed_files', pr.changed_files);
+                
+                return { found: true, number: prNumber };
+              } catch (error) {
+                console.log('Error fetching PR:', error);
+                return { found: false };
+              }
+            }
+            
+            return { found: false };
+
+      - name: Generate release notes
         id: release_notes
         uses: actions/github-script@v7
         with:
           script: |
-            const pr = context.payload.pull_request;
+            let releaseNotes = '';
             
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pr.number
-            });
-            
-            const reviews = await github.paginate(github.rest.pulls.listReviews, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_request_number: pr.number
-            });
-            
-            let releaseNotes = `## ${pr.title} (#${pr.number})\n\n`;
-            
-            if (pr.body) {
-              releaseNotes += `### Description\n${pr.body}\n\n`;
-            }
-            
-            releaseNotes += `### Pull Request Details\n`;
-            releaseNotes += `- **Author**: @${pr.user.login}\n`;
-            releaseNotes += `- **Merged**: ${pr.merged_at}\n`;
-            releaseNotes += `- **Files changed**: ${pr.changed_files}\n`;
-            releaseNotes += `- **Additions**: +${pr.additions}\n`;
-            releaseNotes += `- **Deletions**: -${pr.deletions}\n\n`;
-            
-            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
-            if (approvedReviews.length > 0) {
-              releaseNotes += `### Reviewers\n`;
-              approvedReviews.forEach(review => {
-                releaseNotes += `- @${review.user.login}\n`;
+            if (context.eventName === 'pull_request') {
+              // Original PR event logic
+              const pr = context.payload.pull_request;
+              
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number
               });
-              releaseNotes += `\n`;
-            }
-            
-            if (comments.length > 0) {
-              releaseNotes += `### Discussion Summary\n`;
-              releaseNotes += `This PR had ${comments.length} comment(s) during review.\n\n`;
+              
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_request_number: pr.number
+              });
+              
+              releaseNotes = `## ${pr.title} (#${pr.number})\n\n`;
+              
+              if (pr.body) {
+                releaseNotes += `### Description\n${pr.body}\n\n`;
+              }
+              
+              releaseNotes += `### Pull Request Details\n`;
+              releaseNotes += `- **Author**: @${pr.user.login}\n`;
+              releaseNotes += `- **Merged**: ${pr.merged_at}\n`;
+              releaseNotes += `- **Files changed**: ${pr.changed_files}\n`;
+              releaseNotes += `- **Additions**: +${pr.additions}\n`;
+              releaseNotes += `- **Deletions**: -${pr.deletions}\n\n`;
+              
+              const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+              if (approvedReviews.length > 0) {
+                releaseNotes += `### Reviewers\n`;
+                approvedReviews.forEach(review => {
+                  releaseNotes += `- @${review.user.login}\n`;
+                });
+                releaseNotes += `\n`;
+              }
+              
+              if (comments.length > 0) {
+                releaseNotes += `### Discussion Summary\n`;
+                releaseNotes += `This PR had ${comments.length} comment(s) during review.\n\n`;
+              }
+            } else {
+              // Push event logic - use PR info from previous step
+              const prNumber = '${{ steps.pr_info.outputs.pr_number }}';
+              const prTitle = '${{ steps.pr_info.outputs.pr_title }}';
+              const prBody = '${{ steps.pr_info.outputs.pr_body }}';
+              const prAuthor = '${{ steps.pr_info.outputs.pr_author }}';
+              const prMergedAt = '${{ steps.pr_info.outputs.pr_merged_at }}';
+              const prAdditions = '${{ steps.pr_info.outputs.pr_additions }}';
+              const prDeletions = '${{ steps.pr_info.outputs.pr_deletions }}';
+              const prChangedFiles = '${{ steps.pr_info.outputs.pr_changed_files }}';
+              
+              if (prNumber) {
+                releaseNotes = `## ${prTitle} (#${prNumber})\n\n`;
+                
+                if (prBody) {
+                  releaseNotes += `### Description\n${prBody}\n\n`;
+                }
+                
+                releaseNotes += `### Pull Request Details\n`;
+                releaseNotes += `- **Author**: @${prAuthor}\n`;
+                releaseNotes += `- **Merged**: ${prMergedAt}\n`;
+                releaseNotes += `- **Files changed**: ${prChangedFiles}\n`;
+                releaseNotes += `- **Additions**: +${prAdditions}\n`;
+                releaseNotes += `- **Deletions**: -${prDeletions}\n\n`;
+              } else {
+                releaseNotes = `## Release from commit ${context.sha.substring(0, 7)}\n\n`;
+                releaseNotes += `### Commit Details\n`;
+                releaseNotes += `- **Message**: ${{ github.event.head_commit.message }}\n`;
+                releaseNotes += `- **Author**: @${{ github.event.head_commit.author.username }}\n`;
+                releaseNotes += `- **Timestamp**: ${{ github.event.head_commit.timestamp }}\n\n`;
+              }
             }
             
             releaseNotes += `### Build Information\n`;
             releaseNotes += `- **Python Version**: ${{ env.PYTHON_VERSION }}\n`;
             releaseNotes += `- **Built on**: ${new Date().toISOString()}\n`;
             releaseNotes += `- **Commit**: ${context.sha}\n`;
+            releaseNotes += `- **Triggered by**: ${context.eventName}\n`;
             
             core.setOutput('notes', releaseNotes);
 
@@ -280,7 +382,13 @@ jobs:
           echo "================================"
           echo "Version: ${{ needs.build.outputs.version }}"
           echo "Tag: v${{ needs.build.outputs.version }}"
-          echo "PR: #${{ github.event.pull_request.number }}"
-          echo "Author: @${{ github.event.pull_request.user.login }}"
+          echo "Triggered by: ${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "PR: #${{ steps.pr_info.outputs.pr_number }}"
+            echo "Author: @${{ steps.pr_info.outputs.pr_author }}"
+          else
+            echo "PR: #${{ github.event.pull_request.number }}"
+            echo "Author: @${{ github.event.pull_request.user.login }}"
+          fi
           echo "Files included:"
           ls -la dist/
