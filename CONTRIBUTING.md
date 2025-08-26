@@ -2,8 +2,6 @@
 
 Thank you for your interest in contributing to this project! This document provides guidelines and information for contributors.
 
-current version = 0.2.1
-
 
 ## Table of Contents
 

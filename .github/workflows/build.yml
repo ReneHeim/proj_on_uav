@@ -13,9 +13,14 @@ jobs:
   build:
     name: Build Package
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      has_artifacts: ${{ steps.check_artifacts.outputs.has_artifacts }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for version detection
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
@@ -94,6 +99,46 @@ jobs:
               print('Package import test: ERROR -', e)
           "
 
+      - name: Get package version
+        id: get_version
+        run: |
+          # Try to get version from different sources
+          VERSION=""
+          
+          # Method 1: From setup.py/pyproject.toml
+          if [ -f "pyproject.toml" ]; then
+            VERSION=$(grep -E '^version = ' pyproject.toml | sed 's/version = "\(.*\)"/\1/' | head -1)
+          elif [ -f "setup.py" ]; then
+            VERSION=$(python setup.py --version 2>/dev/null || echo "")
+          fi
+          
+          # Method 2: From git tags
+          if [ -z "$VERSION" ]; then
+            VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "")
+          fi
+          
+          # Method 3: From .bumpversion.cfg
+          if [ -z "$VERSION" ] && [ -f ".bumpversion.cfg" ]; then
+            VERSION=$(grep "current_version" .bumpversion.cfg | cut -d'=' -f2 | tr -d ' ')
+          fi
+          
+          # Fallback: Use date-based version
+          if [ -z "$VERSION" ]; then
+            VERSION="$(date +%Y.%m.%d)-$(git rev-parse --short HEAD)"
+          fi
+          
+          echo "Detected version: $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check artifacts
+        id: check_artifacts
+        run: |
+          if [ -d "dist" ] && [ -n "$(ls -A dist)" ]; then
+            echo "has_artifacts=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_artifacts=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -121,3 +166,126 @@ jobs:
           fi
           
           echo "Build completed at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+
+  # NEW: Release job that runs after successful build on PR merge
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      github.event_name == 'pull_request' && 
+      github.event.pull_request.merged == true && 
+      github.event.pull_request.base.ref == 'main' &&
+      needs.build.outputs.has_artifacts == 'true'
+
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-${{ env.PYTHON_VERSION }}-${{ github.sha }}
+          path: dist/
+
+      - name: Generate release notes from PR
+        id: release_notes
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            
+            // Get PR comments
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number
+            });
+            
+            // Get PR reviews
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_request_number: pr.number
+            });
+            
+            // Build release notes
+            let releaseNotes = `## ${pr.title} (#${pr.number})\n\n`;
+            
+            if (pr.body) {
+              releaseNotes += `### Description\n${pr.body}\n\n`;
+            }
+            
+            // Add PR metadata
+            releaseNotes += `### Pull Request Details\n`;
+            releaseNotes += `- **Author**: @${pr.user.login}\n`;
+            releaseNotes += `- **Merged**: ${pr.merged_at}\n`;
+            releaseNotes += `- **Files changed**: ${pr.changed_files}\n`;
+            releaseNotes += `- **Additions**: +${pr.additions}\n`;
+            releaseNotes += `- **Deletions**: -${pr.deletions}\n\n`;
+            
+            // Add reviewers if any
+            const approvedReviews = reviews.filter(review => review.state === 'APPROVED');
+            if (approvedReviews.length > 0) {
+              releaseNotes += `### Reviewers\n`;
+              approvedReviews.forEach(review => {
+                releaseNotes += `- @${review.user.login}\n`;
+              });
+              releaseNotes += `\n`;
+            }
+            
+            // Add comments summary if any
+            if (comments.length > 0) {
+              releaseNotes += `### Discussion Summary\n`;
+              releaseNotes += `This PR had ${comments.length} comment(s) during review.\n\n`;
+            }
+            
+            // Add build info
+            releaseNotes += `### Build Information\n`;
+            releaseNotes += `- **Python Version**: ${{ env.PYTHON_VERSION }}\n`;
+            releaseNotes += `- **Built on**: ${new Date().toISOString()}\n`;
+            releaseNotes += `- **Commit**: ${context.sha}\n`;
+            
+            core.setOutput('notes', releaseNotes);
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          TAG_NAME="v$VERSION"
+          
+          # Create and push tag if it doesn't exist
+          if ! git tag -l | grep -q "^$TAG_NAME$"; then
+            git config --local user.name "github-actions[bot]"
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git tag "$TAG_NAME"
+            git push origin "$TAG_NAME"
+          fi
+          
+          # Save release notes to file
+          cat << 'EOF' > release_notes.md
+          ${{ steps.release_notes.outputs.notes }}
+          EOF
+          
+          # Create release with artifacts
+          gh release create "$TAG_NAME" \
+            --title "Release $VERSION" \
+            --notes-file release_notes.md \
+            --latest \
+            dist/*
+
+      - name: Release summary
+        run: |
+          echo "Release Created Successfully!"
+          echo "================================"
+          echo "Version: ${{ needs.build.outputs.version }}"
+          echo "Tag: v${{ needs.build.outputs.version }}"
+          echo "PR: #${{ github.event.pull_request.number }}"
+          echo "Author: @${{ github.event.pull_request.user.login }}"
+          echo "Files included:"
+          ls -la dist/
