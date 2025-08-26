@@ -13,9 +13,9 @@ setup(
     install_requires=[],
     entry_points={
         "console_scripts": [
-            "uav-extract=src.main_extract:main",
-            "uav-filter=src.filtering:main",
-            "uav-rpv=src.rpv_modelling:main",
+            "uav-extract=main_extract:main",
+            "uav-filter=filtering:main",
+            "uav-rpv=rpv_modelling:main",
         ],
     },
 )

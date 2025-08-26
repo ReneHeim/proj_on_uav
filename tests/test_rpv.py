@@ -1,7 +1,7 @@
 import polars as pl
 
-from src.Util.processing import df_preprocess
-from src.Common.rpv import rpv_fit
+from src.Utils.RPV_modelling.processing import df_preprocess
+from src.Utils.RPV_modelling.rpv import rpv_fit
 
 
 def test_rpv_preprocess_and_fit():

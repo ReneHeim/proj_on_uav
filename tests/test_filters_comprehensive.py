@@ -3,7 +3,6 @@ Comprehensive unit tests for the filters module.
 Tests all functions including plotting and masking capabilities.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -11,7 +10,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from src.Common.filters import (
+from src.Utils.filtering.filters import (
     OSAVI_index_filtering,
     add_mask_and_plot,
     excess_green_filter,

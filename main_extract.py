@@ -11,7 +11,7 @@ from pathlib import Path
 def main():
     """Entry point for the uav-extract command."""
     # Import the main function from the script file
-    script_path = Path(__file__).parent / "01_main_extract_data.py"
+    script_path = Path(__file__).parent / "pipeline_extract_data.py"
     spec = importlib.util.spec_from_file_location("main_extract_script", script_path)
     module = importlib.util.module_from_spec(spec)
     sys.modules["main_extract_script"] = module

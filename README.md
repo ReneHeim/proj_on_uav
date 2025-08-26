@@ -74,25 +74,25 @@ This repository provides a Python pipeline to extract multi-angular reflectance 
 #### Step 1: Extract Data
 ```bash
 # Extract per-pixel data from orthophotos and DEM
-python src/01_main_extract_data.py --config my_config.yml
+python src/pipeline_extract_data.py --config my_config.yml
 
 # With optional co-registration
-python src/01_main_extract_data.py --config my_config.yml --alignment
+python src/pipeline_extract_data.py --config my_config.yml --alignment
 
 # Without polygon filtering
-python src/01_main_extract_data.py --config my_config.yml --no-polygon
+python src/pipeline_extract_data.py --config my_config.yml --no-polygon
 ```
 
 #### Step 2: Apply Filters
 ```bash
 # Apply spectral filters and split by polygon
-python src/02_filtering.py --config my_config.yml
+python src/pipeline_filtering.py --config my_config.yml
 ```
 
 #### Step 3: Fit RPV Models
 ```bash
 # Fit RPV models for a specific band
-python src/03_RPV_modelling.py --config my_config.yml --band band1
+python src/pipeline_RPV_modelling.py --config my_config.yml --band band1
 ```
 
 #### Using Makefile (Alternative)

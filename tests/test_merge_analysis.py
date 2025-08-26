@@ -1,6 +1,6 @@
 import polars as pl
 
-from src.Common.merge_analysis import analyze_kdtree_matching
+from src.Utils.extract_data.merge_analysis import analyze_kdtree_matching
 
 
 def test_kdtree_matching_no_crash():

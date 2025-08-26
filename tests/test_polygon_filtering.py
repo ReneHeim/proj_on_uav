@@ -2,7 +2,7 @@ import geopandas as gpd
 import polars as pl
 from shapely.geometry import Polygon
 
-from src.Common.polygon_filtering import check_data_polygon_overlap
+from src.Utils.extract_data.polygon_filtering import check_data_polygon_overlap
 
 
 def test_overlap_detection():
