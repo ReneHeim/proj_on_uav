@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from src.Common.date_time import convert_to_timezone
+from src.Utils.extract_data.date_time import convert_to_timezone
 
 
 def test_convert_to_timezone_offsets():

@@ -407,6 +407,46 @@ def _auto_coarsen_for_occupancy(
     min_bins: int,
     debug: bool,
 ) -> Tuple[int, int, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Automatically coarsens the 2D binning configuration to meet a specified occupancy
+    target by iteratively reducing the number of bins. The occupancy target represents
+    the fraction of non-zero bins among all bins. By adjusting the bin sizes, this
+    function ensures the desired occupancy is fulfilled if feasible.
+
+    Parameters:
+    x : np.ndarray
+        Array of x-coordinates for the data points to be binned.
+    y : np.ndarray
+        Array of y-coordinates for the data points to be binned.
+    xmin : float
+        Minimum bound for the x-axis range.
+    xmax : float
+        Maximum bound for the x-axis range.
+    ymin : float
+        Minimum bound for the y-axis range.
+    ymax : float
+        Maximum bound for the y-axis range.
+    nx : int
+        Initial number of bins along the x-axis.
+    ny : int
+        Initial number of bins along the y-axis.
+    occupancy_target : Optional[float]
+        Target fraction of non-zero bins, between 0 and 1. If None or invalid,
+        no coarsening is applied.
+    min_bins : int
+        Minimum number of bins allowed along any axis during the coarsening process.
+    debug : bool
+        If True, provides detailed logging of the coarsening steps.
+
+    Returns:
+    Tuple[int, int, np.ndarray, np.ndarray, np.ndarray]
+        A tuple containing:
+        - Final number of bins along the x-axis.
+        - Final number of bins along the y-axis.
+        - Array of x-axis bin edges (xbins).
+        - Array of y-axis bin edges (ybins).
+        - 2D array of bin counts after coarsening.
+    """
     xbins, ybins = _make_bins(xmin, xmax, ymin, ymax, nx, ny)
     counts_all = _counts2d(x, y, xbins, ybins)
     if occupancy_target is None or occupancy_target <= 0 or occupancy_target > 1:
@@ -451,6 +491,31 @@ def _grid_mean_for_series(
     debug: bool,
     name: str,
 ) -> np.ndarray:
+    """
+    Compute a 2D grid of mean values from a given series based on provided coordinate masks,
+    bins, and additional parameters.
+
+    This function processes a numerical series, filters its values according to a given
+    coordinate mask, and calculates a 2D grid of means for the masked values. The grid is
+    constructed using histogram bin edges in both x and y dimensions. If specified, this
+    function can also fill empty bins in the grid using a neighborhood-based approach. Debugging
+    information can be logged by enabling the debug flag.
+
+    Parameters:
+        series (pd.Series): Input data series to process.
+        m_coord (np.ndarray): Boolean mask indicating which coordinates from the series to consider.
+        x (np.ndarray): Array containing x-coordinates corresponding to the series data.
+        y (np.ndarray): Array containing y-coordinates corresponding to the series data.
+        xbins (np.ndarray): Array defining the edges of bins along the x axis.
+        ybins (np.ndarray): Array defining the edges of bins along the y axis.
+        counts_all (np.ndarray): Array representing existing counts for all bins.
+        fill_empty (bool): Flag indicating whether empty bins should be filled based on a uniform filter.
+        debug (bool): Flag to enable detailed debug logging.
+        name (str): Name used in debug logging to identify the operation context.
+
+    Returns:
+        np.ndarray: 2D grid of mean values calculated based on the input data and coordinates.
+    """
     v_full = series.to_numpy()
     v = v_full[m_coord]
     vm = np.isfinite(v)
@@ -854,6 +919,7 @@ def plotting_raster(
     path: str,
     file_name: str,
     bands_prefix: str = "band",
+    custom_columuns: Optional[list] = None,
     nx: int = 1500,
     ny: int = 1500,
     max_bands: int = 6,
@@ -897,6 +963,7 @@ def plotting_raster(
     - scatter_quicklook_<file_name>.png (optional)
     - band_kde_<file_name>.png (optional)
     """
+
     # Setup and validation
     outdir = _ensure_outdir(path)
     if debug:
@@ -947,12 +1014,6 @@ def plotting_raster(
         x, y, xmin, xmax, ymin, ymax, nx, ny, occupancy_target, min_bins, debug
     )
 
-    # Bands to process
-    bands = [c for c in df_merged.columns if isinstance(c, str) and c.startswith(bands_prefix)]
-    bands = bands[:max_bands]
-    if debug:
-        logging.info(f"[plotting_raster] Bands discovered (limited to {max_bands}): {bands}")
-
     # Panels: density (optional), band means, elevation
     panels: List[Tuple[str, np.ndarray, Dict[str, Any]]] = []
 
@@ -980,23 +1041,50 @@ def plotting_raster(
         panels.append((title, dens, dens_kw))
 
     # Compute band grids
-    for b in bands:
-        try:
-            grid = _grid_mean_for_series(
-                df_merged[b],
-                m_coord,
-                x,
-                y,
-                xbins,
-                ybins,
-                counts_all,
-                fill_empty=fill_empty,
-                debug=debug,
-                name=b,
-            )
-            panels.append((b, grid, dict(cmap="viridis")))
-        except Exception as e:
-            logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
+
+    # Bands to process
+    if bands_prefix is not None:
+        bands = [c for c in df_merged.columns if isinstance(c, str) and c.startswith(bands_prefix)]
+        bands = bands[:max_bands]
+        if debug:
+            logging.info(f"[plotting_raster] Bands discovered (limited to {max_bands}): {bands}")
+
+        for b in bands:
+            try:
+                grid = _grid_mean_for_series(
+                    df_merged[b],
+                    m_coord,
+                    x,
+                    y,
+                    xbins,
+                    ybins,
+                    counts_all,
+                    fill_empty=fill_empty,
+                    debug=debug,
+                    name=b,
+                )
+                panels.append((b, grid, dict(cmap="viridis")))
+            except Exception as e:
+                logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
+    if custom_columuns is not None:
+        for b in custom_columuns:
+            try:
+                grid = _grid_mean_for_series(
+                    df_merged[b],
+                    m_coord,
+                    x,
+                    y,
+                    xbins,
+                    ybins,
+                    counts_all,
+                    fill_empty=fill_empty,
+                    debug=debug,
+                    name=b,
+                )
+                panels.append((b, grid, dict(cmap="viridis")))
+            except Exception as e:
+                logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
+
 
     # Elevation panel
     if "elev" in df_merged.columns:
@@ -1055,11 +1143,13 @@ def plotting_raster(
         )
 
     # Band histograms
-    hist_path = os.path.join(outdir, f"band_distributions_{file_name}.png")
-    _band_histograms(df_merged, bands, m_coord, hist_path, clip, dpi, debug)
+    if bands_prefix is not None:
+        hist_path = os.path.join(outdir, f"band_distributions_{file_name}.png")
+        _band_histograms(df_merged, bands, m_coord, hist_path, clip, dpi, debug)
+
 
     # Optional combined band KDE chart
-    if band_kde:
+    if band_kde and bands_prefix is not None:
         kde_path = os.path.join(outdir, f"band_kde_{file_name}.png")
         _band_kde_plot(
             df_merged,

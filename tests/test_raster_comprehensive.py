@@ -4,7 +4,6 @@ Tests coordinate transformations, raster operations, and alignment functions.
 """
 
 import math
-import os
 import tempfile
 from pathlib import Path
 
@@ -15,7 +14,7 @@ import rasterio as rio
 from pyproj import Transformer
 from rasterio.transform import from_bounds
 
-from src.Common.raster import (
+from src.Utils.extract_data.raster import (
     check_alignment,
     coregister_and_resample,
     latlon_to_utm32n_series,

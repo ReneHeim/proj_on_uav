@@ -3,7 +3,6 @@ Comprehensive unit tests for the data_loader module.
 Tests polygon-based data loading and splitting functionality.
 """
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -12,7 +11,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from src.Common.data_loader import load_by_polygon
+from src.Utils.filtering.data_loader import load_by_polygon
 
 
 class TestDataLoader:

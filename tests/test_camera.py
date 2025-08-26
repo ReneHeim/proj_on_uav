@@ -1,6 +1,6 @@
 import polars as pl
 
-from src.Common.camera import calculate_angles
+from src.Utils.extract_data.camera import calculate_angles
 
 
 def test_calculate_angles_basic():

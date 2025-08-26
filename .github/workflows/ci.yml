@@ -44,11 +44,11 @@ jobs:
     
     - name: Run unit tests with coverage
       run: |
-        python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
-    
+        PYTHONPATH=src python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+
     - name: Run E2E tests
       run: |
-        python -m pytest tests/e2e/ -v --tb=short
+        PYTHONPATH=src python -m pytest tests/e2e/ -v --tb=short
     
     - name: Test CLI scripts
       run: |

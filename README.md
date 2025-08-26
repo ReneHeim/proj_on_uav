@@ -23,9 +23,7 @@ This repository provides a Python pipeline to extract multi-angular reflectance 
 ### Prerequisites
 
 - Python 3.10 or higher
-- [Agisoft Metashape Professional](https://www.agisoft.com/) (for data preprocessing)
-- [ExifTool](https://exiftool.org/) (for EXIF data extraction)
-
+- [Agisoft Metashape Professional](https://www.agisoft.com/) (for ortophoto alignment)
 ### Installation
 
 1. **Clone the repository:**
@@ -68,31 +66,71 @@ This repository provides a Python pipeline to extract multi-angular reflectance 
        orthophoto_path: "{base_path}/orthophotos/*.tif"
        # ... other paths
    ```
+   
+## Input Data Requirements
+
+### Required Files
+- **DEM**: Digital Elevation Model as GeoTIFF
+- **Orthophotos**: Multi-band orthophotos as GeoTIFF files
+- **Camera positions**: Text file with camera metadata
+- **Polygon file**: GeoPackage with plot boundaries
+- **Ground truth coordinates**: CSV with sample locations
+
+### Data Format
+- **Orthophotos**: Multi-band GeoTIFF (typically 5 bands)
+- **DEM**: Single-band GeoTIFF with same extent as orthophotos
+- **Camera file**: Tab-separated with columns: PhotoID, X, Y, Z, Omega, Phi, Kappa, etc.
+- **Polygons**: GeoPackage (.gpkg) with plot geometries
+- **Coordinates**: CSV with columns: id, lon, lat
+
+## Output
+
+### Generated Files
+- **Parquet files**: Per-image extracted data with reflectance and geometry
+- **Filtered data**: Spectral-filtered datasets split by polygon
+- **RPV results**: CSV files with fitted RPV parameters per plot and week
+- **Plots**: Visualization of angles, bands, and filtering results
+
+### Output Structure
+```
+output/
+├── extract/              # Extracted per-pixel data
+│   ├── IMG_0001_0.tif.parquet
+│   └── ...
+├── plots/                # Generated plots
+│   ├── angles_data/      # Viewing angle plots
+│   ├── bands_data/       # Band reflectance plots
+│   └── ...
+└── RPV_Results/          # RPV model results
+    └── V5/
+        └── rpv_week1_band1_results.csv
+```
+
 
 ### Usage
 
 #### Step 1: Extract Data
 ```bash
 # Extract per-pixel data from orthophotos and DEM
-python src/01_main_extract_data.py --config my_config.yml
+python src/pipeline_extract_data.py --config my_config.yml
 
 # With optional co-registration
-python src/01_main_extract_data.py --config my_config.yml --alignment
+python src/pipeline_extract_data.py --config my_config.yml --alignment
 
 # Without polygon filtering
-python src/01_main_extract_data.py --config my_config.yml --no-polygon
+python src/pipeline_extract_data.py --config my_config.yml --no-polygon
 ```
 
 #### Step 2: Apply Filters
 ```bash
 # Apply spectral filters and split by polygon
-python src/02_filtering.py --config my_config.yml
+python src/pipeline_filtering.py --config my_config.yml
 ```
 
 #### Step 3: Fit RPV Models
 ```bash
 # Fit RPV models for a specific band
-python src/03_RPV_modelling.py --config my_config.yml --band band1
+python src/pipeline_RPV_modelling.py --config my_config.yml --band band1
 ```
 
 #### Using Makefile (Alternative)
@@ -152,44 +190,6 @@ proj_on_uav/
 └── README.md             # This file
 ```
 
-## Input Data Requirements
-
-### Required Files
-- **DEM**: Digital Elevation Model as GeoTIFF
-- **Orthophotos**: Multi-band orthophotos as GeoTIFF files
-- **Camera positions**: Text file with camera metadata
-- **Polygon file**: GeoPackage with plot boundaries
-- **Ground truth coordinates**: CSV with sample locations
-
-### Data Format
-- **Orthophotos**: Multi-band GeoTIFF (typically 5 bands)
-- **DEM**: Single-band GeoTIFF with same extent as orthophotos
-- **Camera file**: Tab-separated with columns: PhotoID, X, Y, Z, Omega, Phi, Kappa, etc.
-- **Polygons**: GeoPackage (.gpkg) with plot geometries
-- **Coordinates**: CSV with columns: id, lon, lat
-
-## Output
-
-### Generated Files
-- **Parquet files**: Per-image extracted data with reflectance and geometry
-- **Filtered data**: Spectral-filtered datasets split by polygon
-- **RPV results**: CSV files with fitted RPV parameters per plot and week
-- **Plots**: Visualization of angles, bands, and filtering results
-
-### Output Structure
-```
-output/
-├── extract/              # Extracted per-pixel data
-│   ├── IMG_0001_0.tif.parquet
-│   └── ...
-├── plots/                # Generated plots
-│   ├── angles_data/      # Viewing angle plots
-│   ├── bands_data/       # Band reflectance plots
-│   └── ...
-└── RPV_Results/          # RPV model results
-    └── V5/
-        └── rpv_week1_band1_results.csv
-```
 
 ## Contributing
 

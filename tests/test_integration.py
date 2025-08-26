@@ -140,7 +140,7 @@ def test_complete_pipeline_integration():
 
         # Step 1: Extract data
         proc = subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
+            ["python", "-m", "main_extract", "--config", str(config_path)],
             capture_output=True,
             text=True,
         )
@@ -152,7 +152,7 @@ def test_complete_pipeline_integration():
 
         # Step 2: Apply filtering
         proc = subprocess.run(
-            ["python", "-m", "src.02_filtering", "--config", str(config_path)],
+            ["python", "-m", "filtering", "--config", str(config_path)],
             capture_output=True,
             text=True,
         )
@@ -163,7 +163,7 @@ def test_complete_pipeline_integration():
             [
                 "python",
                 "-m",
-                "src.03_RPV_modelling",
+                "rpv_modelling",
                 "--config",
                 str(config_path),
                 "--band",
@@ -185,7 +185,7 @@ def test_data_flow_validation():
 
         # Run extraction
         subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
+            ["python", "-m", "main_extract", "--config", str(config_path)],
             capture_output=True,
             check=True,
         )
@@ -216,7 +216,7 @@ def test_error_handling():
 
         # Test with missing config file
         proc = subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", "nonexistent.yml"],
+            ["python", "-m", "main_extract", "--config", "nonexistent.yml"],
             capture_output=True,
             text=True,
         )
@@ -227,7 +227,7 @@ def test_error_handling():
         invalid_config.write_text("invalid: yaml: content")
 
         proc = subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", str(invalid_config)],
+            ["python", "-m", "main_extract", "--config", str(invalid_config)],
             capture_output=True,
             text=True,
         )
@@ -252,7 +252,7 @@ def test_memory_efficiency():
 
         # Run extraction
         subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
+            ["python", "-m", "main_extract", "--config", str(config_path)],
             capture_output=True,
             check=True,
         )

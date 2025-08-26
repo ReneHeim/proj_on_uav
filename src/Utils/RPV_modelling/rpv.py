@@ -16,7 +16,7 @@ def rpv_2(angle_pack, rho0, k, theta, rc=1.0):
     return rho0 * (cs**(k-1)) * (cv**(k-1)) * (cs + cv)**(k - 1) * F * hot
 
 
-def rpv_2(angle_pack, rho0, k, theta, rc=1.0):  # 1  keep hotspot neutral
+def rpv_1(angle_pack, rho0, k, theta, rc=1.0):
     s, v, dphi = np.radians(angle_pack)
     cs, cv = np.cos(s), np.cos(v)
     sin_s, sin_v = np.sin(s), np.sin(v)
@@ -69,13 +69,11 @@ def rpv_fit(df, band, n_samples_bins):
     sza, vza, raa, R = [df_fit[col].to_numpy() for col in ["sza", "vza", "raa", band]]
     mask = np.isfinite(sza) & np.isfinite(vza) & np.isfinite(raa) & np.isfinite(R)
 
-    k_prior, lam = 1, 0.5
 
     def resid(pars, sza, vza, raa, R):
         rho0, k, theta = pars
         data_err = rpv_2((sza, vza, raa), rho0, k, theta) - R
-        prior_err = np.sqrt(lam) * (k - k_prior)
-        return np.concatenate([data_err, [prior_err]])
+        return np.hstack([data_err])
 
     p0 = [np.median(R), 0.1, 0]
     bounds = ([1e-3, 0.0, -1], [2, 3, 1])

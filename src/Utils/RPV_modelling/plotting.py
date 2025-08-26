@@ -1,19 +1,12 @@
-
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
 import polars as pl
 from pathlib import Path
-from src.Common.raster import plotting_raster
+from src.Utils.extract_data.raster import plotting_raster
 import logging
 
 
 
 def plot_df(week, gdf, out_dir):
-
     for path in list(gdf["paths"]):
-
-
         try:
             name = Path(path).stem
             if (out_dir / "bands_data" / f"panels_{name}.png").exists():

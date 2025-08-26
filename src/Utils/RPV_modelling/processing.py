@@ -1,16 +1,26 @@
 import logging
 import time
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import polars as pl
 from tqdm import tqdm
 
-from src.Common.rpv import rpv_fit
+from src.Utils.extract_data.raster import plotting_raster
+from src.Utils.RPV_modelling.rpv import rpv_fit
 
 
-def rpv_df_preprocess(df, debug=False):
+def df_preprocess(df, debug=False, load_indeces=False):
     EPS = 1e-2  # Tolerance for floating point comparison
+
+    #Drop NaN and nulls
+    len_before = len(df)
+    df = df.fill_nan(None)
+    df = df.drop_nulls()
+    logging.info(f"Dropped {len_before - len(df)} NaN and nulls the: {round((len_before - len(df))/len_before * 100,3)} %")
+
+
 
     if "vx" in df.columns:
         vx = df["vx"]
@@ -43,7 +53,12 @@ def rpv_df_preprocess(df, debug=False):
     # Formulas as expressions
     cos_vza = (df["vz"] / (df["v_norm"] + 1e-12)).clip(-1.0, 1.0)  # 1  guard /0 and range
     vza_formula = np.degrees(np.arccos(cos_vza))
-    vaa_formula = np.degrees(np.arctan2(df["vx"], df["vy"])) % 360
+    vaa_formula = np.where(
+        (df["vx"].to_numpy() == 0) & (df["vy"].to_numpy() == 0),
+        np.nan,
+        np.degrees(np.arctan2(df["vx"].to_numpy(), df["vy"].to_numpy())) % 360
+    )
+
     sza_formula = 90 - df["sunelev"]
 
     raa_formula = np.abs(df["saa"] - vaa_formula) % 360
@@ -55,6 +70,8 @@ def rpv_df_preprocess(df, debug=False):
 
     Y = 0.16
     osavi_formula = (1 + Y) * (df["band5"] - df["band3"]) / (df["band5"] + df["band3"] + Y)
+    #if load_indeces:
+        #TODO load indeces
 
     # Check or create columns
     for col, formula in [
@@ -64,7 +81,7 @@ def rpv_df_preprocess(df, debug=False):
         ("NDVI", ndvi_formula),
         ("raa", raa_formula),
         ("excess_green", excess_green_formula),
-        ("osavi", osavi_formula),
+        ("OSAVI", osavi_formula),
     ]:
         if col in df.columns and debug == True:
             if not np.allclose(df[col], formula, atol=EPS):
@@ -75,7 +92,7 @@ def rpv_df_preprocess(df, debug=False):
     return df
 
 
-def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None , filter ={}):
+def process_weekly_data_rpv(weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None , filter ={}):
     """
     Process RPV data for each week and return results as a Polars DataFrame
 
@@ -119,7 +136,7 @@ def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=5000, samp
                         dg = dg.sample(sample_total_dataset,with_replacement=True)
                     else:
                         dg = dg.sample(sample_total_dataset)
-                dg = rpv_df_preprocess(dg, debug)
+                dg = df_preprocess(dg, debug)
 
 
                 if filter:
@@ -199,3 +216,111 @@ def process_weekly_data(weeks_dics, band, debug=False, n_samples_bins=5000, samp
         print(results_df.head(5))
 
     return results_df
+
+def process_stats(dg, path, week, out):
+        try:
+            name = Path(path).stem
+            if (out / "bands_data" / f"panels_{name}.png").exists():
+                logging.info(f"Skipping {name} as it already exists")
+                return
+        except Exception as e:
+            print(e)
+            return
+
+
+        plotting_raster(
+            dg,
+            out,
+            path.stem,
+            custom_columuns=["OSAVI", "NDVI", "excess_green"],
+            bands_prefix=None,
+            debug=True,
+            ny=380,
+            nx=630,
+            dpi=500,
+            auto_figsize=True,
+            density_discrete=True,
+        )
+
+
+
+
+
+
+
+
+def process_weekly_data_stats(weeks_dics, out ,debug=False, filter = {}):
+    print(f"\n{'=' * 80}")
+    print(f"{'Stats ANALYSIS STARTING':^80}")
+    print(f"{'=' * 80}\n")
+
+    # Create a list to collect all results
+    all_results = []
+    total_plots = sum(len(gdf) for gdf in weeks_dics.values())
+
+    print(f"Total plots to process: {total_plots}\n")
+    start_time = time.time()
+
+    # Process each week
+    for week, gdf in weeks_dics.items():
+        print(f"\nProcessing {week.upper()} - {len(gdf)} plots")
+
+        # Process each plot with a progress bar
+        for row in tqdm(gdf.to_dicts(), desc=f"{week}", ncols=80):
+            try:
+                # Extract plot information
+                plot_id = row.get("ifz_id", None)
+                cult = row.get("cult", None)
+                treatment = row.get("trt", None)
+                geometry = row.get("geometry", None)
+
+
+
+                dg = pl.read_parquet(row["paths"])
+
+                dg = df_preprocess(dg, debug)
+
+
+                if filter:
+                    if filter["sign"] == ">":
+                        dg = dg.filter(pl.col(filter["column"]) > filter["threshold"] )
+                    if filter["sign"] == "<":
+                        dg = dg.filter(pl.col(filter["column"]) < filter["threshold"])
+
+
+                process_stats(dg,path=Path(row["paths"]),week = week , out = out)
+
+                # Add to results collection with proper types
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": "success",
+                    }
+                )
+            except Exception as e:
+                logging.warning(f"Error processing week {week}: {e}")
+                all_results.append(
+                    {
+                        "week": str(week) if week is not None else None,
+                        "plot_id": (
+                            int(plot_id)
+                            if isinstance(plot_id, (int, str, float)) and plot_id is not None
+                            else None
+                        ),
+                        "cultivar": str(cult) if cult is not None else None,
+                        "treatment": str(treatment) if treatment is not None else None,
+                        "geometry": str(geometry) if geometry is not None else None,
+                        "processed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "status": f"error: {str(e)[:100]}",
+                    }
+                )
+
+
