@@ -140,7 +140,7 @@ def test_complete_pipeline_integration():
 
         # Step 1: Extract data
         proc = subprocess.run(
-            ["python", "-m", "src.01_main_extract_data", "--config", str(config_path)],
+            ["python", "-m", "main_extract", "--config", str(config_path)],
             capture_output=True,
             text=True,
         )
