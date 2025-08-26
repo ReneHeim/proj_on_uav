@@ -8,7 +8,7 @@
 ## Overview
 
 This repository provides a Python pipeline to extract multi-angular reflectance and geometry from UAV orthophotos, filter data spatially using polygons, and fit RPV models per plot and week.
-current version: 0.2.8
+current version: 0.2.9
 
 ## Features
 
@@ -37,7 +37,7 @@ current version: 0.2.8
    ```bash
    # Using pip
    pip install -r requirements.txt
-   
+
    # Or using the Makefile
    make install
    ```
@@ -67,7 +67,7 @@ current version: 0.2.8
        orthophoto_path: "{base_path}/orthophotos/*.tif"
        # ... other paths
    ```
-   
+
 ## Input Data Requirements
 
 ### Required Files
@@ -236,9 +236,9 @@ python -m pytest
 If you use this software in your research, please cite:
 
 ```
-Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024). 
-An applied framework to unlocking multi‑angular UAV reflectance data: 
-A case study for classification of plant parameters in maize (Zea mays). 
+Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024).
+An applied framework to unlocking multi‑angular UAV reflectance data:
+A case study for classification of plant parameters in maize (Zea mays).
 Precision Agriculture. (accepted)
 ```
 

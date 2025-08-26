@@ -90,7 +90,7 @@ We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with some modificat
   ```python
   from typing import List, Optional, Union
   from pathlib import Path
-  
+
   def process_data(
       input_path: Union[str, Path],
       output_dir: Optional[Path] = None
@@ -110,14 +110,14 @@ We follow [PEP 8](https://www.python.org/dev/peps/pep-0008/) with some modificat
       solar_angles: tuple[float, float]
   ) -> np.ndarray:
       """Calculate reflectance from band data and solar angles.
-      
+
       Args:
           band_data: Input band data array
           solar_angles: Tuple of (elevation, azimuth) angles in degrees
-          
+
       Returns:
           Reflectance values array
-          
+
       Raises:
           ValueError: If solar angles are invalid
       """
@@ -140,13 +140,13 @@ from pathlib import Path
 
 class TestDataExtraction:
     """Test data extraction functionality."""
-    
+
     def test_extract_single_band(self, sample_data):
         """Test extraction of single band data."""
         result = extract_band(sample_data, band=1)
         assert result.shape == (100, 100)
         assert result.dtype == np.float32
-    
+
     def test_extract_invalid_band(self, sample_data):
         """Test extraction with invalid band number."""
         with pytest.raises(ValueError, match="Invalid band"):
@@ -197,11 +197,11 @@ git checkout -b feature/your-feature-name
 - Follow the conventional commit format:
   ```
   type(scope): description
-  
+
   [optional body]
   [optional footer]
   ```
-  
+
   Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
 
 ### 3. Test Your Changes

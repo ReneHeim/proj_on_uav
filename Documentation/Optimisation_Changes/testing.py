@@ -20,7 +20,6 @@ spatial_index = index.Index()
 poly_geometries = {}
 
 for idx, polygon in enumerate(polygons_gdf.geometry):
-
     spatial_index.insert(idx, polygon.bounds)  # Insert the polygon's bounding box into the index
 
     poly_geometries[idx] = polygon
@@ -39,13 +38,10 @@ intersecting_rasters = []
 # Iterate over raster files and check intersections
 
 for raster_file in os.listdir(raster_folder):
-
     if raster_file.endswith((".tif", ".img")):
-
         raster_path = os.path.join(raster_folder, raster_file)
 
         with rasterio.open(raster_path) as src:
-
             # Get the raster bounds as a Shapely box
 
             raster_bounds = box(*src.bounds)
@@ -57,9 +53,7 @@ for raster_file in os.listdir(raster_folder):
             # Check precise intersection with candidate polygons
 
             for idx in candidate_polygons:
-
                 if raster_bounds.intersects(poly_geometries[idx]):
-
                     intersecting_rasters.append(raster_file)
 
                     break  # No need to check other polygons for this raster

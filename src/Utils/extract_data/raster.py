@@ -10,19 +10,20 @@
 This code copiles all Common that will be called later by other codes. For the sake of clarity
 these Common are defined in this separated piece of code.
 """
+import logging
 import math
 import os
 from timeit import default_timer as timer
-import logging
+
+import affine
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.ndimage import uniform_filter
-import affine
 import polars as pl
 import rasterio as rio
 from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
+from scipy.ndimage import uniform_filter
 
 
 def pixelToWorldCoords(pX, pY, geoTransform):
@@ -321,13 +322,13 @@ def latlon_to_utm32n_series(lat_deg, lon_deg):
     return easting, northing
 
 
-# python
-# python
-# python
-from typing import Iterable, List, Optional, Sequence, Tuple, Dict, Any
-
 import logging
 import os
+
+# python
+# python
+# python
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -581,7 +582,7 @@ def _density_grid(
     xbins: np.ndarray,
     ybins: np.ndarray,
     mode: str,
-    kde_bw,            # None | "scott" | float | tuple(float, float)
+    kde_bw,  # None | "scott" | float | tuple(float, float)
     log_scale: bool,
 ) -> np.ndarray:
     """
@@ -647,7 +648,6 @@ def _density_grid(
     if log_scale:
         dens = np.log1p(dens)
     return dens
-
 
 
 def _auto_figsize(
@@ -798,15 +798,18 @@ def _band_kde_plot(
         plt.close(fig_k)
     except Exception as e:
         logging.error(f"[plotting_raster] Failed to create band KDE chart: {e}")
+
+
 from scipy.ndimage import gaussian_filter1d
 
+
 def _kde1d_fast(
-        v: np.ndarray,
-        x_grid: np.ndarray,
-        bw: float | None = None,
-        bins: int = 1024,
-        vmin: float | None = None,
-        vmax: float | None = None,
+    v: np.ndarray,
+    x_grid: np.ndarray,
+    bw: float | None = None,
+    bins: int = 1024,
+    vmin: float | None = None,
+    vmax: float | None = None,
 ) -> np.ndarray:
     """
     Approximate 1D KDE efficiently via histogram + Gaussian smoothing.
@@ -871,6 +874,7 @@ def _kde1d_fast(
 
     return y_pdf
 
+
 def _band_histograms(
     df,
     bands: List[str],
@@ -882,7 +886,9 @@ def _band_histograms(
 ) -> None:
     cols_h = min(3, len(bands))
     rows_h = int(np.ceil(len(bands) / cols_h)) if cols_h > 0 else 1
-    fig_h, axes_h = plt.subplots(rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False, dpi=dpi)
+    fig_h, axes_h = plt.subplots(
+        rows_h, cols_h, figsize=(5 * cols_h, 3.5 * rows_h), squeeze=False, dpi=dpi
+    )
 
     for ax, b in zip(axes_h.ravel(), bands):
         try:
@@ -940,7 +946,7 @@ def plotting_raster(
     density_vmax: Optional[float] = None,
     density_discrete: bool = False,
     # Kernel density for spatial density
-    density_mode: str = "kde",          # "hist" or "kde"
+    density_mode: str = "kde",  # "hist" or "kde"
     density_kde_bw: Optional[Any] = None,
     # Combined per-band KDE chart
     band_kde: bool = True,
@@ -1085,7 +1091,6 @@ def plotting_raster(
             except Exception as e:
                 logging.error(f"[plotting_raster] Failed to compute grid for {b}: {e}")
 
-
     # Elevation panel
     if "elev" in df_merged.columns:
         elev = _grid_mean_for_series(
@@ -1115,7 +1120,9 @@ def plotting_raster(
     extent = [xmin, xmax, ymin, ymax]
 
     if auto_figsize:
-        figsize, _ = _auto_figsize(nx, ny, rows, cols, pixels_per_bin, dpi, min_panel_size, max_panel_size)
+        figsize, _ = _auto_figsize(
+            nx, ny, rows, cols, pixels_per_bin, dpi, min_panel_size, max_panel_size
+        )
         if debug:
             logging.info(f"[plotting_raster] Auto figsize={figsize} at dpi={dpi}")
     else:
@@ -1146,7 +1153,6 @@ def plotting_raster(
     if bands_prefix is not None:
         hist_path = os.path.join(outdir, f"band_distributions_{file_name}.png")
         _band_histograms(df_merged, bands, m_coord, hist_path, clip, dpi, debug)
-
 
     # Optional combined band KDE chart
     if band_kde and bands_prefix is not None:
