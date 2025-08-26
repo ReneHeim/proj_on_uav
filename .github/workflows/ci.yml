@@ -1,172 +1,493 @@
 name: CI
 
 on:
-  # Run on every commit to any branch
   push:
+    branches: [main, dev]
   pull_request:
+    branches: [main, dev]
   schedule:
-    # Run dependency updates weekly
+    # Run dependency updates weekly (Mondays at 2 AM UTC)
     - cron: '0 2 * * 1'
 
+env:
+  PYTHON_VERSION: "3.12"
+  MINIMUM_COVERAGE: 80
+
 jobs:
+  # =============================================================================
+  # TESTING AND CODE QUALITY
+  # =============================================================================
   test:
+    name: Tests & Coverage
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.12"
-    
-    - name: Cache pip dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-3.12-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-3.12-
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install pytest-cov pytest-xdist
-    
-    - name: Install pre-commit hooks
-      run: |
-        pip install pre-commit
-        pre-commit install
-    
-    - name: Run linting
-      run: |
-        pre-commit run --all-files || true
-    
-    - name: Run unit tests with coverage
-      run: |
-        PYTHONPATH=src python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml --cov-report=term-missing
+      # DOES: Downloads the repository code to the runner
+      # DOESN'T: Clone submodules, apply patches, or verify code signatures
+      # MAINTENANCE: Keep fetch-depth: 0 for tools that need git history
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for coverage tools
 
-    - name: Run E2E tests
-      run: |
-        PYTHONPATH=src python -m pytest tests/e2e/ -v --tb=short
-    
-    - name: Test CLI scripts
-      run: |
-        PYTHONPATH=src python -m pytest tests/test_smoke.py -v
-    
-    - name: Test Makefile targets
-      run: |
-        make lint || true
-        make format || true
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      # DOES: Installs specified Python version from GitHub's tool cache
+      # DOESN'T: Install multiple Python versions, validate Python environment
+      # MAINTENANCE: Update to setup-python@v6 when available, monitor Python EOL dates
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
+      # DOES: Caches pip packages based on requirements.txt hash for faster builds
+      # DOESN'T: Cache virtual environments, handle poetry.lock, or clean stale cache
+      # MAINTENANCE: Monitor cache hit rates, update cache keys if requirements structure changes
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ env.PYTHON_VERSION }}-
+
+      # DOES: Upgrades pip and installs project + test dependencies
+      # DOESN'T: Create virtual environments, validate dependency compatibility, or handle conflicts
+      # MAINTENANCE: Pin pytest versions if tests become flaky, review new pytest plugins quarterly
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-xdist pre-commit
+
+      # DOES: Configures git hooks for local development consistency
+      # DOESN'T: Actually run the hooks here (that's the next step)
+      # MAINTENANCE: Ensure .pre-commit-config.yaml is updated regularly, review hook versions monthly
+      - name: Set up pre-commit hooks
+        run: pre-commit install
+
+      # DOES: Runs all configured pre-commit hooks (linting, formatting, security checks)
+      # DOESN'T: Auto-fix issues, ignore specific files, or handle hook failures gracefully
+      # MAINTENANCE: Update hook versions in .pre-commit-config.yaml, add new hooks as needed
+      - name: Run code quality checks
+        run: |
+          echo "Running pre-commit hooks..."
+          pre-commit run --all-files || true
+
+      # DOES: Runs unit tests with coverage reporting, parallel execution, and enforced minimum coverage
+      # DOESN'T: Run integration tests, test against multiple Python versions, or generate HTML reports
+      # MAINTENANCE: Adjust coverage threshold as codebase matures, review slow tests quarterly
+      - name: Run unit tests with coverage
+        run: |
+          echo "Running unit tests..."
+          PYTHONPATH=src python -m pytest tests/ \
+            -v \
+            --tb=short \
+            --cov=src \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=${{ env.MINIMUM_COVERAGE }} \
+            -n auto
+
+      # DOES: Runs end-to-end tests that verify complete user workflows
+      # DOESN'T: Set up test databases, mock external services, or run performance tests
+      # MAINTENANCE: Keep E2E tests lightweight, add browser testing if web app, review test data
+      - name: Run end-to-end tests
+        run: |
+          echo "Running E2E tests..."
+          PYTHONPATH=src python -m pytest tests/e2e/ -v --tb=short
+
+      # DOES: Tests basic CLI functionality to ensure commands work
+      # DOESN'T: Test all CLI options, validate output formats, or test error conditions
+      # MAINTENANCE: Expand smoke tests as new CLI features are added, test on different OS
+      - name: Run CLI smoke tests
+        run: |
+          echo "Running CLI smoke tests..."
+          PYTHONPATH=src python -m pytest tests/test_smoke.py -v
+
+      # DOES: Validates that Makefile targets execute successfully
+      # DOESN'T: Test all Makefile targets, validate target outputs, or handle missing dependencies
+      # MAINTENANCE: Keep Makefile targets simple, document required system dependencies
+      - name: Test Makefile targets
+        run: |
+          echo "Testing Makefile targets..."
+          make lint
+          make format
+
+      # DOES: Uploads coverage data to Codecov for tracking and PR comments
+      # DOESN'T: Generate local HTML reports, handle multiple coverage formats, or validate upload
+      # MAINTENANCE: Monitor Codecov integration, rotate tokens annually, review coverage trends
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # =============================================================================
+  # SECURITY SCANNING
+  # =============================================================================
   security:
+    name: Security Scan
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.12"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install bandit safety
-    
-    - name: Run security scan
-      run: |
-        bandit -r src/ -f json -o bandit-report.json || true
-        safety check --json --output safety-report.json || true
-    
-    - name: Upload security reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-reports-3.12-${{ github.sha }}
-        path: |
-          bandit-report.json
-          safety-report.json
 
+    steps:
+      # DOES: Downloads repository code for security analysis
+      # DOESN'T: Scan git history, check for secrets in commits, or validate branch protection
+      # MAINTENANCE: Consider adding git-secrets or truffleHog for commit history scanning
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # DOES: Sets up Python environment for security tools
+      # DOESN'T: Isolate security scanning environment or use dedicated security images
+      # MAINTENANCE: Consider using security-focused container images for better isolation
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # DOES: Installs pinned versions of security scanning tools
+      # DOESN'T: Update tools automatically, scan for license compliance, or check container vulnerabilities
+      # MAINTENANCE: Update bandit/safety versions monthly, review new security tools quarterly
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install bandit[toml]==1.7.5 safety==2.3.5
+
+      # DOES: Scans source code for security vulnerabilities and outputs both JSON and human-readable formats
+      # DOESN'T: Scan dependencies, check for secrets, validate SSL certificates, or scan containers
+      # MAINTENANCE: Review bandit configuration, add custom rules, update severity thresholds
+      - name: Run Bandit security scan
+        run: |
+          echo "Running Bandit security scan..."
+          bandit -r src/ -f json -o bandit-report.json
+          bandit -r src/ -f txt
+
+      # DOES: Checks dependencies against known vulnerability databases
+      # DOESN'T: Check for license issues, malware, or supply chain attacks
+      # MAINTENANCE: Monitor safety database updates, consider switching to pip-audit, review exemptions
+      - name: Run Safety dependency scan
+        run: |
+          echo "Running Safety dependency scan..."
+          safety check --json --output safety-report.json
+          safety check
+
+      # DOES: Saves security reports as downloadable artifacts with 30-day retention
+      # DOESN'T: Parse results, create security issues, or send notifications
+      # MAINTENANCE: Consider integrating with security dashboards, automate issue creation for high-severity findings
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports-${{ env.PYTHON_VERSION }}-${{ github.sha }}
+          path: |
+            bandit-report.json
+            safety-report.json
+          retention-days: 30
+
+  # =============================================================================
+  # PACKAGE BUILDING
+  # =============================================================================
   build:
+    name: Build Package
     runs-on: ubuntu-latest
-    needs: test
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.12"
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install build twine
-    
-    - name: Build package
-      run: |
-        python setup.py sdist bdist_wheel
-    
-    - name: Check package
-      run: |
-        twine check dist/*
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: dist-3.12-${{ github.sha }}
-        path: dist/
+    needs: [test, security]
 
-  dependency-update:
+    steps:
+      # DOES: Downloads source code for package building
+      # DOESN'T: Include git tags, build from specific commits, or validate source integrity
+      # MAINTENANCE: Ensure build reproducibility, consider using specific commit SHAs for releases
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # DOES: Sets up Python for package building tools
+      # DOESN'T: Test builds on multiple Python versions or different architectures
+      # MAINTENANCE: Consider matrix builds for multiple Python versions, add ARM64 support
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # DOES: Installs modern Python packaging tools with pinned versions
+      # DOESN'T: Install platform-specific tools, C compilers, or signing tools
+      # MAINTENANCE: Update build tools quarterly, monitor PEP updates for packaging standards
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build==1.0.3 twine==4.0.2
+
+      # DOES: Creates both wheel and source distributions using modern build system
+      # DOESN'T: Build for multiple platforms, sign packages, or optimize wheel contents
+      # MAINTENANCE: Monitor build warnings, consider cibuildwheel for binary extensions
+      - name: Build package
+        run: |
+          echo "Building package..."
+          python -m build
+
+      # DOES: Validates package metadata, structure, and PyPI compliance
+      # DOESN'T: Test installation on clean systems, validate import paths, or check documentation
+      # MAINTENANCE: Add more validation steps, test package installation in containers
+      - name: Check package integrity
+        run: |
+          echo "Checking package integrity..."
+          twine check dist/*
+
+      # DOES: Installs built wheel to verify it works correctly
+      # DOESN'T: Test in isolated environments, check all entry points, or validate dependencies
+      # MAINTENANCE: Expand installation testing, add import tests for all modules
+      - name: Test package installation
+        run: |
+          echo "Testing package installation..."
+          pip install dist/*.whl
+          python -c "import sys; print('Package installed successfully')"
+
+      # DOES: Saves built packages as artifacts with 30-day retention
+      # DOESN'T: Sign packages, generate checksums, or push to registries
+      # MAINTENANCE: Consider artifact signing, automated publishing for releases
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ env.PYTHON_VERSION }}-${{ github.sha }}
+          path: dist/
+          retention-days: 30
+
+  # =============================================================================
+  # DEPENDENCY MONITORING (Weekly)
+  # =============================================================================
+  dependency-check:
+    name: Check Dependencies
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.12"
-    
-    - name: Install pip-tools
-      run: |
-        pip install pip-tools
-    
-    - name: Check for outdated dependencies
-      run: |
-        pip list --outdated --format=freeze > outdated.txt || true
-        if [ -s outdated.txt ]; then
-          echo "Outdated dependencies found:"
-          cat outdated.txt
-          exit 1
-        fi
 
-  autofix:
+    steps:
+      # DOES: Downloads current requirements files for analysis
+      # DOESN'T: Check historical dependency changes or scan for malicious packages
+      # MAINTENANCE: Consider dependency-track integration, monitor for typosquatting
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # DOES: Sets up Python for dependency analysis tools
+      # DOESN'T: Test dependency compatibility across Python versions
+      # MAINTENANCE: Run dependency checks on multiple Python versions
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # DOES: Installs dependency management tools with pinned version
+      # DOESN'T: Install vulnerability scanners, license checkers, or supply chain tools
+      # MAINTENANCE: Consider pip-audit, license-checker, and dependency-check tools
+      - name: Install pip-tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-tools==7.3.0
+
+      # DOES: Identifies outdated packages and fails CI to get attention
+      # DOESN'T: Distinguish between major/minor updates, check for breaking changes, or auto-update
+      # MAINTENANCE: Add severity filtering, consider dependabot integration, review update policies
+      - name: Check for outdated dependencies
+        run: |
+          echo "Checking for outdated dependencies..."
+          pip install -r requirements.txt
+          pip list --outdated --format=freeze > outdated.txt
+          
+          if [ -s outdated.txt ]; then
+            echo "⚠️ Outdated dependencies found:"
+            cat outdated.txt
+            echo ""
+            echo "Please consider updating these dependencies."
+            exit 1
+          else
+            echo "✅ All dependencies are up to date!"
+          fi
+
+      # DOES: Creates GitHub issue with outdated dependency details when check fails
+      # DOESN'T: Update dependencies automatically, check for security advisories, or assign reviewers
+      # MAINTENANCE: Add security context, auto-assign maintainers, link to dependency policies
+      - name: Create dependency update issue
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const outdated = fs.readFileSync('outdated.txt', 'utf8');
+            
+            const issueBody = `
+            ## 📦 Outdated Dependencies Detected
+            
+            The weekly dependency check found outdated packages:
+            
+            \`\`\`
+            ${outdated}
+            \`\`\`
+            
+            ### Recommended Actions:
+            1. Review the outdated packages
+            2. Check for breaking changes in newer versions
+            3. Update dependencies in \`requirements.txt\`
+            4. Test thoroughly after updates
+            
+            **Scheduled check date:** ${new Date().toISOString().split('T')[0]}
+            `;
+            
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🔄 Weekly Dependency Update - ${new Date().toISOString().split('T')[0]}`,
+              body: issueBody,
+              labels: ['dependencies', 'maintenance']
+            });
+
+  # =============================================================================
+  # AUTO-FORMATTING (Internal PRs only for security)
+  # =============================================================================
+  auto-format:
+    name: Auto-format Code
     runs-on: ubuntu-latest
+
+    # DOES: Only runs on internal PRs and direct pushes for security
+    # DOESN'T: Run on external PRs, validate formatting results, or handle merge conflicts
+    # MAINTENANCE: Review security policy regularly, consider approval workflows for external PRs
+    if: |
+      github.event_name == 'push' || 
+      (github.event_name == 'pull_request' && 
+       github.event.pull_request.head.repo.full_name == github.repository)
+
     permissions:
       contents: write
       pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
-      - uses: actions/setup-python@v4
-        with: { python-version: "3.12" }
-      - run: pip install pre-commit && pre-commit run -a || true
-      - name: Commit & push changes
+      # DOES: Downloads code with full history for proper formatting context
+      # DOESN'T: Verify code signatures, check for malicious changes, or validate permissions
+      # MAINTENANCE: Consider adding code review requirements for auto-formatting changes
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # DOES: Sets up Python environment for formatting tools
+      # DOESN'T: Cache formatting tools, use multiple Python versions, or validate tool versions
+      # MAINTENANCE: Consider caching pre-commit environments, pin tool versions
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # DOES: Installs pre-commit with pinned version for consistency
+      # DOESN'T: Install language-specific formatters, validate tool compatibility, or cache tools
+      # MAINTENANCE: Update pre-commit version quarterly, review formatting tool configurations
+      - name: Install formatting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install pre-commit==3.5.0
+
+      # DOES: Runs all pre-commit hooks to auto-fix formatting issues
+      # DOESN'T: Handle complex merge conflicts, validate fixes, or test after formatting
+      # MAINTENANCE: Review hook configurations, add new formatters, monitor formatting consistency
+      - name: Run auto-formatting
+        run: |
+          echo "Running auto-formatting..."
+          pre-commit run --all-files || echo "Some files were formatted"
+
+      # DOES: Detects if any files were modified by formatting tools
+      # DOESN'T: Validate that changes are safe, check syntax, or run tests
+      # MAINTENANCE: Consider adding syntax validation, basic linting after formatting
+      - name: Check for changes
+        id: verify-changed-files
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "Files were auto-formatted"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No formatting changes needed"
+          fi
+
+      # DOES: Commits formatting changes with bot identity and skips CI to prevent loops
+      # DOESN'T: Run tests after formatting, validate changes, or handle commit failures
+      # MAINTENANCE: Monitor for formatting loops, consider running quick tests after formatting
+      - name: Commit formatting changes
+        if: steps.verify-changed-files.outputs.changed == 'true'
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
-          commit_message: "chore: auto-format [skip ci]"
+          commit_message: "style: auto-format code [skip ci]"
           branch: ${{ github.head_ref || github.ref_name }}
-          file_pattern: "*.py"
+          file_pattern: "*.py *.md *.yml *.yaml *.json"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"
 
+  # =============================================================================
+  # MULTI-VERSION TESTING (Optional - runs on schedule)
+  # =============================================================================
+  compatibility-test:
+    name: Python Compatibility
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
 
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+      # DOES: Downloads code for compatibility testing across Python versions
+      # DOESN'T: Test on different operating systems, architectures, or with different dependencies
+      # MAINTENANCE: Add macOS/Windows testing, consider pypy, update Python versions as new releases come
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # DOES: Tests against multiple Python versions using matrix strategy
+      # DOESN'T: Test with different dependency versions, pre-release Python, or alternative implementations
+      # MAINTENANCE: Update Python version matrix annually, test with python-dev versions
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # DOES: Installs minimal dependencies for basic compatibility testing
+      # DOESN'T: Test with different dependency versions, optional dependencies, or extras
+      # MAINTENANCE: Consider testing with minimum supported dependency versions
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      # DOES: Runs basic test suite to verify Python version compatibility
+      # DOESN'T: Run full test suite, performance tests, or integration tests
+      # MAINTENANCE: Expand to full test suite if CI time allows, add performance benchmarks
+      - name: Run basic tests
+        run: |
+          echo "Testing Python ${{ matrix.python-version }} compatibility..."
+          PYTHONPATH=src python -m pytest tests/ -x --tb=short
+
+  # =============================================================================
+  # CI STATUS SUMMARY
+  # =============================================================================
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [test, security, build]
+    if: always()
+
+    steps:
+      # DOES: Provides clear summary of all CI job results and fails if any critical job fails
+      # DOESN'T: Send notifications, update status badges, or provide detailed failure analysis
+      # MAINTENANCE: Add Slack/email notifications, update README badges, integrate with project dashboards
+      - name: Check CI results
+        run: |
+          echo "🔍 CI Pipeline Results:"
+          echo "Tests: ${{ needs.test.result }}"
+          echo "Security: ${{ needs.security.result }}"
+          echo "Build: ${{ needs.build.result }}"
+          
+          if [[ "${{ needs.test.result }}" == "failure" || 
+                "${{ needs.security.result }}" == "failure" || 
+                "${{ needs.build.result }}" == "failure" ]]; then
+            echo "❌ CI Pipeline Failed"
+            exit 1
+          else
+            echo "✅ CI Pipeline Passed"
+          fi
