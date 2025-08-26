@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "proj_on_uav"
-version = "0.2.3"
+version = "0.2.4"
 description = "Multi-angular UAV reflectance extraction, filtering, and RPV modeling"
 requires-python = ">=3.10"
 dependencies = []
