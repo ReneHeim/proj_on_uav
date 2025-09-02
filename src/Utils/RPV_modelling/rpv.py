@@ -25,7 +25,7 @@ def rpv_1(angle_pack, rho0, k, theta, rc=1.0):
 
     F = (1 - theta**2) / (1 + theta**2 + 2 * theta * np.cos(g)) ** 1.5
     G = np.sqrt(np.tan(s) ** 2 + np.tan(v) ** 2 - 2 * np.tan(s) * np.tan(v) * np.cos(dphi))
-    hot = 1 + (1 - rc) / (1 + G)  # 3  deactivate unless rc is freed
+    hot = 1 + (1 - rc) / (1 + G)  # 3deactivate unless rc is freed
 
     return rho0 * (cs ** (k - 1)) * (cv ** (k - 1)) * (cs + cv) ** (-k) * F * hot
 

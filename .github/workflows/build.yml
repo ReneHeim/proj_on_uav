@@ -46,8 +46,6 @@ jobs:
             echo "This is not a PR merge commit"
           fi
 
-      # ... (all your existing build steps remain the same) ...
-
       - name: Set up Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v5
         with:
