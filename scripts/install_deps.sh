@@ -36,7 +36,7 @@ install_with_retry() {
 
 # Install main dependencies
 echo "📦 Installing main dependencies..."
-install_with_retry "-r **/requirements.txt"
+install_with_retry "-r /requirements.txt"
 
 # Install essential test dependencies
 echo "🧪 Installing test dependencies..."
