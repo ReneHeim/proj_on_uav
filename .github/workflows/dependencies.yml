@@ -2,7 +2,6 @@ name: Dependency Check
 
 on:
   schedule:
-    # Run dependency updates weekly (Mondays at 2 AM UTC)
     - cron: '0 2 * * 1'
 
 env:
@@ -28,20 +27,24 @@ jobs:
           pip install pip-tools==7.3.0
 
       - name: Check for outdated dependencies
+        id: check
         run: |
           echo "Checking for outdated dependencies..."
           pip install -r requirements.txt
-          pip list --outdated --format=freeze > outdated.txt
-          
-          if [ -s outdated.txt ]; then
-            echo "⚠️ Outdated dependencies found:"
-            cat outdated.txt
-            echo ""
-            echo "Please consider updating these dependencies."
-            exit 1
-          else
-            echo "✅ All dependencies are up to date!"
-          fi
+          pip list --outdated --format=json > outdated.json
+
+          python - <<'PY'
+            import json, sys, pathlib
+            data = json.loads(pathlib.Path('outdated.json').read_text())
+            if data:
+                print("⚠️ Outdated dependencies found:")
+                for d in data:
+                    latest = d.get("latest_version") or d.get("latest_release") or "unknown"
+                    print(f"- {d['name']}: {d['version']} -> {latest}")
+                sys.exit(1)
+            else:
+                print("✅ All dependencies are up to date!")
+            PY
 
       - name: Create dependency update issue
         if: failure()
@@ -49,30 +52,48 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const outdated = fs.readFileSync('outdated.txt', 'utf8');
-            
-            const issueBody = `
-            ## 📦 Outdated Dependencies Detected
-            
-            The weekly dependency check found outdated packages:
-            
-            \`\`\`
-            ${outdated}
-            \`\`\`
-            
-            ### Recommended Actions:
-            1. Review the outdated packages
-            2. Check for breaking changes in newer versions
-            3. Update dependencies in \`requirements.txt\`
-            4. Test thoroughly after updates
-            
-            **Scheduled check date:** ${new Date().toISOString().split('T')[0]}
-            `;
-            
-            github.rest.issues.create({
+            const items = JSON.parse(fs.readFileSync('outdated.json', 'utf8'));
+
+            const list = items.map(d => `- ${d.name}: ${d.version} -> ${d.latest_version || 'unknown'}`).join('\n');
+
+            const hasReqIn = fs.existsSync('requirements.in');
+            let suggestions = '';
+            if (hasReqIn) {
+              const pkgs = items.map(d => `--upgrade-package ${d.name}`).join(' ');
+              suggestions = [
+                'If you use pip-tools:',
+                '```bash',
+                `pip-compile ${pkgs} -o requirements.txt requirements.in`,
+                '```'
+              ].join('\n');
+            } else {
+              const cmds = items.map(d => `pip install '${d.name}==${d.latest_version || 'X.Y.Z'}'`).join('\n');
+              suggestions = [
+                'If you only maintain `requirements.txt`:',
+                '```bash',
+                cmds || '# update packages manually',
+                '```'
+              ].join('\n');
+            }
+
+            const date = new Date().toISOString().split('T')[0];
+            const body = [
+              '## 📦 Outdated Dependencies Detected',
+              '',
+              '```',
+              list || 'None',
+              '```',
+              '',
+              '### Suggested Updates',
+              suggestions,
+              '',
+              `**Scheduled check date:** ${date}`
+            ].join('\n');
+
+            await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `🔄 Weekly Dependency Update - ${new Date().toISOString().split('T')[0]}`,
-              body: issueBody,
+              body,
               labels: ['dependencies', 'maintenance']
             });

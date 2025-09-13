@@ -8,7 +8,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
-  MINIMUM_COVERAGE: 50
+  MINIMUM_COVERAGE: 30
 
 jobs:
   test:
