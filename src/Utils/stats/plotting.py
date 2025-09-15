@@ -1,5 +1,5 @@
-from typing import List, Tuple, Optional
 import logging
+from typing import List, Optional, Tuple
 
 import numpy as np
 import pylab as pl
@@ -78,6 +78,7 @@ def _kde1d_fast(
 
     return y_pdf
 
+
 def angle_kde_plot(
     df,
     band: str,
@@ -88,7 +89,7 @@ def angle_kde_plot(
     linewidth: float,
     colors: Optional[List[str]],
     dpi: int,
-    ) -> None:
+) -> None:
     try:
         df = df.drop_nulls().drop_nans()
         if xlim is not None:
@@ -106,8 +107,8 @@ def angle_kde_plot(
         for bin in bins:
 
             filtered_df = df.filter(
-                pl.col(angle)>bin[0],
-                pl.col(angle)<bin[1],
+                pl.col(angle) > bin[0],
+                pl.col(angle) < bin[1],
             )
 
             v = filtered_df[band].to_numpy()
@@ -131,7 +132,7 @@ def angle_kde_plot(
             if cycle and i < len(cycle):
                 color = cycle[i]
             ax_k.plot(x_grid, y_pdf, label=f"{bin[0]},{bin[1]}", linewidth=linewidth, color=color)
-            i+=1
+            i += 1
 
         ax_k.set_xlim(x_min, x_max)
         ax_k.set_ylim(bottom=0.0)
@@ -144,4 +145,3 @@ def angle_kde_plot(
         fig_k.show()
     except Exception as e:
         logging.error(f"[plotting_raster] Failed to create band KDE chart: {e}")
-
