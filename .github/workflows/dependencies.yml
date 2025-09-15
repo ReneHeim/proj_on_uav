@@ -32,19 +32,19 @@ jobs:
           echo "Checking for outdated dependencies..."
           pip install -r requirements.txt
           pip list --outdated --format=json > outdated.json
-
+          
           python - <<'PY'
-            import json, sys, pathlib
-            data = json.loads(pathlib.Path('outdated.json').read_text())
-            if data:
-                print("⚠️ Outdated dependencies found:")
-                for d in data:
-                    latest = d.get("latest_version") or d.get("latest_release") or "unknown"
-                    print(f"- {d['name']}: {d['version']} -> {latest}")
-                sys.exit(1)
-            else:
-                print("✅ All dependencies are up to date!")
-            PY
+          import json, sys, pathlib
+          data = json.loads(pathlib.Path('outdated.json').read_text())
+          if data:
+              print("⚠️ Outdated dependencies found:")
+              for d in data:
+                  latest = d.get("latest_version") or d.get("latest_release") or "unknown"
+                  print(f"- {d['name']}: {d['version']} -> {latest}")
+              sys.exit(1)
+          else:
+              print("✅ All dependencies are up to date!")
+          PY
 
       - name: Create dependency update issue
         if: failure()
