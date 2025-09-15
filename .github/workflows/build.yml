@@ -282,7 +282,7 @@ jobs:
               const reviews = await github.paginate(github.rest.pulls.listReviews, {
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                pull_request_number: pr.number
+                pull_number: pr.number
               });
               
               releaseNotes = `## ${pr.title} (#${pr.number})\n\n`;
