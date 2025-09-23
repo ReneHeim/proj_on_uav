@@ -271,7 +271,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default=str(Path(__file__).resolve().parent / "config_file_example.yml"),
+        default=str(Path(__file__).resolve().parent / "config_file.yml"),
         help="Path to YAML config file",
     )
     parser.add_argument(

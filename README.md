@@ -132,7 +132,7 @@ python src/pipeline_filtering.py --config my_config.yml
 #### Step 3: Fit RPV Models
 ```bash
 # Fit RPV models for a specific band
-python src/pipeline_RPV_modelling.py --config my_config.yml --band band1
+python src/pipeline_modelling.py --config my_config.yml --band band1
 ```
 
 #### Using Makefile (Alternative)

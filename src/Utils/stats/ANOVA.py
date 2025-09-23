@@ -8,6 +8,37 @@ from scipy.stats import studentized_range
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 
+def ANOVA_preprocess(df, vza_edges=[0, 20, 40, 60, 80], raa_edges=list(range(-360, 361, 90))):
+    # Create bin labels (avoiding double dashes for negative numbers)
+    raa_labels = [f"{lo}_to_{hi}" for lo, hi in zip(raa_edges[:-1], raa_edges[1:])]
+    vza_labels = [f"{lo}_to_{hi}" for lo, hi in zip(vza_edges[:-1], vza_edges[1:])]
+
+    # Create RAA binning expression - fully vectorized
+    raa_expr = pl.lit(None, dtype=pl.Utf8)
+    for i, (lo, hi, label) in enumerate(zip(raa_edges[:-1], raa_edges[1:], raa_labels)):
+        if i == len(raa_labels) - 1:  # Last bin includes upper bound
+            condition = (pl.col("RAA") >= lo) & (pl.col("RAA") <= hi)
+        else:
+            condition = (pl.col("RAA") >= lo) & (pl.col("RAA") < hi)
+        raa_expr = pl.when(condition).then(pl.lit(label)).otherwise(raa_expr)
+
+    # Create VZA binning expression - fully vectorized
+    vza_expr = pl.lit(None, dtype=pl.Utf8)
+    for i, (lo, hi, label) in enumerate(zip(vza_edges[:-1], vza_edges[1:], vza_labels)):
+        if i == len(vza_labels) - 1:  # Last bin includes upper bound
+            condition = (pl.col("vza") >= lo) & (pl.col("vza") <= hi)
+        else:
+            condition = (pl.col("vza") >= lo) & (pl.col("vza") < hi)
+        vza_expr = pl.when(condition).then(pl.lit(label)).otherwise(vza_expr)
+
+    # Apply both binning operations in one step
+    df = df.with_columns([
+        raa_expr.alias("raa_bin"),
+        vza_expr.alias("vza_bin")
+    ]).drop_nulls(["raa_bin", "vza_bin"])
+
+    return df
+
 def ANOVA(dataframe, band_col):
 
     ## ANOVA MAIN
