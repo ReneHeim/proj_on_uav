@@ -100,7 +100,7 @@ def logistic_regression(df):
     - Effect size analysis using Cohen's d
 
     Args:
-        df: Preprocessed dataframe with 'status', 'band5', 'vza', 'vza_bin', 'raa_bin' columns
+    df: Preprocessed dataframe containing both healthy and diseased samples, with columns: 'status', 'band5', 'vza', 'vza_bin', and 'raa_bin'
 
     Returns:
         A polars DataFrame with all analysis results

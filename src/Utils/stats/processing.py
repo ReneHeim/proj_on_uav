@@ -100,11 +100,23 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
     print(f"Total plots to process: {total_plots}\n")
     start_time = time.time()
 
+    #Do logistic regression for each combo of treated and non treaded
+    # plot 23 with plot 11, plot 22 with plot 10 ecc
+    id_start = 90001
+    couples = [ (id_start + x , id_start + x -12) for x in range(12,24)]
+    print("Couples to compare (treated, non treated):", couples)
+    for healthy_df , diseased_df in couples:
+        logging.info(f"Comparing treated plot {healthy_df} with non treated plot {diseased_df}")
+
+
     # Process each week
     for week, gdf in weeks_dics.items():
         print(f"\nProcessing {week.upper()} - {len(gdf)} plots")
 
-        # Process each plot with a progress bar
+        # Do logistic regression with pair comparison
+        print(gdf)
+
+        # Process each plot with a progress bar And
         for row in tqdm(gdf.to_dicts(), desc=f"{week}", ncols=80):
             try:
                 # Extract plot information
@@ -157,3 +169,5 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
                         "status": f"error: {str(e)[:100]}",
                     }
                 )
+
+
