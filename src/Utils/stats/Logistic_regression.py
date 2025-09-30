@@ -190,89 +190,135 @@ def _compare_ols_fast(d):
 import logging
 import time
 
-def _auroc_fast(d, same_size = False):
-    # y: binary target (int8 to save RAM)
-    y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
+def _auroc_fast(d, same_size=False, random_state=0):
+    """
+    Compute AUROC for four models under strict anti-leakage protocols:
 
-    # Nadir subset (keep baseline science exactly as before)
-    nd_mask = d["vza"] < 20
-    X_nadir = d.loc[nd_mask, ["band5"]].to_numpy(dtype="float32")
-    y_nadir = y[nd_mask]
+    Models
+    ------
+    1) Nadir baseline: Logistic regression on band5, restricted to vza < 20°.
+    2) Main effects : band5 + one-hot(vza_bin, raa_bin).
+    3) Full interactions: main effects + pairwise + triple interactions (degree=3,
+       interaction_only=True, include_bias=False).
+    4) Angle-aware (geo): identical to main effects; kept for naming continuity.
 
+    Key safeguards
+    --------------
+    - All preprocessing inside Pipelines (no leakage).
+    - Stratified CV with fixed seed for reproducibility.
+    - Optional `same_size=True` forces non-nadir sample N == nadir N.
 
-
-    # --- Sparse feature engineering once, reused across models ---
+    Returns
+    -------
+    dict with AUROCs and differences (Δ) between models.
+    """
+    import logging, time
+    import numpy as np
+    from sklearn.compose import ColumnTransformer
     from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
-    from scipy.sparse import csr_matrix, hstack
-
-    # Continuous band (scaled; with_mean=False keeps CSR friendly)
-    band = d[["band5"]].to_numpy(dtype="float32")
-    band = StandardScaler(with_mean=False).fit_transform(band)  # returns ndarray; make it CSR
-    band = csr_matrix(band)
-
-    # Categorical bins as sparse one-hot (drop first to avoid collinearities)
-    enc = OneHotEncoder(
-        categories=[
-            sorted(d["vza_bin"].unique()),
-            sorted(d["raa_bin"].unique())
-        ],
-        drop="first",
-        handle_unknown="ignore",
-        sparse_output=True,
-        dtype="float32",
-    ).fit(d[["vza_bin", "raa_bin"]])
-    cats = enc.transform(d[["vza_bin", "raa_bin"]])  # CSR with (9 + 9) cols
-
-    # Main-effects design: [band5 | vza_bin | raa_bin]   ~ 1 + 9 + 9 features
-    X_main = hstack([band, cats], format="csr")
-
-    # Full interactions (two-way + triple), still sparse:
-    # degree=3 with interaction_only=True yields:
-    # - pairwise: band5×vza, band5×raa, vza×raa
-    # - triple : band5×vza×raa
-    poly = PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)
-    X_full = poly.fit_transform(X_main)  #
-
-    # Angle-aware "geo" model == main effects with one-hot (your get_dummies version)
-    X_geo = X_main
-
-    # --- AUROC via CV  ---
+    from sklearn.pipeline import Pipeline
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import StratifiedKFold, cross_val_score
+    # --- Target variable: binary 0/1 as int8 to reduce memory footprint ---
+    y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
 
-    lr = LogisticRegression(
-        penalty="l2",
-        max_iter=300,
-        tol=1e-3,
-        random_state=0,
-    )
+    # --- Nadir mask (baseline science preserved exactly) ---
+    nd_mask = (d["vza"] < 20).to_numpy()
 
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+    # --- Single design table; column selectors will pick subsets later ---
+    # Keep only columns actually used by the models.
+    X = d[["band5", "vza_bin", "raa_bin"]]
 
-    def auc(X, y_, label):
+    # Sanity checks (optional but helpful in a paper/repro context)
+    if X.isnull().any().any():
+        logging.warning("NaNs detected in X; consider imputing before modeling.")
+    if y.shape[0] != X.shape[0]:
+        raise ValueError("X and y length mismatch, check preprocessing.")
+
+    # --- Preprocessing primitives (fit only on train folds via Pipeline) ---
+    scale_band = ("scale", StandardScaler(with_mean=False), ["band5"])
+    onehot_geo = ("onehot", OneHotEncoder(drop="first", handle_unknown="ignore"), ["vza_bin", "raa_bin"])
+
+    # Main-effects ColumnTransformer: [scaled band5 | one-hot(vza_bin, raa_bin)]
+    ct_main = ColumnTransformer([scale_band, onehot_geo])
+
+    # Classifier with explicit regularization and tolerance (stable across folds)
+    lr = LogisticRegression(penalty="l2", max_iter=300, tol=1e-3, random_state=0)
+
+    # Pipelines:
+    # 1) Nadir baseline: band5 only, evaluated on nadir rows.
+    pipe_nadir = Pipeline([("prep", ColumnTransformer([scale_band])), ("clf", lr)])
+
+    # 2) Main effects
+    pipe_main = Pipeline([("prep", ct_main), ("clf", lr)])
+
+    # 3) Full interactions: WARNING - PolynomialFeatures densifies; mind RAM.
+    pipe_full = Pipeline([
+        ("prep", ct_main),
+        ("poly", PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)),
+        ("clf", lr)
+    ])
+
+    # 4) Angle-aware == main effects (kept for naming continuity/plots)
+    pipe_geo = pipe_main
+
+    # --- same_size protocol: match non-nadir N to nadir N for fair comparison ---
+    # We downsample (or bootstrap) ONLY non-nadir rows; baseline remains pristine.
+    if same_size:
+        rng = np.random.default_rng(random_state)
+        N = int(nd_mask.sum())                       # nadir count
+        nn_idx = np.flatnonzero(~nd_mask)           # indices of non-nadir rows
+        if nn_idx.size == 0:
+            raise ValueError("No non-nadir rows available for same_size sampling.")
+        replace = (nn_idx.size < N)                 # bootstrap if too few non-nadir
+        take = rng.choice(nn_idx, size=N, replace=replace)
+        X_non_nadir, y_non_nadir = X.iloc[take], y[take]
+    else:
+        X_non_nadir, y_non_nadir = X.loc[~nd_mask], y[~nd_mask]
+
+
+    # --- Cross-validation: aligned splits across models for fair comparisons ---
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
+
+    def auroc(pipe, X_, y_, label):
+        """
+        Compute cross-validated AUROC for a given pipeline.
+        All preprocessing happens *within* each fold (no leakage).
+        """
         start = time.time()
         score = float(cross_val_score(
-            lr, X, y_, cv=cv, scoring="roc_auc",
-            n_jobs=-1, pre_dispatch="2*n_jobs"
+            pipe, X_, y_,
+            cv=cv, scoring="roc_auc",
+            n_jobs=-1, pre_dispatch="2*n_jobs"  # robust parallelism
         ).mean())
-        logging.info(f"AUROC for {label} computed in {time.time() - start:.2f}s")
+        logging.info(f"[AUROC] {label:16s} = {score:.4f}  ({time.time()-start:.2f}s)")
         return score
 
-    au_nadir = auc(X_nadir, y_nadir, "nadir")      # baseline
-    au_main  = auc(X_main,  y, "main effects")     # band5 + geometry (main effects)
-    au_full  = auc(X_full,  y, "full interactions")# full interactions
-    au_geo   = auc(X_geo,   y, "angle-aware")      # one-hot geometry-aware
+    # --- Evaluate baseline on nadir rows only ---
+    au_nadir = auroc(pipe_nadir, X.loc[nd_mask], y[nd_mask], "nadir baseline")
 
-    return {
+    # --- Evaluate comparison models on (possibly size-matched) non-nadir rows ---
+    au_main  = auroc(pipe_main, X_non_nadir, y_non_nadir, "main effects")
+    au_full  = auroc(pipe_full, X_non_nadir, y_non_nadir, "full interactions")
+    au_geo   = auroc(pipe_geo,  X_non_nadir, y_non_nadir, "angle-aware")
+
+    # --- Report in a way that's easy to cite in text and tables ---
+    results = {
         "AUROC_nadir": au_nadir,
         "AUROC_main":  au_main,
         "AUROC_full":  au_full,
         "AUROC_angle": au_geo,
-        'Δ_full−nadir': au_full - au_nadir,
+        "Δ_full−nadir": au_full - au_nadir,
         "Δ_main−nadir": au_main - au_nadir,
         "Δ_full−main":  au_full - au_main,
         "ΔAUROC_geo−nadir": au_geo - au_nadir,
     }
+    return results
+
+
+
+
+
 
 
 def _auroc_fast(d, same_size=True, random_state=0):
