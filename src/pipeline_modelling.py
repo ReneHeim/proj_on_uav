@@ -6,13 +6,12 @@ import geopandas as gpd
 import pandas as pd
 from colorama import init
 
-from Utils.stats.processing import process_weekly_data_stats
 from src.Common.config_object import config_object
 from src.Common.logging import logging_config
 from src.Common.search import optimized_recursive_search, order_path_list
 from src.Utils.RPV_modelling.processing import process_weekly_data_rpv
-
 from src.Utils.RPV_modelling.rpv import *
+from Utils.stats.processing import process_weekly_data_stats
 
 IGNORE_DIRS = {"System Volume Information"}
 PATTERN_TMPL = "*{obj}*.parquet"
@@ -89,7 +88,6 @@ def main():
     df_all_rpv.reset_index(inplace=True)
 
     df_all_rpv.to_csv(str(Path(base_dir) / "RPV_Results" / "V12" / "rpv_results.csv"))
-
 
     for week, gdf in weeks_dics.items():
         out_dir = Path(base_dir) / "stats" / "V1" / week

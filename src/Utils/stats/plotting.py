@@ -90,7 +90,6 @@ def angle_kde_plot(
     colors: Optional[List[str]],
     dpi: int,
     out=None,
-
 ) -> None:
     try:
         df = df.drop_nulls().drop_nans()

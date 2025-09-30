@@ -32,12 +32,12 @@ def ANOVA_preprocess(df, vza_edges=[0, 20, 40, 60, 80], raa_edges=list(range(-36
         vza_expr = pl.when(condition).then(pl.lit(label)).otherwise(vza_expr)
 
     # Apply both binning operations in one step
-    df = df.with_columns([
-        raa_expr.alias("raa_bin"),
-        vza_expr.alias("vza_bin")
-    ]).drop_nulls(["raa_bin", "vza_bin"])
+    df = df.with_columns([raa_expr.alias("raa_bin"), vza_expr.alias("vza_bin")]).drop_nulls(
+        ["raa_bin", "vza_bin"]
+    )
 
     return df
+
 
 def ANOVA(dataframe, band_col):
 
