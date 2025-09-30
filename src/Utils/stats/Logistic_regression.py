@@ -7,70 +7,43 @@ from sklearn.model_selection import cross_val_score
 from sklearn.linear_model import LogisticRegression
 import patsy
 
-
-def preprocess_healthy_diesel(df_h, df_d, sample_size=500_000, random_state=42, raa_edges=list(range(-360, 361, 90)),
-                              vza_edges=[0, 20, 40, 60, 80]):
-    """
-    Preprocess data for logistic regression analysis.
-
-    Args:
-        df_h: Healthy samples dataframe
-        df_d: Diseased samples dataframe
-        sample_size: Maximum number of samples to use
-        random_state: Seed for reproducibility
-        raa_edges: Bin edges for relative azimuth angle
-        vza_edges: Bin edges for viewing zenith angle
-
-    Returns:
-        a combined pandas DataFrame with balanced classes and necessary preprocessing.
-    """
-    # vectorized binning with polars (no Python UDFs)
-
-    # Convert sun elevation to zenith angle
-    df_d = df_d.with_columns((90 - pl.col("sunelev")).alias("sza"))
-    df_h = df_h.with_columns((90 - pl.col("sunelev")).alias("sza"))
-
-
-    # Calculate relative azimuth angle constrained to [0,180]
-    df_d = df_d.with_columns( (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"))
-    df_h = df_h.with_columns( (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"))
-
-    ## === Create bin labels ===
+def preprocess_healthy_diseased(df_h, df_d, sample_size=500_000, random_state=42,
+                                raa_edges=list(range(-360, 361, 90)),
+                                vza_edges=[0, 20, 40, 60, 80]):
     np.random.seed(random_state)
+
+    # compute SZA and RAA (RAA in [-180, 180])
+    def add_angles(df: pl.DataFrame) -> pl.DataFrame:
+        return df.with_columns([
+            (90 - pl.col("sunelev")).alias("sza"),
+            (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"),
+        ])
+
     raa_labels = [f"{lo}-{hi}" for lo, hi in zip(raa_edges[:-1], raa_edges[1:])]
     vza_labels = [f"{lo}-{hi}" for lo, hi in zip(vza_edges[:-1], vza_edges[1:])]
 
-    df_h = (
-        df_h
-        .with_columns([
-            pl.cut(pl.col("RAA"), bins=raa_edges, labels=raa_labels).alias("raa_bin"),
-            pl.cut(pl.col("vza"), bins=vza_edges, labels=vza_labels).alias("vza_bin"),
-        ])
-        .drop_nulls(["raa_bin", "vza_bin"])  # keep only rows that fell into both sets of bins
-    )
-    df_d = (
-        df_d
-        .with_columns([
-            pl.cut(pl.col("RAA"), bins=raa_edges, labels=raa_labels).alias("raa_bin"),
-            pl.cut(pl.col("vza"), bins=vza_edges, labels=vza_labels).alias("vza_bin"),
-        ])
-        .drop_nulls(["raa_bin", "vza_bin"])  # keep only rows that fell into both sets of bins
-    )
+    # expression-level `cut` (labels must be len(breaks)-1)
+    def bin_two(df: pl.DataFrame) -> pl.DataFrame:
+        return df.with_columns([
+            # use internal cut points; labels remain pairwise edge names
+            pl.col("RAA").cut(breaks=raa_edges[1:-1], labels=raa_labels).alias("raa_bin"),
+            pl.col("vza").cut(breaks=vza_edges[1:-1], labels=vza_labels).alias("vza_bin"),
+        ]).drop_nulls(["raa_bin", "vza_bin"])
 
-    ###=== Combine datasets =====
+    df_h2 = bin_two(add_angles(df_h))
+    df_d2 = bin_two(add_angles(df_d))
 
-    common = set(df_h.columns) & set(df_d.columns)  # align schemas
+    common = set(df_h2.columns) & set(df_d2.columns)
     df = pl.concat([
-        df_h.select(common).with_columns(pl.lit("healthy").alias("status")),
-        df_d.select(common).with_columns(pl.lit("diseased").alias("status"))
-    ])
-    df = df.with_columns([pl.col("status").cast(pl.Categorical),
-                          pl.col("vza_bin").cast(pl.Categorical),
-                          pl.col("raa_bin").cast(pl.Categorical)])
-    n = min(sample_size, df.height)
+        df_h2.select(common).with_columns(pl.lit("healthy").alias("status")),
+        df_d2.select(common).with_columns(pl.lit("diseased").alias("status")),
+    ]).with_columns(pl.col("status").cast(pl.Categorical))
 
-    df = df.sample(n, with_replacement=False, shuffle=True)
-    return df.to_pandas()
+
+
+
+    return df.sample(min(sample_size, df.height), shuffle=True).to_pandas()
+
 
 
 def OLS(df):
@@ -109,8 +82,8 @@ def logistic_regression(df):
     d = df.copy()
 
     # Run all analyses
-    ols_results = _compare_ols_models(d)
-    auroc_results = _calculate_auroc_metrics(d)
+    ols_results = _compare_ols_fast(d)
+    auroc_results = _auroc_fast(d)
     cohens_d_results = _calculate_cohens_d(d)
 
     # Combine all results into a single dictionary
@@ -124,41 +97,179 @@ def logistic_regression(df):
     return pl.from_dict(all_results)
 
 
-def _compare_ols_models(d):
+def _compare_ols_fast(d):
     """
-    Compare OLS models of increasing complexity using likelihood ratio tests.
-
-    Args:
-        d: Preprocessed dataframe
-
-    Returns:
-        Dictionary of model comparison metrics
+    Compare OLS-like models (Gaussian) using sparse encodings and RSS-based LR/AIC/BIC.
+    Matches the science of:
+      m_nadir: band5 ~ C(status)           on vza<20
+      m_main : band5 ~ C(status)+C(vza_bin)+C(raa_bin)
+      m_full : band5 ~ C(status)*C(vza_bin)*C(raa_bin)
+    Returns dict with LRT, df, p, ΔAIC, ΔBIC for each pair.
     """
-    # --- OLS models with different complexities ---
+    time_start = time.time()
+    import numpy as np
+    from scipy.sparse import csr_matrix, hstack
+    from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures
+    from sklearn.linear_model import Ridge
+    from scipy.stats import chi2
 
-    # Nadir subset (vza < 20°)
-    nd = d.query("vza < 20").copy()
+    y = d["band5"].to_numpy(dtype=np.float32)
+    n  = y.shape[0]
 
-    # Fit models with increasing complexity
-    m_nadir = smf.ols("band5 ~ C(status)", data=nd).fit()
-    m_main = smf.ols("band5 ~ C(status) + C(vza_bin) + C(raa_bin)", data=d).fit()
-    m1 = smf.ols("band5 ~ C(status)*C(vza_bin)*C(raa_bin)", data=d).fit()
+    # --- helper: fit linear model on CSR X and compute RSS & k (≈ OLS via tiny ridge) ---
+    def rss_and_k(X_csr, y_):
+        # tiny alpha approximates OLS but enables sparse solvers
+        model = Ridge(alpha=1e-8, fit_intercept=True, solver="auto", max_iter=None)
+        model.fit(X_csr, y_)
+        resid = y_ - model.predict(X_csr)
+        rss = float(np.dot(resid, resid))
+        # k: #coeffs incl. intercept = nnz columns + 1 (intercept)
+        k = int(X_csr.shape[1] + 1)
+        return rss, k
 
-    # Helper function for model comparison using likelihood ratio test
-    def cmp(a, b):
-        LRT = 2 * (b.llf - a.llf)
-        df = int(b.df_model - a.df_model)
-        p = chi2.sf(LRT, df)
-        return {"LRT": LRT, "df": df, "p": p, "ΔAIC": a.aic - b.aic, "ΔBIC": a.bic - b.bic}
+    # --- Nadir model: band5 ~ C(status) on vza<20 ---
+    nd_mask = d["vza"] < 20
+    y_nd = y[nd_mask]
+    enc_nd = OneHotEncoder(drop="first", sparse_output=True, dtype=np.float32, handle_unknown="ignore")
+    Xn = enc_nd.fit_transform(d.loc[nd_mask, ["status"]])  # CSR
+    rss_nadir, k_nadir = rss_and_k(Xn, y_nd)
+    n_nd = y_nd.shape[0]
 
-    # Compare models pairwise
+    # --- Main and Full on all rows ---
+    # One encoder over all three factors; drop='first' to avoid collinearities.
+    enc = OneHotEncoder(
+        drop="first", sparse_output=True, dtype=np.float32, handle_unknown="ignore"
+    ).fit(d[["status", "vza_bin", "raa_bin"]])
+    Xcat = enc.transform(d[["status", "vza_bin", "raa_bin"]])  # CSR
+
+    # Main effects == the one-hot block itself
+    X_main = Xcat
+
+    # Full interactions: 2-way + 3-way of categorical indicators
+    poly = PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)
+    X_full = poly.fit_transform(Xcat)  # stays CSR
+
+    rss_main, k_main = rss_and_k(X_main, y)
+    rss_full, k_full = rss_and_k(X_full, y)
+
+    # --- Metrics via Gaussian identities (no dense likelihood needed) ---
+    def lr_cmp(rss_a, n_a, k_a, rss_b, n_b, k_b):
+        # assume same data for a vs b unless 'nadir' (then use n_a,n_b separately)
+        # LRT with Gaussian ML: n * log(RSS_a/RSS_b)
+        if n_a != n_b:
+            # different samples: use the appropriate n for each log-lik term
+            # log L = -n/2 [log(2π) + 1 + log(RSS/n)]
+            ll_a = -(n_a/2) * (np.log(2*np.pi) + 1 + np.log(rss_a / n_a))
+            ll_b = -(n_b/2) * (np.log(2*np.pi) + 1 + np.log(rss_b / n_b))
+            LRT = 2 * (ll_b - ll_a)
+        else:
+            n = n_a
+            LRT = n * np.log(rss_a / rss_b)
+
+        df  = int(k_b - k_a)
+        p   = float(chi2.sf(LRT, df))
+
+        # AIC/BIC deltas (same-sample preferred; when samples differ, report w.r.t. own n)
+        def aic_bic(rss, n, k):
+            ll = -(n/2) * (np.log(2*np.pi) + 1 + np.log(rss / n))
+            return 2*k - 2*ll, k*np.log(n) - 2*ll
+
+        AIC_a, BIC_a = aic_bic(rss_a, n_a, k_a)
+        AIC_b, BIC_b = aic_bic(rss_b, n_b, k_b)
+        return {"LRT": float(LRT), "df": df, "p": p, "ΔAIC": AIC_a - AIC_b, "ΔBIC": BIC_a - BIC_b}
+
+    logging.info(f"Model fits done in {time.time() - time_start:.2f}s")
+
     results = {
-        "nadir→main": cmp(m_nadir, m_main),
-        "main→full": cmp(m_main, m1),
-        "nadir→full": cmp(m_nadir, m1)
+        "nadir→main": lr_cmp(rss_nadir, n_nd, k_nadir, rss_main, n, k_main),
+        "main→full":  lr_cmp(rss_main,  n,    k_main,  rss_full, n, k_full),
+        "nadir→full": lr_cmp(rss_nadir, n_nd, k_nadir, rss_full, n, k_full),
     }
-
     return results
+
+import logging
+import time
+
+def _auroc_fast(d):
+    # y: binary target (int8 to save RAM)
+    y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
+
+    # Nadir subset (keep baseline science exactly as before)
+    nd_mask = d["vza"] < 20
+    X_nadir = d.loc[nd_mask, ["band5"]].to_numpy(dtype="float32")
+    y_nadir = y[nd_mask]
+
+    # --- Sparse feature engineering once, reused across models ---
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
+    from scipy.sparse import csr_matrix, hstack
+
+    # Continuous band (scaled; with_mean=False keeps CSR friendly)
+    band = d[["band5"]].to_numpy(dtype="float32")
+    band = StandardScaler(with_mean=False).fit_transform(band)  # returns ndarray; make it CSR
+    band = csr_matrix(band)
+
+    # Categorical bins as sparse one-hot (drop first to avoid collinearities)
+    enc = OneHotEncoder(
+        categories=[
+            sorted(d["vza_bin"].unique()),
+            sorted(d["raa_bin"].unique())
+        ],
+        drop="first",
+        handle_unknown="ignore",
+        sparse_output=True,
+        dtype="float32",
+    ).fit(d[["vza_bin", "raa_bin"]])
+    cats = enc.transform(d[["vza_bin", "raa_bin"]])  # CSR with (9 + 9) cols
+
+    # Main-effects design: [band5 | vza_bin | raa_bin]   ~ 1 + 9 + 9 features
+    X_main = hstack([band, cats], format="csr")
+
+    # Full interactions (two-way + triple), still sparse:
+    # degree=3 with interaction_only=True yields:
+    # - pairwise: band5×vza, band5×raa, vza×raa
+    # - triple : band5×vza×raa
+    poly = PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)
+    X_full = poly.fit_transform(X_main)  #
+
+    # Angle-aware "geo" model == main effects with one-hot (your get_dummies version)
+    X_geo = X_main
+
+    # --- AUROC via CV  ---
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
+
+    lr = LogisticRegression(
+        penalty="l2",
+        max_iter=300,
+        tol=1e-3,
+        random_state=0,
+    )
+
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+
+    def auc(X, y_, label):
+        start = time.time()
+        score = float(cross_val_score(
+            lr, X, y_, cv=cv, scoring="roc_auc",
+            n_jobs=-1, pre_dispatch="2*n_jobs"
+        ).mean())
+        logging.info(f"AUROC for {label} computed in {time.time() - start:.2f}s")
+        return score
+
+    au_nadir = auc(X_nadir, y_nadir, "nadir")      # baseline
+    au_main  = auc(X_main,  y, "main effects")     # band5 + geometry (main effects)
+    au_full  = auc(X_full,  y, "full interactions")# full interactions
+    au_geo   = auc(X_geo,   y, "angle-aware")      # one-hot geometry-aware
+
+    return {
+        "AUROC_nadir": au_nadir,
+        "AUROC_main":  au_main,
+        "AUROC_full":  au_full,
+        "AUROC_angle": au_geo,
+        "Δ_main−nadir": au_main - au_nadir,
+        "Δ_full−main":  au_full - au_main,
+        "ΔAUROC_geo−nadir": au_geo - au_nadir,
+    }
 
 
 def _calculate_auroc_metrics(d):
@@ -180,45 +291,54 @@ def _calculate_auroc_metrics(d):
     nd = d.query("vza < 20")
     y_nadir = (nd["status"].astype(str).str.lower() == "diseased").astype(int)
 
+    import time
+
     # AUROC for nadir-only model (baseline)
+    start = time.time()
     au_nadir = cross_val_score(
-        LogisticRegression(max_iter=2000),
+        LogisticRegression(max_iter=500, solver='sag'),
         nd[["band5"]],
         y_nadir,
         cv=5,
         scoring="roc_auc"
     ).mean()
+    print(f"AUROC nadir-only model computed in {time.time() - start:.2f}s")
 
     # AUROC for main effects model (band5 + geometry)
+    start = time.time()
     X_main = patsy.dmatrix("band5 + C(vza_bin) + C(raa_bin)", d, return_type='dataframe')
     au_main = cross_val_score(
-        LogisticRegression(max_iter=2000),
+        LogisticRegression(max_iter=500, solver='sag'),
         X_main,
         y,
         cv=5,
         scoring="roc_auc"
     ).mean()
+    print(f"AUROC main effects model computed in {time.time() - start:.2f}s")
 
     # AUROC for full interaction model
+    start = time.time()
     X_full = patsy.dmatrix("band5 * C(vza_bin) * C(raa_bin)", d, return_type='dataframe')
     au_full = cross_val_score(
-        LogisticRegression(max_iter=2000),
+        LogisticRegression(max_iter=500, solver='sag'),
         X_full,
         y,
         cv=5,
         scoring="roc_auc"
     ).mean()
+    print(f"AUROC full interaction model computed in {time.time() - start:.2f}s")
 
     # Geometry-aware model using dummy variables
+    start = time.time()
     X_geo = pd.get_dummies(d[["band5", "vza_bin", "raa_bin"]], drop_first=True)
     au_geo = cross_val_score(
-        LogisticRegression(max_iter=2000),
+        LogisticRegression(max_iter=500, solver='sag'),
         X_geo,
         y,
         cv=5,
         scoring="roc_auc"
     ).mean()
-
+    print(f"AUROC geometry-aware model computed in {time.time() - start:.2f}s")
     # Collect results
     results = {
         "AUROC_nadir": au_nadir,
@@ -238,37 +358,239 @@ def _calculate_cohens_d(d):
     Calculate Cohen's d effect size across different viewing angle bins.
 
     Args:
-        d: Preprocessed dataframe
-
+        d: Preprocessed pandas.DataFrame with columns:
+           - status in {"diseased", "healthy"}
+           - band5 (numeric)
+           - vza (numeric)
+           - vza_bin, raa_bin (categorical/integers)
     Returns:
-        Dictionary with Cohen's d values
+        Dictionary with Cohen's d values; all keys are strings.
     """
+    import numpy as np
+    import pandas as pd
 
     # --- Cohen's d effect size calculations ---
 
     # Helper function to compute Cohen's d (pooled standard deviation)
-    def cohen_d(sub):
-        """Calculate pooled-SD d (diseased - healthy)"""
-        g = sub.groupby("status")["band5"].agg(["mean", "std", "count"])
+    def cohen_d(sub: pd.DataFrame) -> float:
+        """Calculate pooled-SD d (diseased - healthy), return NaN if not computable."""
+        g = sub.groupby("status", observed=True)["band5"].agg(mean="mean", std="std", count="count")
+        # Need both groups present
+        if not {"diseased", "healthy"}.issubset(g.index):
+            return np.nan
+
         m1, m0 = g.loc["diseased", "mean"], g.loc["healthy", "mean"]
         s1, s0 = g.loc["diseased", "std"], g.loc["healthy", "std"]
         n1, n0 = g.loc["diseased", "count"], g.loc["healthy", "count"]
-        sp = np.sqrt(((n1 - 1) * s1 ** 2 + (n0 - 1) * s0 ** 2) / (n1 + n0 - 2))
-        return (m1 - m0) / sp
+
+        dof = (n1 - 1) + (n0 - 1)
+        if dof <= 0:
+            return np.nan
+
+        sp2 = ((n1 - 1) * (s1 ** 2) + (n0 - 1) * (s0 ** 2)) / dof
+        if not np.isfinite(sp2) or sp2 <= 0:
+            return np.nan
+
+        sp = np.sqrt(sp2)
+        return float((m1 - m0) / sp)
 
     # Calculate baseline Cohen's d for nadir viewing angles
     baseline = cohen_d(d.query("vza < 20"))
 
     # Calculate Cohen's d for each viewing geometry bin combination
-    perbin = d.groupby(["vza_bin", "raa_bin"]).apply(cohen_d).rename("d")
+    # - observed=True to silence future deprecation warning on observed default
+    # - include_groups=False to silence future change in .apply behavior
+    perbin = (
+        d.groupby(["vza_bin", "raa_bin"], observed=True)
+         .apply(cohen_d, include_groups=False)
+         .rename("d")
+    )
 
     # Get top 5 bins by absolute effect size
     top = perbin.reindex(perbin.abs().sort_values(ascending=False).index)[:5]
 
-    # Collect results
-    results = {
-        "Cohen_d_nadir": baseline,
-        "top_bins_by_|d|": top.to_dict()
-    }
+    # Convert tuple index keys to strings to keep Polars happy
+    # e.g., "vza_bin=3_raa_bin=120": 0.87
+    top_str_keys = {f"vza_bin={vb}_raa_bin={rb}": float(val)
+                    for (vb, rb), val in top.items()}
 
+    # Collect results (only string keys at top level)
+    results = {
+        "Cohen_d_nadir": float(baseline) if np.isfinite(baseline) else np.nan,
+        "top_bins_by_|d|": top_str_keys,
+    }
     return results
+
+
+
+
+import re
+from typing import Any, Dict, List, Tuple, Union
+
+import polars as pl
+
+
+def _extract_result_dict(lr_out: Union[dict, pl.DataFrame]) -> Dict[str, Any]:
+    """
+    Normalize the output of logistic_regression into a plain Python dict:
+      {"AUROC_metrics": {...}, "Effect_size": {"Cohen_d_nadir": ..., "top_bins_by_|d|": {...}}}
+    """
+    if isinstance(lr_out, dict):
+        return lr_out
+
+    if isinstance(lr_out, pl.DataFrame):
+        if lr_out.height != 1:
+            raise ValueError("Expected a single-row DataFrame from logistic_regression.")
+        row = lr_out.row(0, named=True)
+        # Row values for struct columns arrive as nested dicts already.
+        # Ensure keys we expect exist, or default to empty.
+        auroc = row.get("AUROC_metrics") or {}
+        eff = row.get("Effect_size") or {}
+        return {"AUROC_metrics": auroc, "Effect_size": eff}
+
+    raise TypeError("lr_out must be a dict or a single-row Polars DataFrame.")
+
+
+def _parse_top_bin_key(key: Any) -> Tuple[str, str, str]:
+    """
+    Parse keys like 'vza_bin=0-20_raa_bin=-90-0' into ('0-20', '-90-0', original_key)
+    Falls back gracefully if the format is unexpected.
+    """
+    if isinstance(key, tuple):
+        # Shouldn't occur if you used stringified keys, but handle just in case.
+        vb, rb = key
+        return str(vb), str(rb), f"vza_bin={vb}_raa_bin={rb}"
+
+    s = str(key)
+    m_vza = re.search(r"vza_bin=([^_]+)", s)
+    m_raa = re.search(r"raa_bin=(.+)$", s)
+    vb = m_vza.group(1) if m_vza else ""
+    rb = m_raa.group(1) if m_raa else ""
+    return vb, rb, s
+
+
+def format_logistic_results(
+    lr_out: Union[dict, pl.DataFrame],
+    *,
+    shape: str = "wide",
+    top_k: int = 5
+) -> pl.DataFrame:
+    """
+    Make a nice Polars DataFrame from the output of logistic_regression.
+
+    Parameters:
+    - lr_out: dict or single-row Polars DataFrame returned by logistic_regression.
+    - shape:
+        - "wide": returns a single-row DataFrame with AUROC metrics, Cohen_d_nadir,
+                  and top-k bins expanded into columns.
+        - "long": returns a tidy DataFrame with one metric per row; top bins appear
+                  as separate rows with vza_bin/raa_bin/d and rank.
+    - top_k: how many top bins to include (if available) for effect sizes.
+
+    Returns:
+    - Polars DataFrame in the requested shape.
+    """
+    data = _extract_result_dict(lr_out)
+    au = dict(data.get("AUROC_metrics") or {})
+    eff = dict(data.get("Effect_size") or {})
+
+    baseline = eff.get("Cohen_d_nadir", None)
+    top_bins_dict = dict(eff.get("top_bins_by_|d|") or {})
+
+    # Turn top bins into a sorted list by |d| descending
+    top_bins: List[Tuple[str, str, float, float, str]] = []
+    for k, v in top_bins_dict.items():
+        try:
+            val = float(v)
+        except Exception:
+            continue
+        vb, rb, label = _parse_top_bin_key(k)
+        top_bins.append((vb, rb, val, abs(val), label))
+
+    top_bins.sort(key=lambda t: t[3], reverse=True)  # by |d|
+    top_bins = top_bins[:top_k]
+
+    if shape == "wide":
+        # Build a single-row dict
+        row: Dict[str, Any] = {}
+        # AUROC summary
+        row.update({k: float(v) for k, v in au.items()})
+        # Cohen's d baseline
+        if baseline is not None:
+            try:
+                row["Cohen_d_nadir"] = float(baseline)
+            except Exception:
+                row["Cohen_d_nadir"] = None
+
+        # Add top-k bins as columns
+        for i, (vb, rb, dval, _, label) in enumerate(top_bins, start=1):
+            row[f"top{i}_vza_bin"] = vb
+            row[f"top{i}_raa_bin"] = rb
+            row[f"top{i}_d"] = dval
+            row[f"top{i}_label"] = label
+
+        # Ensure stable column order (optional)
+        preferred_order = [
+            "AUROC_nadir", "AUROC_main", "AUROC_full", "AUROC_angle",
+            "Δ_main−nadir", "Δ_full−main", "ΔAUROC_geo−nadir", "Cohen_d_nadir",
+        ]
+        # Then top bins in numeric order
+        for i in range(1, top_k + 1):
+            preferred_order += [
+                f"top{i}_vza_bin", f"top{i}_raa_bin", f"top{i}_d", f"top{i}_label"
+            ]
+
+        # Keep existing keys; ignore those not present
+        ordered = {k: row.get(k, None) for k in preferred_order if k in row}
+        # Add any extra keys at the end
+        for k, v in row.items():
+            if k not in ordered:
+                ordered[k] = v
+
+        return pl.DataFrame([ordered])
+
+    elif shape == "long":
+        rows: List[Dict[str, Any]] = []
+        # AUROC metrics
+        for k, v in au.items():
+            try:
+                rows.append({
+                    "section": "AUROC",
+                    "metric": k,
+                    "value": float(v),
+                    "vza_bin": None,
+                    "raa_bin": None,
+                    "rank": None,
+                })
+            except Exception:
+                continue
+
+        # Cohen's d baseline
+        if baseline is not None:
+            try:
+                rows.append({
+                    "section": "EffectSize",
+                    "metric": "Cohen_d_nadir",
+                    "value": float(baseline),
+                    "vza_bin": None,
+                    "raa_bin": None,
+                    "rank": None,
+                })
+            except Exception:
+                pass
+
+        # Top bins as separate rows
+        for i, (vb, rb, dval, _, _label) in enumerate(top_bins, start=1):
+            rows.append({
+                "section": "EffectSize",
+                "metric": "Cohen_d_bin",
+                "value": dval,
+                "vza_bin": vb,
+                "raa_bin": rb,
+                "rank": i,
+            })
+
+        return pl.DataFrame(rows)
+
+    else:
+        raise ValueError("shape must be 'wide' or 'long'")
