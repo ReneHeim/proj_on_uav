@@ -190,7 +190,7 @@ def _compare_ols_fast(d):
 import logging
 import time
 
-def _auroc_fast(d):
+def _auroc_fast(d, same_size = False):
     # y: binary target (int8 to save RAM)
     y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
 
@@ -198,6 +198,8 @@ def _auroc_fast(d):
     nd_mask = d["vza"] < 20
     X_nadir = d.loc[nd_mask, ["band5"]].to_numpy(dtype="float32")
     y_nadir = y[nd_mask]
+
+
 
     # --- Sparse feature engineering once, reused across models ---
     from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
@@ -266,91 +268,134 @@ def _auroc_fast(d):
         "AUROC_main":  au_main,
         "AUROC_full":  au_full,
         "AUROC_angle": au_geo,
+        'Δ_full−nadir': au_full - au_nadir,
         "Δ_main−nadir": au_main - au_nadir,
         "Δ_full−main":  au_full - au_main,
         "ΔAUROC_geo−nadir": au_geo - au_nadir,
     }
 
 
-def _calculate_auroc_metrics(d):
+def _auroc_fast(d, same_size=True, random_state=0):
     """
-    Calculate AUROC metrics for different models using cross-validation.
+    Compute AUROC metrics for baseline (nadir-only), main effects,
+    full interaction, and angle-aware models.
 
     Args:
-        d: Preprocessed dataframe
-
-    Returns:
-        Dictionary of AUROC values and differences between models
+        d : preprocessed dataframe
+        same_size : bool
+            If True, force the non-nadir sample (main/full/geo models)
+            to be exactly the same size as the nadir baseline.
+            Sampling is done randomly with replacement if needed.
+        random_state : int
+            Seed for reproducible sampling.
     """
-    # --- AUROC calculations for different models ---
 
-    # Prepare target variable
-    y = (d["status"].astype(str).str.lower() == "diseased").astype(int)
+    # --- Target variable (binary; int8 to save memory) ---
+    y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
 
-    # Nadir subset (vza < 20°)
-    nd = d.query("vza < 20")
-    y_nadir = (nd["status"].astype(str).str.lower() == "diseased").astype(int)
+    # --- Nadir subset (vza < 20°) for baseline ---
+    nd_mask = (d["vza"] < 20).to_numpy()
+    X_nadir = d.loc[nd_mask, ["band5"]].to_numpy(dtype="float32")
+    y_nadir = y[nd_mask]
 
-    import time
+    # --- Sparse feature engineering (shared by all non-nadir models) ---
+    from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
+    from scipy.sparse import csr_matrix, hstack
 
-    # AUROC for nadir-only model (baseline)
-    start = time.time()
-    au_nadir = cross_val_score(
-        LogisticRegression(max_iter=500, solver='sag'),
-        nd[["band5"]],
-        y_nadir,
-        cv=5,
-        scoring="roc_auc"
-    ).mean()
-    print(f"AUROC nadir-only model computed in {time.time() - start:.2f}s")
+    # Continuous band5, scaled (CSR-friendly: with_mean=False avoids dense centering)
+    band = d[["band5"]].to_numpy(dtype="float32")
+    band = StandardScaler(with_mean=False).fit_transform(band)
+    band = csr_matrix(band)  # make sparse for easy hstack later
 
-    # AUROC for main effects model (band5 + geometry)
-    start = time.time()
-    X_main = patsy.dmatrix("band5 + C(vza_bin) + C(raa_bin)", d, return_type='dataframe')
-    au_main = cross_val_score(
-        LogisticRegression(max_iter=500, solver='sag'),
-        X_main,
-        y,
-        cv=5,
-        scoring="roc_auc"
-    ).mean()
-    print(f"AUROC main effects model computed in {time.time() - start:.2f}s")
+    # Geometry bins encoded as sparse one-hot (drop first to avoid collinearities)
+    enc = OneHotEncoder(
+        categories=[
+            sorted(d["vza_bin"].unique()),
+            sorted(d["raa_bin"].unique())
+        ],
+        drop="first",
+        handle_unknown="ignore",
+        sparse_output=True,
+        dtype="float32",
+    ).fit(d[["vza_bin", "raa_bin"]])
+    cats = enc.transform(d[["vza_bin", "raa_bin"]])  # CSR matrix with dummy vars
 
-    # AUROC for full interaction model
-    start = time.time()
-    X_full = patsy.dmatrix("band5 * C(vza_bin) * C(raa_bin)", d, return_type='dataframe')
-    au_full = cross_val_score(
-        LogisticRegression(max_iter=500, solver='sag'),
-        X_full,
-        y,
-        cv=5,
-        scoring="roc_auc"
-    ).mean()
-    print(f"AUROC full interaction model computed in {time.time() - start:.2f}s")
+    # Main-effects design matrix = [band5 | vza_bin | raa_bin]
+    X_main = hstack([band, cats], format="csr")
 
-    # Geometry-aware model using dummy variables
-    start = time.time()
-    X_geo = pd.get_dummies(d[["band5", "vza_bin", "raa_bin"]], drop_first=True)
-    au_geo = cross_val_score(
-        LogisticRegression(max_iter=500, solver='sag'),
-        X_geo,
-        y,
-        cv=5,
-        scoring="roc_auc"
-    ).mean()
-    print(f"AUROC geometry-aware model computed in {time.time() - start:.2f}s")
-    # Collect results
-    results = {
+    # Full interaction model (two-way + triple interactions)
+    poly = PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)
+    X_full = poly.fit_transform(X_main)
+
+    # Angle-aware "geo" model = same as main effects in this setup
+    X_geo = X_main
+
+    # --- Optional size matching ---
+    if same_size:
+        import numpy as np
+        rng = np.random.default_rng(random_state)
+
+        # Count nadir samples
+        N = nd_mask.sum()
+
+        # Indices for non-nadir observations
+        non_nadir_idx = np.flatnonzero(~nd_mask)
+
+        # Sample exactly N rows from non-nadir (with replacement if fewer than N available)
+        chosen = rng.choice(non_nadir_idx, size=int(N), replace=(non_nadir_idx.size < N))
+
+        # Subset design matrices + labels for main/full/geo models
+        X_main = X_main[chosen]
+        X_full = X_full[chosen]
+        X_geo  = X_geo[chosen]
+        y      = y[chosen]
+
+    # --- AUROC via cross-validation ---
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold, cross_val_score
+    import time, logging
+
+    # Logistic regression classifier
+    lr = LogisticRegression(
+        penalty="l2",
+        max_iter=300,
+        tol=1e-3,
+        random_state=0,
+    )
+
+    # 5-fold stratified CV
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+
+    def auc(X, y_, label):
+        """Helper: compute AUROC with timing + logging"""
+        start = time.time()
+        score = float(
+            cross_val_score(
+                lr, X, y_, cv=cv,
+                scoring="roc_auc",
+                n_jobs=-1, pre_dispatch="2*n_jobs"
+            ).mean()
+        )
+        logging.info(f"AUROC for {label} computed in {time.time() - start:.2f}s")
+        return score
+
+    # Compute AUROC for all models
+    au_nadir = auc(X_nadir, y_nadir, "nadir baseline")
+    au_main  = auc(X_main,  y, "main effects")
+    au_full  = auc(X_full,  y, "full interactions")
+    au_geo   = auc(X_geo,   y, "angle-aware")
+
+    # --- Results dictionary ---
+    return {
         "AUROC_nadir": au_nadir,
-        "AUROC_main": au_main,
-        "AUROC_full": au_full,
+        "AUROC_main":  au_main,
+        "AUROC_full":  au_full,
         "AUROC_angle": au_geo,
+        "Δ_full−nadir": au_full - au_nadir,
         "Δ_main−nadir": au_main - au_nadir,
-        "Δ_full−main": au_full - au_main,
-        "ΔAUROC_geo−nadir": au_geo - au_nadir
+        "Δ_full−main":  au_full - au_main,
+        "ΔAUROC_geo−nadir": au_geo - au_nadir,
     }
-
-    return results
 
 
 def _calculate_cohens_d(d):
