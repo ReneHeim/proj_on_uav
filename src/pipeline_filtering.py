@@ -16,7 +16,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default=str(os.path.join(os.path.dirname(__file__), "config_file_example.yml")),
+        default=str(os.path.join(os.path.dirname(__file__), "config_file.yml")),
         help="Path to YAML config file",
     )
     args = parser.parse_args()

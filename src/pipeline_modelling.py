@@ -9,11 +9,9 @@ from colorama import init
 from src.Common.config_object import config_object
 from src.Common.logging import logging_config
 from src.Common.search import optimized_recursive_search, order_path_list
-from src.Utils.RPV_modelling.processing import (
-    process_weekly_data_rpv,
-    process_weekly_data_stats,
-)
+from src.Utils.RPV_modelling.processing import process_weekly_data_rpv
 from src.Utils.RPV_modelling.rpv import *
+from Utils.stats.processing import process_weekly_data_stats
 
 IGNORE_DIRS = {"System Volume Information"}
 PATTERN_TMPL = "*{obj}*.parquet"
@@ -91,7 +89,6 @@ def main():
 
     df_all_rpv.to_csv(str(Path(base_dir) / "RPV_Results" / "V12" / "rpv_results.csv"))
 
-    # Create statstics dfs
     for week, gdf in weeks_dics.items():
         out_dir = Path(base_dir) / "stats" / "V1" / week
         out_dir.mkdir(parents=True, exist_ok=True)

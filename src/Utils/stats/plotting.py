@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Tuple
 
 import numpy as np
-import pylab as pl
+import polars as pl
 from matplotlib import pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 
@@ -82,13 +82,14 @@ def _kde1d_fast(
 def angle_kde_plot(
     df,
     band: str,
-    bins: Tuple[int, int],
+    bins: List[Tuple[int, int]],
     angle: str,
     xlim: Optional[Tuple[float, float]],
     points: int,
     linewidth: float,
     colors: Optional[List[str]],
     dpi: int,
+    out=None,
 ) -> None:
     try:
         df = df.drop_nulls().drop_nans()
@@ -97,7 +98,6 @@ def angle_kde_plot(
         else:
             x_min = df.select(pl.col(band).quantile(0.01)).item()
             x_max = df.select(pl.col(band).quantile(0.98)).item()
-            print(x_min, x_max)
         x_grid = np.linspace(x_min, x_max, int(points))
         fig_k, ax_k = plt.subplots(figsize=(10, 6), dpi=dpi)
 
@@ -142,6 +142,11 @@ def angle_kde_plot(
         ax_k.grid(True, alpha=0.3)
         ax_k.legend(ncol=2)
         fig_k.tight_layout()
-        fig_k.show()
+        if out == None:
+            plt.show()
+        else:
+            fig_k.savefig(out, dpi=dpi)
+            plt.close(fig_k)
+            logging.info(f"[plotting_raster] Saved band KDE chart to: {out}")
     except Exception as e:
         logging.error(f"[plotting_raster] Failed to create band KDE chart: {e}")
