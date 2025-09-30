@@ -13,6 +13,7 @@ these Common are defined in this separated piece of code.
 import logging
 import math
 import os
+from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
 
 import affine
@@ -20,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import rasterio as rio
-from pyproj import Transformer
+from pyproj import Transformer, transformer
 from rasterio.enums import Resampling
 from rasterio.warp import calculate_default_transform, reproject
 from scipy.ndimage import uniform_filter
@@ -99,42 +100,72 @@ def xy_np(transform, rows, cols, offset="center"):
 # ------------------------------
 # Orthophoto Reading: Reflectance Bands
 # ------------------------------
+from rasterio.windows import shape as win_shape
+
 def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32632"):
     start_bands = timer()
     try:
-        with rio.open(each_ortho) as rst:
-            num_bands = rst.count
-            b_all = rst.read(masked=True)  # Read all bands
-
-            rows, cols = np.indices((rst.height, rst.width))
-            rows_flat, cols_flat = rows.flatten(), cols.flatten()
-            Xw, Yw = rio.transform.xy(rst.transform, rows_flat, cols_flat, offset="center")
-
+        dfs = []
+        with rio.open(each_ortho) as src:
+            transformer = None
             if transform_to_utm:
-                transformer = Transformer.from_crs(rst.crs, target_crs, always_xy=True)
-                x_trans, y_trans = transformer.transform(Xw, Yw)
-                Xw = np.array(x_trans)
-                Yw = np.array(y_trans)
-            else:
-                Xw = np.array(Xw)
-                Yw = np.array(Yw)
+                transformer = Transformer.from_crs(src.crs, target_crs, always_xy=True)
 
-            band_values = b_all.reshape(num_bands, -1).T
+            # Iterate sequentially over natural block windows (safer than threading for GDAL)
+            for block_id, win in src.block_windows():
+                try:
+                    # Skip invalid/empty windows
+                    if win.width <= 0 or win.height <= 0:
+                        continue
 
-            data = {"Xw": pl.Series(Xw), "Yw": pl.Series(Yw)}
-            for idx in range(num_bands):
-                data[f"band{idx + 1}"] = pl.Series(band_values[:, idx])
-            df_allbands = pl.DataFrame(data)
+                    arr = src.read(masked=True, window=win)  # shape: (bands, H, W)
+                    if arr.size == 0:
+                        continue
+
+                    # Window transform and pixel centers
+                    tfm = src.window_transform(win)
+                    r, c = np.indices((win.height, win.width))
+                    x, y = rio.transform.xy(tfm, r, c, offset="center")
+
+                    # Ensure numpy arrays, then flatten
+                    x = np.asarray(x).ravel()
+                    y = np.asarray(y).ravel()
+
+                    # Optional CRS transform
+                    if transformer is not None:
+                        x, y = transformer.transform(x, y)
+
+                    data = {"Xw": x, "Yw": y}
+
+                    # Fill masked values with NaN to keep numeric dtypes in Polars
+                    for i, band in enumerate(arr, 1):
+                        data[f"band{i}"] = np.asarray(
+                            np.ma.filled(band, np.nan)
+                        ).ravel()
+
+                    dfs.append(pl.DataFrame(data))
+
+                except Exception as be:
+                    logging.warning(
+                        f"Failed to process window block {block_id} in {os.path.basename(each_ortho)}: {be}"
+                    )
+                    continue  # Skip bad blocks, continue with others
+
+        if not dfs:
+            raise RuntimeError("No valid data blocks could be read from the file")
+
+        df_allbands = pl.concat(dfs, rechunk=True)
 
         end_bands = timer()
         logging.info(
             f"Processed orthophoto bands for {os.path.basename(each_ortho)} in {end_bands - start_bands:.2f} seconds"
         )
         return df_allbands
+
     except Exception as e:
         logging.error(f"Error reading bands from {each_ortho}: {e}")
         raise
-
+# ------------------------------
 
 def coregister_and_resample(
     input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest

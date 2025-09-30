@@ -11,10 +11,10 @@ from pathlib import Path
 def main():
     """Entry point for the uav-rpv command."""
     # Import the main function from the script file
-    script_path = Path(__file__).parent / "src/pipeline_RPV_modelling.py"
-    spec = importlib.util.spec_from_file_location("rpv_modelling_script", script_path)
+    script_path = Path(__file__).parent / "src/pipeline_modelling.py"
+    spec = importlib.util.spec_from_file_location("modelling_script", script_path)
     module = importlib.util.module_from_spec(spec)
-    sys.modules["rpv_modelling_script"] = module
+    sys.modules["modelling_script"] = module
     spec.loader.exec_module(module)
 
     # Call the main function
