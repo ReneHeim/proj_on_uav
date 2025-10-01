@@ -12,7 +12,6 @@ from src.Utils.extract_data.raster import plotting_raster
 from src.Utils.RPV_modelling.rpv import rpv_fit
 
 
-
 def process_weekly_data_rpv(
     weeks_dics, band, debug=False, n_samples_bins=5000, sample_total_dataset=None, filter={}
 ):

@@ -1,4 +1,3 @@
-
 import logging
 import time
 from datetime import datetime
@@ -9,9 +8,14 @@ import polars as pl
 from tqdm import tqdm
 
 from Common.preprocess import df_preprocess
-from Utils.stats.Logistic_regression import preprocess_healthy_diseased, OLS, format_logistic_results
 from src.Utils.extract_data.raster import plotting_raster
 from src.Utils.RPV_modelling.rpv import rpv_fit
+from Utils.stats.Logistic_regression import (
+    OLS,
+    format_logistic_results,
+    preprocess_healthy_diseased,
+)
+
 
 def process_stats(dg, path, week, out):
     out.mkdir(parents=True, exist_ok=True)
@@ -24,12 +28,11 @@ def process_stats(dg, path, week, out):
         dg = dg.with_columns((90 - pl.col("sunelev")).alias("sza"))
 
         # Calculate relative azimuth angle constrained to [0,180]
-        dg = dg.with_columns(
-            (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA")
-        )
+        dg = dg.with_columns((((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"))
 
-        #=== Plot distributions ===
+        # === Plot distributions ===
         from src.Utils.stats.plotting import angle_kde_plot
+
         raa_edges = list(range(-360, 361, 90))
         vza_edges = [0, 20, 40, 60, 80]
         vza_bins = [(0, 20), (20, 40), (40, 60), (60, 80)]
@@ -39,29 +42,38 @@ def process_stats(dg, path, week, out):
             if (out / "bands_distribution" / f"{band}_{name}_vza.png").exists():
                 logging.info(f"Skipping {name} {band} as it already exists")
                 continue
-            angle_kde_plot(dg, band=band, bins=vza_bins, points=1000, linewidth=1, colors=None, dpi=300,
-                               xlim=None, angle='vza', out=out / "bands_distribution" / f"{band}_{name}_vza.png")
+            angle_kde_plot(
+                dg,
+                band=band,
+                bins=vza_bins,
+                points=1000,
+                linewidth=1,
+                colors=None,
+                dpi=300,
+                xlim=None,
+                angle="vza",
+                out=out / "bands_distribution" / f"{band}_{name}_vza.png",
+            )
 
-        #Do ANOVA
+        # Do ANOVA
         from src.Utils.stats.ANOVA import ANOVA_optimized, ANOVA_preprocess
+
         dg = ANOVA_preprocess(dg, raa_edges=raa_edges, vza_edges=vza_edges)
-
-
 
         (out / "anova").mkdir(parents=True, exist_ok=True)
         if (out / "anova" / f"anova_results_{name}.csv").exists() == False:
             logging.info(f"Calculating ANOVA for {name}")
             anova_results = {}
             for band in [f"band{i}" for i in range(1, 6)]:
-                anova_df = ANOVA_optimized(dg, band_col=band, col='raa_bin')
+                anova_df = ANOVA_optimized(dg, band_col=band, col="raa_bin")
                 anova_df = anova_df.with_columns(pl.lit(band).alias("band"))
                 anova_results[band] = anova_df
 
             # Union all ANOVA results
             ANOVA_all = pl.concat(list(anova_results.values()))
-            ANOVA_all.write_csv(out / 'anova' /f"anova_results_{name}.csv")
-        else: logging.info(f"Skipping ANOVA for {name} as it already exists")
-
+            ANOVA_all.write_csv(out / "anova" / f"anova_results_{name}.csv")
+        else:
+            logging.info(f"Skipping ANOVA for {name} as it already exists")
 
         # ==== Plot raster ====
         (out / "bands_data").mkdir(parents=True, exist_ok=True)
@@ -86,6 +98,7 @@ def process_stats(dg, path, week, out):
         raise e
         logging.error(f"Error in process_stats for {path}: {e}")
         return
+
 
 def process_logistic_regression(out, week, gdf, debug=False):
     id_start = 90001
@@ -124,13 +137,17 @@ def process_logistic_regression(out, week, gdf, debug=False):
 
         # Do logistic regression
         from src.Utils.stats.Logistic_regression import logistic_regression
+
         start_time = time.time()
         res = logistic_regression(merged_data)
         res = format_logistic_results(res, shape="long")
         # save results to csv
         (out / "logistic_regression").mkdir(parents=True, exist_ok=True)
         res.write_csv(
-            out / "logistic_regression" / f"logistic_regression_{week}_{healthy_df}_vs_{diseased_df}_{healthy_row["cult"]}.csv")
+            out
+            / "logistic_regression"
+            / f"logistic_regression_{week}_{healthy_df}_vs_{diseased_df}_{healthy_row["cult"]}.csv"
+        )
 
         logging.info("Logistic regression completed in %.2f seconds", time.time() - start_time)
 
@@ -147,7 +164,6 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
     print(f"Total plots to process: {total_plots}\n")
     start_time = time.time()
 
-
     # Process each week
     for week, gdf in weeks_dics.items():
         print(f"\nProcessing {week.upper()} - {len(gdf)} plots")
@@ -155,13 +171,9 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
         # Do logistic regression with pair comparison
         print(gdf)
 
-
         # Do logistic regression for each combo of treated and non treaded
         # plot 23 with plot 11, plot 22 with plot 10 ecc
         process_logistic_regression(out, week, gdf, debug)
-
-
-
 
         # Process each plot with a progress bar And
         for row in tqdm(gdf.to_dicts(), desc=f"{week}", ncols=80):
@@ -216,5 +228,3 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
                         "status": f"error: {str(e)[:100]}",
                     }
                 )
-
-

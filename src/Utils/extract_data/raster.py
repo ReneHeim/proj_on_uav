@@ -102,6 +102,7 @@ def xy_np(transform, rows, cols, offset="center"):
 # ------------------------------
 from rasterio.windows import shape as win_shape
 
+
 def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32632"):
     start_bands = timer()
     try:
@@ -139,9 +140,7 @@ def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32
 
                     # Fill masked values with NaN to keep numeric dtypes in Polars
                     for i, band in enumerate(arr, 1):
-                        data[f"band{i}"] = np.asarray(
-                            np.ma.filled(band, np.nan)
-                        ).ravel()
+                        data[f"band{i}"] = np.asarray(np.ma.filled(band, np.nan)).ravel()
 
                     dfs.append(pl.DataFrame(data))
 
@@ -165,7 +164,10 @@ def read_orthophoto_bands(each_ortho, transform_to_utm=True, target_crs="EPSG:32
     except Exception as e:
         logging.error(f"Error reading bands from {each_ortho}: {e}")
         raise
+
+
 # ------------------------------
+
 
 def coregister_and_resample(
     input_path, ref_path, output_path, target_resolution=None, resampling=Resampling.nearest
