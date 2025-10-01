@@ -190,119 +190,261 @@ def _compare_ols_fast(d):
 import logging
 import time
 
-def _auroc_fast(d, same_size=False, random_state=0):
+def _auroc_fast(
+    d,
+    bands=("band5"),              # <— choose spectral columns here
+    same_size: bool = True,
+    random_state: int = 0,
+    n_splits: int = 5,
+    v_bins: int = 10,
+    r_bins: int = 10,
+    group_col: str | None = None,
+    nested: bool = False,
+    Cs=(0.1, 1.0, 3.0),
+    geometry_match: bool = True,   # <— neutralize VZA×RAA distribution across classes
+    match_strategy: str = "quantile" # "quantile" or "uniform" binning for matching
+):
     """
-    Compute AUROC for four models under strict anti-leakage protocols:
 
-    Models
-    ------
-    1) Nadir baseline: Logistic regression on band5, restricted to vza < 20°.
-    2) Main effects : band5 + one-hot(vza_bin, raa_bin).
-    3) Full interactions: main effects + pairwise + triple interactions (degree=3,
-       interaction_only=True, include_bias=False).
-    4) Angle-aware (geo): identical to main effects; kept for naming continuity.
-
-    Key safeguards
-    --------------
-    - All preprocessing inside Pipelines (no leakage).
-    - Stratified CV with fixed seed for reproducibility.
-    - Optional `same_size=True` forces non-nadir sample N == nadir N.
-
-    Returns
-    -------
-    dict with AUROCs and differences (Δ) between models.
     """
     import logging, time
     import numpy as np
+    import pandas as pd
     from sklearn.compose import ColumnTransformer
-    from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
+    from sklearn.preprocessing import (
+        KBinsDiscretizer, StandardScaler, PolynomialFeatures
+    )
     from sklearn.pipeline import Pipeline
     from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import StratifiedKFold, cross_val_score
-    # --- Target variable: binary 0/1 as int8 to reduce memory footprint ---
+    from sklearn.model_selection import (
+        StratifiedKFold, GroupKFold, cross_val_score, GridSearchCV
+    )
+
+    # ----------------------------
+    # Basic checks and targets
+    # ----------------------------
+    if isinstance(bands, (str,)):
+        bands = (bands,)
+    bands = tuple(bands)
+
+    missing = [b for b in bands if b not in d.columns]
+    if missing:
+        raise KeyError(f"Requested bands not in dataframe: {missing}")
+
+    need_cols = {"status", "vza", "raa"} | set(bands)
+    missing2 = [c for c in need_cols if c not in d.columns]
+    if missing2:
+        raise KeyError(f"Dataframe missing required columns: {missing2}")
+
+    # Binary label as compact int8
     y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
 
-    # --- Nadir mask (baseline science preserved exactly) ---
+    # Nadir mask (baseline science preserved exactly)
     nd_mask = (d["vza"] < 20).to_numpy()
 
-    # --- Single design table; column selectors will pick subsets later ---
-    # Keep only columns actually used by the models.
-    X = d[["band5", "vza_bin", "raa_bin"]]
+    # Design matrix with RAW angles and chosen bands
+    X = d[list(bands) + ["vza", "raa"]]
 
-    # Sanity checks (optional but helpful in a paper/repro context)
+    groups_all = None
+    if group_col is not None:
+        if group_col not in d.columns:
+            raise KeyError(f"group_col '{group_col}' not found in dataframe.")
+        groups_all = d[group_col].to_numpy()
+
     if X.isnull().any().any():
         logging.warning("NaNs detected in X; consider imputing before modeling.")
     if y.shape[0] != X.shape[0]:
         raise ValueError("X and y length mismatch, check preprocessing.")
 
-    # --- Preprocessing primitives (fit only on train folds via Pipeline) ---
-    scale_band = ("scale", StandardScaler(with_mean=False), ["band5"])
-    onehot_geo = ("onehot", OneHotEncoder(drop="first", handle_unknown="ignore"), ["vza_bin", "raa_bin"])
+    # ----------------------------
+    # Helper: geometry matching within NON-NADIR subset
+    # ----------------------------
+    def _geometry_match_indices(df_non_nadir: pd.DataFrame, y_non_nadir: np.ndarray) -> np.ndarray:
+        """
+        Equalize joint (vza, raa) distribution across classes within non-nadir.
+        Returns indices (relative to df_non_nadir) to keep after matching.
+        """
+        from sklearn.preprocessing import KBinsDiscretizer
 
-    # Main-effects ColumnTransformer: [scaled band5 | one-hot(vza_bin, raa_bin)]
-    ct_main = ColumnTransformer([scale_band, onehot_geo])
+        # Discretize vza and raa on the non-nadir subset (for matching only)
+        kb_v = KBinsDiscretizer(n_bins=v_bins, encode="ordinal",
+                                strategy=match_strategy,
+                                quantile_method="averaged_inverted_cdf")
+        kb_r = KBinsDiscretizer(n_bins=r_bins, encode="ordinal",
+                                strategy=match_strategy,
+                                quantile_method="averaged_inverted_cdf")
 
-    # Classifier with explicit regularization and tolerance (stable across folds)
-    lr = LogisticRegression(penalty="l2", max_iter=300, tol=1e-3, random_state=0)
+        vz_bins = kb_v.fit_transform(df_non_nadir[["vza"]]).astype(int).ravel()
+        ra_bins = kb_r.fit_transform(df_non_nadir[["raa"]]).astype(int).ravel()
 
-    # Pipelines:
-    # 1) Nadir baseline: band5 only, evaluated on nadir rows.
-    pipe_nadir = Pipeline([("prep", ColumnTransformer([scale_band])), ("clf", lr)])
+        idx_list = []
+        rng = np.random.default_rng(random_state)
 
-    # 2) Main effects
-    pipe_main = Pipeline([("prep", ct_main), ("clf", lr)])
+        # Build a small dataframe to count per cell, per class
+        tmp = pd.DataFrame({
+            "vz": vz_bins, "ra": ra_bins, "y": y_non_nadir,
+            "_idx": np.arange(df_non_nadir.shape[0], dtype=int)
+        })
 
-    # 3) Full interactions: WARNING - PolynomialFeatures densifies; mind RAM.
-    pipe_full = Pipeline([
-        ("prep", ct_main),
-        ("poly", PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)),
-        ("clf", lr)
-    ])
+        # For each (vz, ra) cell, match class counts to min across classes
+        for (vz, ra), sub in tmp.groupby(["vz", "ra"], observed=True):
+            # two-class case assumed; generalize if needed
+            n0 = (sub["y"] == 0).sum()
+            n1 = (sub["y"] == 1).sum()
+            m = min(n0, n1)
+            if m == 0:
+                continue  # skip cells with only one class
+            # sample m from each class without replacement
+            for cls in (0, 1):
+                pool = sub.loc[sub["y"] == cls, "_idx"].to_numpy()
+                if pool.size == 0:
+                    continue
+                take = rng.choice(pool, size=min(m, pool.size), replace=False)
+                idx_list.append(take)
 
-    # 4) Angle-aware == main effects (kept for naming continuity/plots)
-    pipe_geo = pipe_main
+        if not idx_list:
+            raise RuntimeError("Geometry matching failed: no overlapping cells between classes.")
+        return np.concatenate(idx_list)
 
-    # --- same_size protocol: match non-nadir N to nadir N for fair comparison ---
-    # We downsample (or bootstrap) ONLY non-nadir rows; baseline remains pristine.
+    # ----------------------------
+    # Build NON-NADIR subset, apply geometry matching (optional), same_size (optional)
+    # ----------------------------
+    X_nadir, y_nadir = X.loc[nd_mask], y[nd_mask]
+    groups_nadir = None if groups_all is None else groups_all[nd_mask]
+
+    X_non_nadir, y_non_nadir = X.loc[~nd_mask], y[~nd_mask]
+    groups_non_nadir = None if groups_all is None else groups_all[~nd_mask]
+
+    if geometry_match:
+        keep_rel = _geometry_match_indices(X_non_nadir, y_non_nadir)
+        X_non_nadir = X_non_nadir.iloc[keep_rel]
+        y_non_nadir = y_non_nadir[keep_rel]
+        if groups_non_nadir is not None:
+            groups_non_nadir = groups_non_nadir[keep_rel]
+        logging.info(f"geometry_match=True → kept {X_non_nadir.shape[0]} non-nadir rows after VZA×RAA balancing.")
+
     if same_size:
         rng = np.random.default_rng(random_state)
-        N = int(nd_mask.sum())                       # nadir count
-        nn_idx = np.flatnonzero(~nd_mask)           # indices of non-nadir rows
-        if nn_idx.size == 0:
-            raise ValueError("No non-nadir rows available for same_size sampling.")
-        replace = (nn_idx.size < N)                 # bootstrap if too few non-nadir
-        take = rng.choice(nn_idx, size=N, replace=replace)
-        X_non_nadir, y_non_nadir = X.iloc[take], y[take]
+        N = int(nd_mask.sum())
+        nn = X_non_nadir.shape[0]
+        replace = (nn < N)
+        take = rng.choice(np.arange(nn), size=N, replace=replace)
+        X_non_nadir = X_non_nadir.iloc[take]
+        y_non_nadir = y_non_nadir[take]
+        if groups_non_nadir is not None:
+            groups_non_nadir = groups_non_nadir[take]
+        logging.info(f"same_size=True → non-nadir size set to N={N} "
+                     f"({'with' if replace else 'without'} replacement).")
+
+    # ----------------------------
+    # Pipelines (anti-leakage by construction)
+    # ----------------------------
+    # Scaler for *all* selected band columns
+    scale_bands = ("scale_bands", StandardScaler(with_mean=False), list(bands))
+
+    # Angle discretization for model features (inside folds, leak-free)
+    bin_vza_feat = ("bin_vza", KBinsDiscretizer(
+        n_bins=v_bins, encode="onehot", strategy="quantile",
+        quantile_method="averaged_inverted_cdf"
+    ), ["vza"])
+    bin_raa_feat = ("bin_raa", KBinsDiscretizer(
+        n_bins=r_bins, encode="onehot", strategy="quantile",
+        quantile_method="averaged_inverted_cdf"
+    ), ["raa"])
+
+    # Nadir baseline: bands only (no angle features), evaluated on nadir rows
+    pipe_nadir = Pipeline(steps=[
+        ("prep", ColumnTransformer(
+            transformers=[scale_bands],
+            sparse_threshold=1.0
+        )),
+        ("clf", LogisticRegression(
+            penalty="l2", solver="saga", max_iter=300, tol=1e-3, random_state=0
+        )),
+    ])
+
+    # Main-effects: bands + (one-hot binned angles)
+    prep_main = ColumnTransformer(
+        transformers=[scale_bands, bin_vza_feat, bin_raa_feat],
+        sparse_threshold=1.0
+    )
+    base_clf = LogisticRegression(
+        penalty="l2", solver="saga", max_iter=300, tol=1e-3, random_state=0
+    )
+    pipe_main = Pipeline([("prep", prep_main), ("clf", base_clf)])
+
+    # Full interactions: main-effects + polynomial interactions (degree=3)
+    pipe_full = Pipeline([
+        ("prep", prep_main),
+        ("poly", PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)),
+        ("clf",  base_clf),
+    ])
+
+    # Angle-aware (alias of main-effects for naming continuity)
+    pipe_geo = pipe_main
+
+    # ----------------------------
+    # CV splitter(s)
+    # ----------------------------
+    if group_col is None:
+        outer_cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+        inner_cv = StratifiedKFold(n_splits=max(3, min(5, n_splits - 1)), shuffle=True, random_state=random_state+1)
     else:
-        X_non_nadir, y_non_nadir = X.loc[~nd_mask], y[~nd_mask]
+        outer_cv = GroupKFold(n_splits=n_splits)
+        inner_cv = GroupKFold(n_splits=max(3, min(5, n_splits - 1)))
 
+    # ----------------------------
+    # Helpers: AUROC via (nested) CV
+    # ----------------------------
+    auc_scorer = "roc_auc"
 
-    # --- Cross-validation: aligned splits across models for fair comparisons ---
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
-
-    def auroc(pipe, X_, y_, label):
-        """
-        Compute cross-validated AUROC for a given pipeline.
-        All preprocessing happens *within* each fold (no leakage).
-        """
+    def _cv_auc(pipe, X_, y_, label, groups=None):
         start = time.time()
-        score = float(cross_val_score(
-            pipe, X_, y_,
-            cv=cv, scoring="roc_auc",
-            n_jobs=-1, pre_dispatch="2*n_jobs"  # robust parallelism
-        ).mean())
-        logging.info(f"[AUROC] {label:16s} = {score:.4f}  ({time.time()-start:.2f}s)")
-        return score
+        if group_col is None:
+            scores = cross_val_score(pipe, X_, y_, cv=outer_cv, scoring=auc_scorer,
+                                     n_jobs=-1, pre_dispatch="2*n_jobs")
+        else:
+            scores = cross_val_score(pipe, X_, y_, cv=outer_cv, groups=groups, scoring=auc_scorer,
+                                     n_jobs=-1, pre_dispatch="2*n_jobs")
+        m, s = float(np.mean(scores)), float(np.std(scores))
+        logging.info(f"[CV AUROC] {label:18s} mean={m:.4f} ±{s:.4f} ({time.time()-start:.2f}s)")
+        return m
 
-    # --- Evaluate baseline on nadir rows only ---
-    au_nadir = auroc(pipe_nadir, X.loc[nd_mask], y[nd_mask], "nadir baseline")
+    def _nested_auc(pipe, X_, y_, label, groups=None):
+        start = time.time()
+        param_grid = {"clf__C": list(Cs)}
+        inner_search = GridSearchCV(estimator=pipe, param_grid=param_grid,
+                                    scoring=auc_scorer, cv=inner_cv, n_jobs=-1, refit=True)
+        outer_scores = []
+        if group_col is None:
+            splitter = outer_cv.split(X_, y_)
+            outer_groups = None
+        else:
+            splitter = outer_cv.split(X_, y_, groups)
+            outer_groups = groups
 
-    # --- Evaluate comparison models on (possibly size-matched) non-nadir rows ---
-    au_main  = auroc(pipe_main, X_non_nadir, y_non_nadir, "main effects")
-    au_full  = auroc(pipe_full, X_non_nadir, y_non_nadir, "full interactions")
-    au_geo   = auroc(pipe_geo,  X_non_nadir, y_non_nadir, "angle-aware")
+        from sklearn.metrics import roc_auc_score
+        for tr, te in splitter:
+            X_tr, X_te = X_.iloc[tr], X_.iloc[te]
+            y_tr, y_te = y_[tr], y_[te]
+            g_tr = None if outer_groups is None else outer_groups[tr]
+            fit_kwargs = {} if g_tr is None else {"groups": g_tr}
+            inner_search.fit(X_tr, y_tr, **fit_kwargs)
+            proba = inner_search.best_estimator_.predict_proba(X_te)[:, 1]
+            outer_scores.append(roc_auc_score(y_te, proba))
+        m, s = float(np.mean(outer_scores)), float(np.std(outer_scores))
+        logging.info(f"[Nested AUROC] {label:16s} mean={m:.4f} ±{s:.4f} ({time.time()-start:.2f}s)")
+        return m
 
-    # --- Report in a way that's easy to cite in text and tables ---
+    # ----------------------------
+    # Evaluate models
+    # ----------------------------
+    au_nadir = _cv_auc(pipe_nadir, X_nadir, y_nadir, "nadir baseline", groups_nadir)
+    evaluator = _nested_auc if nested else _cv_auc
+    au_main  = evaluator(pipe_main, X_non_nadir, y_non_nadir, "main effects", groups_non_nadir)
+    au_full  = evaluator(pipe_full, X_non_nadir, y_non_nadir, "full interactions", groups_non_nadir)
+    au_geo   = evaluator(pipe_geo,  X_non_nadir, y_non_nadir, "angle-aware", groups_non_nadir)
+
     results = {
         "AUROC_nadir": au_nadir,
         "AUROC_main":  au_main,
@@ -312,136 +454,23 @@ def _auroc_fast(d, same_size=False, random_state=0):
         "Δ_main−nadir": au_main - au_nadir,
         "Δ_full−main":  au_full - au_main,
         "ΔAUROC_geo−nadir": au_geo - au_nadir,
+        "settings": {
+            "bands": tuple(bands),
+            "same_size": same_size,
+            "random_state": random_state,
+            "n_splits": n_splits,
+            "v_bins": v_bins,
+            "r_bins": r_bins,
+            "group_col": group_col,
+            "nested": nested,
+            "Cs": tuple(Cs),
+            "geometry_match": geometry_match,
+            "match_strategy": match_strategy,
+            "solver": "saga",
+        },
     }
     return results
 
-
-
-
-
-
-
-def _auroc_fast(d, same_size=True, random_state=0):
-    """
-    Compute AUROC metrics for baseline (nadir-only), main effects,
-    full interaction, and angle-aware models.
-
-    Args:
-        d : preprocessed dataframe
-        same_size : bool
-            If True, force the non-nadir sample (main/full/geo models)
-            to be exactly the same size as the nadir baseline.
-            Sampling is done randomly with replacement if needed.
-        random_state : int
-            Seed for reproducible sampling.
-    """
-
-    # --- Target variable (binary; int8 to save memory) ---
-    y = (d["status"].astype(str).str.lower() == "diseased").astype("int8").to_numpy()
-
-    # --- Nadir subset (vza < 20°) for baseline ---
-    nd_mask = (d["vza"] < 20).to_numpy()
-    X_nadir = d.loc[nd_mask, ["band5"]].to_numpy(dtype="float32")
-    y_nadir = y[nd_mask]
-
-    # --- Sparse feature engineering (shared by all non-nadir models) ---
-    from sklearn.preprocessing import OneHotEncoder, StandardScaler, PolynomialFeatures
-    from scipy.sparse import csr_matrix, hstack
-
-    # Continuous band5, scaled (CSR-friendly: with_mean=False avoids dense centering)
-    band = d[["band5"]].to_numpy(dtype="float32")
-    band = StandardScaler(with_mean=False).fit_transform(band)
-    band = csr_matrix(band)  # make sparse for easy hstack later
-
-    # Geometry bins encoded as sparse one-hot (drop first to avoid collinearities)
-    enc = OneHotEncoder(
-        categories=[
-            sorted(d["vza_bin"].unique()),
-            sorted(d["raa_bin"].unique())
-        ],
-        drop="first",
-        handle_unknown="ignore",
-        sparse_output=True,
-        dtype="float32",
-    ).fit(d[["vza_bin", "raa_bin"]])
-    cats = enc.transform(d[["vza_bin", "raa_bin"]])  # CSR matrix with dummy vars
-
-    # Main-effects design matrix = [band5 | vza_bin | raa_bin]
-    X_main = hstack([band, cats], format="csr")
-
-    # Full interaction model (two-way + triple interactions)
-    poly = PolynomialFeatures(degree=3, interaction_only=True, include_bias=False)
-    X_full = poly.fit_transform(X_main)
-
-    # Angle-aware "geo" model = same as main effects in this setup
-    X_geo = X_main
-
-    # --- Optional size matching ---
-    if same_size:
-        import numpy as np
-        rng = np.random.default_rng(random_state)
-
-        # Count nadir samples
-        N = nd_mask.sum()
-
-        # Indices for non-nadir observations
-        non_nadir_idx = np.flatnonzero(~nd_mask)
-
-        # Sample exactly N rows from non-nadir (with replacement if fewer than N available)
-        chosen = rng.choice(non_nadir_idx, size=int(N), replace=(non_nadir_idx.size < N))
-
-        # Subset design matrices + labels for main/full/geo models
-        X_main = X_main[chosen]
-        X_full = X_full[chosen]
-        X_geo  = X_geo[chosen]
-        y      = y[chosen]
-
-    # --- AUROC via cross-validation ---
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import StratifiedKFold, cross_val_score
-    import time, logging
-
-    # Logistic regression classifier
-    lr = LogisticRegression(
-        penalty="l2",
-        max_iter=300,
-        tol=1e-3,
-        random_state=0,
-    )
-
-    # 5-fold stratified CV
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
-
-    def auc(X, y_, label):
-        """Helper: compute AUROC with timing + logging"""
-        start = time.time()
-        score = float(
-            cross_val_score(
-                lr, X, y_, cv=cv,
-                scoring="roc_auc",
-                n_jobs=-1, pre_dispatch="2*n_jobs"
-            ).mean()
-        )
-        logging.info(f"AUROC for {label} computed in {time.time() - start:.2f}s")
-        return score
-
-    # Compute AUROC for all models
-    au_nadir = auc(X_nadir, y_nadir, "nadir baseline")
-    au_main  = auc(X_main,  y, "main effects")
-    au_full  = auc(X_full,  y, "full interactions")
-    au_geo   = auc(X_geo,   y, "angle-aware")
-
-    # --- Results dictionary ---
-    return {
-        "AUROC_nadir": au_nadir,
-        "AUROC_main":  au_main,
-        "AUROC_full":  au_full,
-        "AUROC_angle": au_geo,
-        "Δ_full−nadir": au_full - au_nadir,
-        "Δ_main−nadir": au_main - au_nadir,
-        "Δ_full−main":  au_full - au_main,
-        "ΔAUROC_geo−nadir": au_geo - au_nadir,
-    }
 
 
 def _calculate_cohens_d(d):
