@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
@@ -13,7 +14,9 @@ import polars as pl
 
 SUMMARY_PATH = (
     Path(__file__).resolve().parent.parent.parent
-    / "outputs" / "results" / "model_comparison_summary.csv"
+    / "outputs"
+    / "results"
+    / "model_comparison_summary.csv"
 )
 FIGURES_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "figures"
 
@@ -88,18 +91,27 @@ def main():
     if nadir_means:
         ref = np.mean(nadir_means)
         ax.axhline(y=ref, color="#3498db", linestyle="--", linewidth=1.2, alpha=0.7)
-        ax.text(4.9, ref + 0.01, f"nadir mean\n({ref:.3f})", fontsize=8,
-                color="#3498db", ha="right", va="bottom")
+        ax.text(
+            4.9,
+            ref + 0.01,
+            f"nadir mean\n({ref:.3f})",
+            fontsize=8,
+            color="#3498db",
+            ha="right",
+            va="bottom",
+        )
 
     ax.set_xticks(x_positions)
     ax.set_xticklabels(tick_labels, fontsize=10)
     ax.set_ylabel("Mean AUROC (5-fold CV)", fontsize=12)
-    ax.set_title("Nadir vs Multiangular Feature Sets for Disease Prediction",
-                 fontsize=13, fontweight="bold")
+    ax.set_title(
+        "Nadir vs Multiangular Feature Sets for Disease Prediction", fontsize=13, fontweight="bold"
+    )
     ax.set_ylim(0, 1.0)
 
     # legend
     from matplotlib.patches import Patch
+
     legend_elements = [
         Patch(facecolor="#3498db", label="Nadir (M1-M2)"),
         Patch(facecolor="#e74c3c", label="Multiangular (M3-M5)"),

@@ -135,17 +135,25 @@ def evaluate_with_C(name, C, year=None):
         gap = train_aurocs - test_aurocs
         max_gap = max(max_gap, gap)
 
-        fold_results.append({
-            "feature_set": name, "C": C, "fold": fold,
-            "n_train": len(y_train), "n_test": len(y_test),
-            "positive_rate_train": y_train.mean(), "positive_rate_test": y_test.mean(),
-            "AUROC": test_aurocs, "AUROC_train": train_aurocs, "AUROC_gap": gap,
-            "AUPRC": average_precision_score(y_test, y_proba),
-            "F1": f1_score(y_test, y_pred),
-            "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
-            "recall": recall_score(y_test, y_pred),
-            "precision": precision_score(y_test, y_pred),
-        })
+        fold_results.append(
+            {
+                "feature_set": name,
+                "C": C,
+                "fold": fold,
+                "n_train": len(y_train),
+                "n_test": len(y_test),
+                "positive_rate_train": y_train.mean(),
+                "positive_rate_test": y_test.mean(),
+                "AUROC": test_aurocs,
+                "AUROC_train": train_aurocs,
+                "AUROC_gap": gap,
+                "AUPRC": average_precision_score(y_test, y_proba),
+                "F1": f1_score(y_test, y_pred),
+                "balanced_accuracy": balanced_accuracy_score(y_test, y_pred),
+                "recall": recall_score(y_test, y_pred),
+                "precision": precision_score(y_test, y_pred),
+            }
+        )
 
         logging.info(
             f"  Fold {fold}: test={test_aurocs:.3f} train={train_aurocs:.3f} "
@@ -231,12 +239,12 @@ def main(years=None):
         years = ["all", "2024", "2025"]
     elif isinstance(years, str):
         years = [years]
-    
+
     for year in years:
         logging.info(f"\n{'#'*60}")
         logging.info(f"  YEAR: {year}")
         logging.info(f"{'#'*60}")
-        
+
         all_folds = []
         for fs_name in FEATURE_SETS:
             try:
@@ -246,15 +254,15 @@ def main(years=None):
                 logging.warning(f"SKIP {fs_name}: {e}")
             except Exception as e:
                 logging.error(f"ERROR {fs_name}: {e}", exc_info=True)
-        
+
         if not all_folds:
             continue
-        
+
         fold_df = pl.DataFrame(all_folds)
         year_res_dir = RESULTS_DIR.parent / year / "results"
         year_res_dir.mkdir(parents=True, exist_ok=True)
         fold_df.write_csv(year_res_dir / "model_comparison_by_fold.csv")
-        
+
         summary_df = (
             fold_df.group_by("feature_set", "C")
             .agg(
@@ -277,7 +285,9 @@ def main(years=None):
     logging.info(f"\n{'='*80}")
     logging.info("FEATURE SET COMPARISON")
     logging.info(f"{'='*80}")
-    logging.info(f"  {'Set':>4s} {'C':>5s} {'Test':>8s} {'Train':>8s} {'Gap':>6s} {'F1':>8s}  Overfit")
+    logging.info(
+        f"  {'Set':>4s} {'C':>5s} {'Test':>8s} {'Train':>8s} {'Gap':>6s} {'F1':>8s}  Overfit"
+    )
     logging.info(f"  {'─'*4} {'─'*5} {'─'*8} {'─'*8} {'─'*6} {'─'*8}  {'─'*10}")
     for row in summary_df.iter_rows(named=True):
         flag = "⚠️" if row["AUROC_gap_max"] > 0.15 else "✓"
@@ -301,8 +311,16 @@ def main(years=None):
 |------------|---|-----------|-----------|---------|-----|---------|
 """
     for row in summary_df.iter_rows(named=True):
-        gap_flag = "⚠️ **HIGH**" if row["AUROC_gap_max"] > 0.20 else "⚠️ borderline" if row["AUROC_gap_max"] > 0.10 else "✓ OK"
-        ftype = "Multiangular" if row["feature_set"] in ("M3","M4","M5") else ("Nadir" if row["feature_set"] in ("M1","M2") else "Metadata")
+        gap_flag = (
+            "⚠️ **HIGH**"
+            if row["AUROC_gap_max"] > 0.20
+            else "⚠️ borderline" if row["AUROC_gap_max"] > 0.10 else "✓ OK"
+        )
+        ftype = (
+            "Multiangular"
+            if row["feature_set"] in ("M3", "M4", "M5")
+            else ("Nadir" if row["feature_set"] in ("M1", "M2") else "Metadata")
+        )
         md += (
             f"| {row['feature_set']} | {row['C']:.1f} | "
             f"{row['AUROC_mean']:.3f} ± {row['AUROC_std']:.3f} | "

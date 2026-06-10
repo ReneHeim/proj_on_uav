@@ -37,16 +37,17 @@ def load_data(table_path, value_col="reflectance_median"):
         pl.col("band").cast(pl.Utf8),
     )
     df = df.drop_nulls([value_col, "disease_int", "vza_bin", "band"])
-    df = df.filter(
-        pl.col(value_col).is_not_nan()
-        & pl.col(value_col).is_finite()
-    )
+    df = df.filter(pl.col(value_col).is_not_nan() & pl.col(value_col).is_finite())
     n = df.height
     nan_in_col = raw_n - df.filter(pl.col(value_col).is_not_nan()).height
     if nan_in_col > 0:
-        logging.warning(f"reflectance_mean all NaN — using {value_col} instead ({nan_in_col} NaN rows dropped)")
+        logging.warning(
+            f"reflectance_mean all NaN — using {value_col} instead ({nan_in_col} NaN rows dropped)"
+        )
     logging.info(f"Rows loaded: {raw_n}, with disease labels and valid {value_col}: {n}")
-    logging.info(f"Diseased: {(df['disease_int']==1).sum()}, Healthy: {(df['disease_int']==0).sum()}")
+    logging.info(
+        f"Diseased: {(df['disease_int']==1).sum()}, Healthy: {(df['disease_int']==0).sum()}"
+    )
     logging.info(f"[PHASE] data loading: {time.time() - t0:.1f}s")
     return df, value_col
 
@@ -66,9 +67,7 @@ def one_way_anova_by_band(df, group_col, value_col="reflectance_mean"):
     results = []
     for band in bands:
         bdf = df.filter(pl.col("band") == band)
-        groups = bdf.group_by(group_col).agg(
-            pl.col(value_col).alias("values")
-        )
+        groups = bdf.group_by(group_col).agg(pl.col(value_col).alias("values"))
         group_arrays = _get_group_arrays(groups)
         if len(group_arrays) < 2:
             continue
@@ -77,16 +76,18 @@ def one_way_anova_by_band(df, group_col, value_col="reflectance_mean"):
         ssb = sum(len(a) * (np.mean(a) - grand_mean) ** 2 for a in group_arrays)
         ssw = sum(np.sum((a - np.mean(a)) ** 2) for a in group_arrays)
         eta_sq = ssb / (ssb + ssw) if (ssb + ssw) > 0 else np.nan
-        results.append({
-            "test": f"{value_col} ~ {group_col}",
-            "band": band,
-            "f_stat": f_stat,
-            "p_value": p_val,
-            "eta_sq": eta_sq,
-            "n_groups": len(group_arrays),
-            "n_total": sum(len(a) for a in group_arrays),
-            "significant": p_val < 0.05,
-        })
+        results.append(
+            {
+                "test": f"{value_col} ~ {group_col}",
+                "band": band,
+                "f_stat": f_stat,
+                "p_value": p_val,
+                "eta_sq": eta_sq,
+                "n_groups": len(group_arrays),
+                "n_total": sum(len(a) for a in group_arrays),
+                "significant": p_val < 0.05,
+            }
+        )
     return pl.DataFrame(results)
 
 
@@ -107,17 +108,19 @@ def two_way_anova_interaction(df, value_col="reflectance_mean"):
             ssb = sum(len(a) * (np.mean(a) - grand_mean) ** 2 for a in group_arrays)
             ssw = sum(np.sum((a - np.mean(a)) ** 2) for a in group_arrays)
             eta_sq = ssb / (ssb + ssw) if (ssb + ssw) > 0 else np.nan
-            results.append({
-                "test": f"{value_col} ~ vza_bin | disease={dl}",
-                "band": band,
-                "disease_label": dl,
-                "f_stat": f_stat,
-                "p_value": p_val,
-                "eta_sq": eta_sq,
-                "n_groups": len(group_arrays),
-                "n_total": sum(len(a) for a in group_arrays),
-                "significant": p_val < 0.05,
-            })
+            results.append(
+                {
+                    "test": f"{value_col} ~ vza_bin | disease={dl}",
+                    "band": band,
+                    "disease_label": dl,
+                    "f_stat": f_stat,
+                    "p_value": p_val,
+                    "eta_sq": eta_sq,
+                    "n_groups": len(group_arrays),
+                    "n_total": sum(len(a) for a in group_arrays),
+                    "significant": p_val < 0.05,
+                }
+            )
     return pl.DataFrame(results)
 
 
@@ -135,20 +138,25 @@ def anova_per_cultivar(df, value_col="reflectance_mean"):
             if len(group_arrays) < 2:
                 continue
             f_stat, p_val = f_oneway(*group_arrays)
-            ssb = sum(len(a) * (np.mean(a) - np.mean(np.concatenate(group_arrays))) ** 2 for a in group_arrays)
+            ssb = sum(
+                len(a) * (np.mean(a) - np.mean(np.concatenate(group_arrays))) ** 2
+                for a in group_arrays
+            )
             ssw = sum(np.sum((a - np.mean(a)) ** 2) for a in group_arrays)
             eta_sq = ssb / (ssb + ssw) if (ssb + ssw) > 0 else np.nan
-            results.append({
-                "test": f"{value_col} ~ vza_bin | cultivar={cv}",
-                "band": band,
-                "cultivar": cv,
-                "f_stat": f_stat,
-                "p_value": p_val,
-                "eta_sq": eta_sq,
-                "n_groups": len(group_arrays),
-                "n_total": sum(len(a) for a in group_arrays),
-                "significant": p_val < 0.05,
-            })
+            results.append(
+                {
+                    "test": f"{value_col} ~ vza_bin | cultivar={cv}",
+                    "band": band,
+                    "cultivar": cv,
+                    "f_stat": f_stat,
+                    "p_value": p_val,
+                    "eta_sq": eta_sq,
+                    "n_groups": len(group_arrays),
+                    "n_total": sum(len(a) for a in group_arrays),
+                    "significant": p_val < 0.05,
+                }
+            )
     return pl.DataFrame(results)
 
 
@@ -166,20 +174,25 @@ def anova_per_treatment(df, value_col="reflectance_mean"):
             if len(group_arrays) < 2:
                 continue
             f_stat, p_val = f_oneway(*group_arrays)
-            ssb = sum(len(a) * (np.mean(a) - np.mean(np.concatenate(group_arrays))) ** 2 for a in group_arrays)
+            ssb = sum(
+                len(a) * (np.mean(a) - np.mean(np.concatenate(group_arrays))) ** 2
+                for a in group_arrays
+            )
             ssw = sum(np.sum((a - np.mean(a)) ** 2) for a in group_arrays)
             eta_sq = ssb / (ssb + ssw) if (ssb + ssw) > 0 else np.nan
-            results.append({
-                "test": f"{value_col} ~ vza_bin | treatment={trt}",
-                "band": band,
-                "treatment": trt,
-                "f_stat": f_stat,
-                "p_value": p_val,
-                "eta_sq": eta_sq,
-                "n_groups": len(group_arrays),
-                "n_total": sum(len(a) for a in group_arrays),
-                "significant": p_val < 0.05,
-            })
+            results.append(
+                {
+                    "test": f"{value_col} ~ vza_bin | treatment={trt}",
+                    "band": band,
+                    "treatment": trt,
+                    "f_stat": f_stat,
+                    "p_value": p_val,
+                    "eta_sq": eta_sq,
+                    "n_groups": len(group_arrays),
+                    "n_total": sum(len(a) for a in group_arrays),
+                    "significant": p_val < 0.05,
+                }
+            )
     return pl.DataFrame(results)
 
 
@@ -199,7 +212,15 @@ def disease_vza_interaction_all(df, value_col="reflectance_mean"):
                 )[value_col].to_numpy()
                 vals = vals[np.isfinite(vals)]
                 if len(vals) > 0:
-                    cells.append({"disease": dl, "vza_bin": vza, "mean": np.mean(vals), "n": len(vals), "values": vals})
+                    cells.append(
+                        {
+                            "disease": dl,
+                            "vza_bin": vza,
+                            "mean": np.mean(vals),
+                            "n": len(vals),
+                            "values": vals,
+                        }
+                    )
 
         if len(cells) < 4:
             continue
@@ -216,10 +237,7 @@ def disease_vza_interaction_all(df, value_col="reflectance_mean"):
         else:
             delta_reflectance = np.nan
 
-        group_arrays = [
-            c["values"] for c in cells
-            if len(c["values"]) > 1
-        ]
+        group_arrays = [c["values"] for c in cells if len(c["values"]) > 1]
 
         if len(group_arrays) >= 2:
             f_stat, p_val = f_oneway(*group_arrays)
@@ -227,17 +245,19 @@ def disease_vza_interaction_all(df, value_col="reflectance_mean"):
             ssb = sum(len(a) * (np.mean(a) - grand_mean_val) ** 2 for a in group_arrays)
             ssw = sum(np.sum((a - np.mean(a)) ** 2) for a in group_arrays)
             eta_sq = ssb / (ssb + ssw) if (ssb + ssw) > 0 else np.nan
-            results.append({
-                "test": f"{value_col} ~ disease * vza_bin * band",
-                "band": band,
-                "f_stat": f_stat,
-                "p_value": p_val,
-                "eta_sq": eta_sq,
-                "n_groups": len(group_arrays),
-                "n_total": sum(len(a) for a in group_arrays),
-                "delta_reflectance_diseased_minus_healthy": delta_reflectance,
-                "significant": p_val < 0.05,
-            })
+            results.append(
+                {
+                    "test": f"{value_col} ~ disease * vza_bin * band",
+                    "band": band,
+                    "f_stat": f_stat,
+                    "p_value": p_val,
+                    "eta_sq": eta_sq,
+                    "n_groups": len(group_arrays),
+                    "n_total": sum(len(a) for a in group_arrays),
+                    "delta_reflectance_diseased_minus_healthy": delta_reflectance,
+                    "significant": p_val < 0.05,
+                }
+            )
     return pl.DataFrame(results)
 
 
@@ -248,11 +268,16 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
     by_disease_df = all_results_df.filter(pl.col("test").str.contains("vza_bin \\| disease="))
     by_cultivar_df = all_results_df.filter(pl.col("test").str.contains("cultivar="))
     by_treatment_df = all_results_df.filter(pl.col("test").str.contains("treatment="))
-    interaction_df = all_results_df.filter(pl.col("test") == "reflectance_mean ~ disease * vza_bin * band")
+    interaction_df = all_results_df.filter(
+        pl.col("test") == "reflectance_mean ~ disease * vza_bin * band"
+    )
 
     band_names = {
-        "band1": "Blue (475nm)", "band2": "Green (560nm)", "band3": "Red (668nm)",
-        "band4": "Red Edge (717nm)", "band5": "NIR (842nm)"
+        "band1": "Blue (475nm)",
+        "band2": "Green (560nm)",
+        "band3": "Red (668nm)",
+        "band4": "Red Edge (717nm)",
+        "band5": "NIR (842nm)",
     }
 
     lines = [
@@ -285,7 +310,9 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
             f"{row['p_value']:.4f} | {row['eta_sq']:.3f} | {row['n_total']} |"
         )
     n_sig_disease = by_disease_df.filter(pl.col("significant")).height
-    lines.append(f"\n**{n_sig_disease}/{by_disease_df.height} strata show significant VZA effects.**")
+    lines.append(
+        f"\n**{n_sig_disease}/{by_disease_df.height} strata show significant VZA effects.**"
+    )
     lines.append("")
 
     lines += [
@@ -300,7 +327,9 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
             f"{row['p_value']:.4f} | {row['eta_sq']:.3f} | {row['delta_reflectance_diseased_minus_healthy']:.5f} |"
         )
     n_sig_inter = interaction_df.filter(pl.col("significant")).height
-    lines.append(f"\n**{n_sig_inter}/{interaction_df.height} bands show significant disease × VZA × band interaction.**")
+    lines.append(
+        f"\n**{n_sig_inter}/{interaction_df.height} bands show significant disease × VZA × band interaction.**"
+    )
     lines.append("")
 
     lines += [
@@ -315,7 +344,9 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
             f"{row['f_stat']:.3f} | {row['p_value']:.4f} | {row['eta_sq']:.3f} | {row['n_total']} |"
         )
     n_sig_cv = by_cultivar_df.filter(pl.col("significant")).height
-    lines.append(f"\n**{n_sig_cv}/{by_cultivar_df.height} cultivar×band combinations show significant VZA effects.**")
+    lines.append(
+        f"\n**{n_sig_cv}/{by_cultivar_df.height} cultivar×band combinations show significant VZA effects.**"
+    )
     lines.append("")
 
     lines += [
@@ -330,7 +361,9 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
             f"{row['f_stat']:.3f} | {row['p_value']:.4f} | {row['eta_sq']:.3f} | {row['n_total']} |"
         )
     n_sig_trt = by_treatment_df.filter(pl.col("significant")).height
-    lines.append(f"\n**{n_sig_trt}/{by_treatment_df.height} treatment×band combinations show significant VZA effects.**")
+    lines.append(
+        f"\n**{n_sig_trt}/{by_treatment_df.height} treatment×band combinations show significant VZA effects.**"
+    )
 
     lines += [
         "",
@@ -415,7 +448,9 @@ def main():
     interaction = disease_vza_interaction_all(df, value_col=value_col)
     logging.info(f"[PHASE] interaction ANOVA: {time.time() - t0:.1f}s")
 
-    all_results = pl.concat([by_band, by_disease, by_cultivar, by_treatment, interaction], how="diagonal")
+    all_results = pl.concat(
+        [by_band, by_disease, by_cultivar, by_treatment, interaction], how="diagonal"
+    )
     all_results = all_results.with_columns(pl.col("significant").cast(pl.Boolean))
     results_dir = Path("outputs/results")
     results_dir.mkdir(parents=True, exist_ok=True)

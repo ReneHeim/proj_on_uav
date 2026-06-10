@@ -44,13 +44,13 @@ OUT_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "features"
 def load_polygon_meta():
     """Load polygon metadata for both seasons. Returns dict keyed by (season, plot_id)."""
     import geopandas as gpd
-    
+
     meta = {}
     for season, path in POLYGON_PATHS.items():
         gdf = gpd.read_file(path)
         if "ino" not in gdf.columns:
             gdf["ino"] = gdf["trt"] == "no_trt"  # infer from treatment
-        
+
         # ifz_id → zero-indexed plot_id
         for i, row in gdf.iterrows():
             if "ifz_id" in gdf.columns:
@@ -74,9 +74,7 @@ def load_and_preprocess(pf, idx=0, total=0):
 
     # Single filter pass for all validity checks
     bands = ["band1", "band2", "band3", "band4", "band5"]
-    mask = (
-        pl.col("vza").is_not_nan() & (pl.col("vza") >= 0) & (pl.col("vza") <= 90)
-    )
+    mask = pl.col("vza").is_not_nan() & (pl.col("vza") >= 0) & (pl.col("vza") <= 90)
     for b in bands:
         mask = mask & pl.col(b).is_not_nan() & (pl.col(b) > 0)
     df = df.filter(mask)
@@ -85,14 +83,20 @@ def load_and_preprocess(pf, idx=0, total=0):
         return df
 
     # Compute derived columns
-    df = df.with_columns([
-        ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360 - 180).abs().alias("raa"),
-        (90 - pl.col("sunelev")).alias("sza"),
-    ])
-    df = df.with_columns([
-        pl.col("vza").cut(VZA_BINS[1:-1], labels=VZA_LABELS).alias("vza_bin"),
-        pl.col("raa").cast(pl.Float64).cut([90], labels=RAA_LABELS).alias("raa_bin"),
-    ])
+    df = df.with_columns(
+        [
+            ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360 - 180)
+            .abs()
+            .alias("raa"),
+            (90 - pl.col("sunelev")).alias("sza"),
+        ]
+    )
+    df = df.with_columns(
+        [
+            pl.col("vza").cut(VZA_BINS[1:-1], labels=VZA_LABELS).alias("vza_bin"),
+            pl.col("raa").cast(pl.Float64).cut([90], labels=RAA_LABELS).alias("raa_bin"),
+        ]
+    )
 
     # --- Balanced per-bin sampling ---
     # Enforce equal pixel count per VZA bin to prevent sample-imbalance bias
@@ -108,7 +112,9 @@ def load_and_preprocess(pf, idx=0, total=0):
     df = pl.concat(balanced_parts, how="diagonal_relaxed")
 
     t_total = time.time() - t0
-    print(f"  [{idx+1}/{total}] {pf.name}: read={t_read:.1f}s total={t_total:.1f}s rows={df.height:,}")
+    print(
+        f"  [{idx+1}/{total}] {pf.name}: read={t_read:.1f}s total={t_total:.1f}s rows={df.height:,}"
+    )
     return df
 
     return df
@@ -195,12 +201,16 @@ def main():
             pid = pf.stem
             mr = get_meta(wk, pid)
             if mr is not None:
-                rows_m0.append({
-                    "plot_id": pid, "week": week_num,
-                    "cult": mr["cult"], "trt": mr["trt"],
-                    "disease_label": mr["disease_label"],
-                    "year": mr["year"],
-                })
+                rows_m0.append(
+                    {
+                        "plot_id": pid,
+                        "week": week_num,
+                        "cult": mr["cult"],
+                        "trt": mr["trt"],
+                        "disease_label": mr["disease_label"],
+                        "year": mr["year"],
+                    }
+                )
     m0 = pl.DataFrame(rows_m0).select(["plot_id", "week", "year", "cult", "trt", "disease_label"])
     m0.write_parquet(OUT_DIR / "M0_metadata.parquet")
     print(f"  M0: {m0.shape[0]} rows x {m0.shape[1]} cols")
@@ -219,8 +229,14 @@ def main():
         meta_r = get_meta(wk, pid)
         if meta_r is None:
             continue
-        row = {"plot_id": pid, "week": int(wk.split("_wk")[-1]), "cult": meta_r["cult"],
-               "trt": meta_r["trt"], "disease_label": meta_r["disease_label"], "year": meta_r["year"]}
+        row = {
+            "plot_id": pid,
+            "week": int(wk.split("_wk")[-1]),
+            "cult": meta_r["cult"],
+            "trt": meta_r["trt"],
+            "disease_label": meta_r["disease_label"],
+            "year": meta_r["year"],
+        }
         for b in bands:
             row[f"{b}_nadir_mean"] = df_nadir[b].mean()
         rows_m1.append(row)
@@ -239,9 +255,21 @@ def main():
         meta_r = get_meta(wk, pid)
         if meta_r is None:
             continue
-        row = {"plot_id": pid, "week": int(wk.split("_wk")[-1]), "cult": meta_r["cult"],
-               "trt": meta_r["trt"], "disease_label": meta_r["disease_label"], "year": meta_r["year"]}
-        b1, b2, b3, b4, b5 = df_nadir["band1"], df_nadir["band2"], df_nadir["band3"], df_nadir["band4"], df_nadir["band5"]
+        row = {
+            "plot_id": pid,
+            "week": int(wk.split("_wk")[-1]),
+            "cult": meta_r["cult"],
+            "trt": meta_r["trt"],
+            "disease_label": meta_r["disease_label"],
+            "year": meta_r["year"],
+        }
+        b1, b2, b3, b4, b5 = (
+            df_nadir["band1"],
+            df_nadir["band2"],
+            df_nadir["band3"],
+            df_nadir["band4"],
+            df_nadir["band5"],
+        )
         row["ndvi_nadir"] = ((b5 - b3) / (b5 + b3)).replace(np.nan, None).mean()
         row["gndvi_nadir"] = ((b5 - b2) / (b5 + b2)).replace(np.nan, None).mean()
         row["ndre_nadir"] = ((b5 - b4) / (b5 + b4)).replace(np.nan, None).mean()
@@ -263,8 +291,14 @@ def main():
         meta_r = get_meta(wk, pid)
         if meta_r is None:
             continue
-        row = {"plot_id": pid, "week": int(wk.split("_wk")[-1]), "cult": meta_r["cult"],
-               "trt": meta_r["trt"], "disease_label": meta_r["disease_label"], "year": meta_r["year"]}
+        row = {
+            "plot_id": pid,
+            "week": int(wk.split("_wk")[-1]),
+            "cult": meta_r["cult"],
+            "trt": meta_r["trt"],
+            "disease_label": meta_r["disease_label"],
+            "year": meta_r["year"],
+        }
         agg = df_binned.group_by("vza_bin").agg([pl.col(b).mean().alias(b) for b in bands])
         for agg_row in agg.to_dicts():
             vza_label = agg_row["vza_bin"].replace("-", "_")
@@ -286,9 +320,17 @@ def main():
         meta_r = get_meta(wk, pid)
         if meta_r is None:
             continue
-        row = {"plot_id": pid, "week": int(wk.split("_wk")[-1]), "cult": meta_r["cult"],
-               "trt": meta_r["trt"], "disease_label": meta_r["disease_label"], "year": meta_r["year"]}
-        agg = df_binned.group_by(["vza_bin", "raa_bin"]).agg([pl.col(b).mean().alias(b) for b in bands])
+        row = {
+            "plot_id": pid,
+            "week": int(wk.split("_wk")[-1]),
+            "cult": meta_r["cult"],
+            "trt": meta_r["trt"],
+            "disease_label": meta_r["disease_label"],
+            "year": meta_r["year"],
+        }
+        agg = df_binned.group_by(["vza_bin", "raa_bin"]).agg(
+            [pl.col(b).mean().alias(b) for b in bands]
+        )
         for agg_row in agg.to_dicts():
             vza_label = agg_row["vza_bin"].replace("-", "_")
             raa_label = agg_row["raa_bin"].replace("-", "_")
@@ -310,8 +352,14 @@ def main():
         meta_r = get_meta(wk, pid)
         if meta_r is None:
             continue
-        row = {"plot_id": pid, "week": int(wk.split("_wk")[-1]), "cult": meta_r["cult"],
-               "trt": meta_r["trt"], "disease_label": meta_r["disease_label"], "year": meta_r["year"]}
+        row = {
+            "plot_id": pid,
+            "week": int(wk.split("_wk")[-1]),
+            "cult": meta_r["cult"],
+            "trt": meta_r["trt"],
+            "disease_label": meta_r["disease_label"],
+            "year": meta_r["year"],
+        }
         for b in bands:
             means = df_binned.group_by("vza_bin").agg(pl.col(b).mean()).sort("vza_bin")
             vals = {r["vza_bin"]: r[b] for r in means.to_dicts()}

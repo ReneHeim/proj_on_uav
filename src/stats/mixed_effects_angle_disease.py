@@ -48,9 +48,13 @@ def load_data(table_path, value_col="reflectance_median"):
     n = df.height
     nan_in_col = raw_n - df.height
     if nan_in_col > 0:
-        logging.warning(f"reflectance_mean all NaN — using {value_col} instead ({nan_in_col} NaN rows dropped)")
+        logging.warning(
+            f"reflectance_mean all NaN — using {value_col} instead ({nan_in_col} NaN rows dropped)"
+        )
     logging.info(f"Rows loaded: {raw_n}, with disease labels and valid {value_col}: {n}")
-    logging.info(f"Diseased: {(df['disease_int']==1).sum()}, Healthy: {(df['disease_int']==0).sum()}")
+    logging.info(
+        f"Diseased: {(df['disease_int']==1).sum()}, Healthy: {(df['disease_int']==0).sum()}"
+    )
     logging.info(f"Plots: {df['plot_id'].n_unique()}, Weeks: {df['week'].n_unique()}")
     logging.info(f"[PHASE] data loading: {time.time() - t0:.1f}s")
     return df.to_pandas(), value_col
@@ -72,8 +76,7 @@ def fit_ols_cluster(pdf, formula, value_col, label, cluster_col="plot_id"):
         model = smf.ols(formula, data=pdf)
         result = model.fit()
         logging.info(
-            f"{label}: R2={result.rsquared:.4f}, F={result.fvalue:.1f}, "
-            f"p={result.f_pvalue:.4f}"
+            f"{label}: R2={result.rsquared:.4f}, F={result.fvalue:.1f}, " f"p={result.f_pvalue:.4f}"
         )
     logging.info(f"[PHASE] {label} fit: {time.time() - t0:.1f}s")
     return result
@@ -84,8 +87,9 @@ def fit_model_1(pdf, value_col="reflectance_median"):
         f"{value_col} ~ C(vza_bin) + C(band) + C(cultivar) + C(treatment) "
         f"+ disease_int:C(vza_bin) + disease_int:C(band)"
     )
-    return fit_ols_cluster(pdf, formula, value_col,
-                           "Model 1 (disease×VZA + disease×band, with cultivar+treatment)")
+    return fit_ols_cluster(
+        pdf, formula, value_col, "Model 1 (disease×VZA + disease×band, with cultivar+treatment)"
+    )
 
 
 def fit_model_2(pdf, value_col="reflectance_median"):
@@ -93,17 +97,16 @@ def fit_model_2(pdf, value_col="reflectance_median"):
         f"{value_col} ~ C(vza_bin) + C(band) + C(cultivar) + C(treatment) "
         f"+ disease_int:C(vza_bin)"
     )
-    return fit_ols_cluster(pdf, formula, value_col,
-                           "Model 2 (multiangular-focused: disease×VZA only)")
+    return fit_ols_cluster(
+        pdf, formula, value_col, "Model 2 (multiangular-focused: disease×VZA only)"
+    )
 
 
 def fit_model_3(pdf, value_col="reflectance_median"):
-    formula = (
-        f"{value_col} ~ C(vza_bin) + C(band) + C(cultivar) + C(treatment) "
-        f"+ disease_int"
+    formula = f"{value_col} ~ C(vza_bin) + C(band) + C(cultivar) + C(treatment) " f"+ disease_int"
+    return fit_ols_cluster(
+        pdf, formula, value_col, "Model 3 (nadir-compatible: disease main effect only)"
     )
-    return fit_ols_cluster(pdf, formula, value_col,
-                           "Model 3 (nadir-compatible: disease main effect only)")
 
 
 def fit_stratified_models(pdf, value_col="reflectance_median"):
@@ -145,6 +148,7 @@ def extract_ols_results(result, model_name="Model"):
 
     rows = []
     for i, term in enumerate(term_names):
+
         def _to_float(v):
             if isinstance(v, str):
                 try:
@@ -152,17 +156,22 @@ def extract_ols_results(result, model_name="Model"):
                 except ValueError:
                     return np.nan
             return float(v)
-        rows.append({
-            "model": model_name,
-            "term": term,
-            "estimate": _to_float(params[i]),
-            "std_error": _to_float(bse[i]),
-            "t_value": _to_float(tvals[i]),
-            "p_value": _to_float(pvals[i]),
-            "ci95_low": _to_float(ci[i, 0]),
-            "ci95_high": _to_float(ci[i, 1]),
-            "significant": bool(_to_float(pvals[i]) < 0.05) if np.isfinite(_to_float(pvals[i])) else False,
-        })
+
+        rows.append(
+            {
+                "model": model_name,
+                "term": term,
+                "estimate": _to_float(params[i]),
+                "std_error": _to_float(bse[i]),
+                "t_value": _to_float(tvals[i]),
+                "p_value": _to_float(pvals[i]),
+                "ci95_low": _to_float(ci[i, 0]),
+                "ci95_high": _to_float(ci[i, 1]),
+                "significant": (
+                    bool(_to_float(pvals[i]) < 0.05) if np.isfinite(_to_float(pvals[i])) else False
+                ),
+            }
+        )
     logging.info(f"[PHASE] extract results {model_name}: {time.time() - t0:.1f}s")
     return pl.DataFrame(rows)
 
@@ -189,16 +198,22 @@ def extract_stratified_results(stratified_results):
             for i, term in enumerate(term_names):
                 if "disease" not in term and "vza" not in term:
                     continue
-                all_rows.append({
-                    "stratum": label,
-                    "term": term,
-                    "estimate": _to_float(params[i]),
-                    "std_error": _to_float(bse[i]),
-                    "p_value": _to_float(pvals[i]),
-                    "ci95_low": _to_float(ci[i, 0]),
-                    "ci95_high": _to_float(ci[i, 1]),
-                    "significant": bool(_to_float(pvals[i]) < 0.05) if np.isfinite(_to_float(pvals[i])) else False,
-                })
+                all_rows.append(
+                    {
+                        "stratum": label,
+                        "term": term,
+                        "estimate": _to_float(params[i]),
+                        "std_error": _to_float(bse[i]),
+                        "p_value": _to_float(pvals[i]),
+                        "ci95_low": _to_float(ci[i, 0]),
+                        "ci95_high": _to_float(ci[i, 1]),
+                        "significant": (
+                            bool(_to_float(pvals[i]) < 0.05)
+                            if np.isfinite(_to_float(pvals[i]))
+                            else False
+                        ),
+                    }
+                )
         except Exception as e:
             logging.warning(f"Failed to extract results for {label}: {e}")
     logging.info(f"[PHASE] extract stratified results: {time.time() - t0:.1f}s")
@@ -210,8 +225,11 @@ def make_interaction_plot(pdf, output_path, value_col="reflectance_median"):
     vza_order = ["0-15", "15-25", "25-35", "35-45", "45-60"]
     bands = sorted(pdf["band"].unique())
     band_names = {
-        "band1": "Blue (475nm)", "band2": "Green (560nm)", "band3": "Red (668nm)",
-        "band4": "Red Edge (717nm)", "band5": "NIR (842nm)"
+        "band1": "Blue (475nm)",
+        "band2": "Green (560nm)",
+        "band3": "Red (668nm)",
+        "band4": "Red Edge (717nm)",
+        "band5": "NIR (842nm)",
     }
 
     n_cols = len(bands)
@@ -229,9 +247,15 @@ def make_interaction_plot(pdf, output_path, value_col="reflectance_median"):
                 means.append(vals.mean() if len(vals) > 0 else np.nan)
                 errs.append(vals.std(ddof=1) if len(vals) > 1 else 0)
             ax.errorbar(
-                range(len(vza_order)), means, yerr=errs,
-                fmt=marker + "-", label=f"{'Healthy' if label == 0 else 'Diseased'}",
-                color=color, capsize=3, markersize=4, linewidth=1.2,
+                range(len(vza_order)),
+                means,
+                yerr=errs,
+                fmt=marker + "-",
+                label=f"{'Healthy' if label == 0 else 'Diseased'}",
+                color=color,
+                capsize=3,
+                markersize=4,
+                linewidth=1.2,
             )
         ax.set_title(band_names.get(band, band), fontsize=9)
         ax.set_xticks(range(len(vza_order)))
@@ -243,7 +267,11 @@ def make_interaction_plot(pdf, output_path, value_col="reflectance_median"):
         ax.legend(fontsize=7, loc="best")
         ax.grid(True, alpha=0.3)
 
-    fig.suptitle(f"{value_col.replace('_', ' ').title()} by VZA bin: Healthy vs Diseased", fontsize=11, y=1.02)
+    fig.suptitle(
+        f"{value_col.replace('_', ' ').title()} by VZA bin: Healthy vs Diseased",
+        fontsize=11,
+        y=1.02,
+    )
     fig.tight_layout()
     fig.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -251,7 +279,9 @@ def make_interaction_plot(pdf, output_path, value_col="reflectance_median"):
     logging.info(f"[PHASE] interaction plot: {time.time() - t0:.1f}s")
 
 
-def write_markdown_summary(results_m1, results_m2, results_m3, results_strat, output_paths, config_info):
+def write_markdown_summary(
+    results_m1, results_m2, results_m3, results_strat, output_paths, config_info
+):
     t0 = time.time()
 
     def find_terms(df, pattern):

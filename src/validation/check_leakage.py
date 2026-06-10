@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -112,14 +113,16 @@ def check_spatial_cv():
             f"ifz_id_overlap={len(group_overlap)} plot_overlap={len(plot_overlap)}"
         )
         if group_overlap or plot_overlap:
-            logging.error(f"  LEAKAGE Fold {fold}: group_overlap={len(group_overlap)} plot_overlap={len(plot_overlap)}")
+            logging.error(
+                f"  LEAKAGE Fold {fold}: group_overlap={len(group_overlap)} plot_overlap={len(plot_overlap)}"
+            )
             all_ok = False
 
     result = {
         "item": "Spatial CV integrity",
         "pass": all_ok,
         "detail": f"{cv_method} by ifz_id, {len(splits)} folds, "
-                  f"plot_id overlap: {'NONE' if all_ok else 'DETECTED'}",
+        f"plot_id overlap: {'NONE' if all_ok else 'DETECTED'}",
     }
     logging.info(f"  [PHASE] check 1: {time.time() - t0:.1f}s -> {'PASS' if all_ok else 'FAIL'}")
     return result
@@ -138,9 +141,15 @@ def check_pixel_independence():
         try:
             df = load_feature_set(name)
             feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
-            has_aggregation = any("_mean" in c or "_median" in c or "_diff" in c or
-                                  "_ratio" in c or "_slope" in c or "_range" in c
-                                  for c in feature_cols)
+            has_aggregation = any(
+                "_mean" in c
+                or "_median" in c
+                or "_diff" in c
+                or "_ratio" in c
+                or "_slope" in c
+                or "_range" in c
+                for c in feature_cols
+            )
             logging.info(
                 f"  {name}: {df.shape[0]} rows (per-plot aggregated), "
                 f"{len(feature_cols)} features, "
@@ -153,8 +162,8 @@ def check_pixel_independence():
         "item": "Pixel-level independence",
         "pass": True,
         "detail": "All feature sets use per-plot aggregated statistics "
-                  "(mean, diff, ratio, slope, range). Individual pixel rows "
-                  "are not used as independent samples.",
+        "(mean, diff, ratio, slope, range). Individual pixel rows "
+        "are not used as independent samples.",
     }
     logging.info(f"  [PHASE] check 2: {time.time() - t0:.1f}s -> PASS")
     return result
@@ -179,7 +188,7 @@ def check_scaler_isolation():
         "item": "Scaler fit only on train",
         "pass": True,
         "detail": "sklearn Pipeline enforces fit() on train, transform() on test. "
-                  "No test data leaks into StandardScaler statistics.",
+        "No test data leaks into StandardScaler statistics.",
     }
     logging.info(f"  [PHASE] check 3: {time.time() - t0:.1f}s -> PASS")
     return result
@@ -278,10 +287,12 @@ def check_treatment_proxy():
         "item": "Treatment as proxy for disease",
         "pass": not treatment_perfect,
         "detail": "WARNING: trt perfectly predicts disease_label. "
-                  "'trt' column is excluded from features but any feature "
-                  "that correlates with treatment is a potential leakage source.",
+        "'trt' column is excluded from features but any feature "
+        "that correlates with treatment is a potential leakage source.",
     }
-    logging.info(f"  [PHASE] check 6: {time.time() - t0:.1f}s -> {'WARNING' if treatment_perfect else 'PASS'}")
+    logging.info(
+        f"  [PHASE] check 6: {time.time() - t0:.1f}s -> {'WARNING' if treatment_perfect else 'PASS'}"
+    )
     return result
 
 
@@ -305,11 +316,18 @@ def check_week_confounder():
     groups = df["ifz_id"].to_numpy()
 
     X_week = df.select(["week"]).to_numpy().astype(np.float64)
-    pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("lr", LogisticRegression(class_weight="balanced", penalty="l2", max_iter=2000, random_state=SEED)),
-    ])
+    pipe = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "lr",
+                LogisticRegression(
+                    class_weight="balanced", penalty="l2", max_iter=2000, random_state=SEED
+                ),
+            ),
+        ]
+    )
 
     gkf = GroupKFold(n_splits=N_SPLITS)
     week_scores = []
@@ -324,9 +342,11 @@ def check_week_confounder():
 
     is_risk = mean_auroc > 0.65
     if is_risk:
-        logging.warning(f"  Week alone predicts disease (AUROC={mean_auroc:.3f}). "
-                        f"Since disease is balanced across weeks, this may indicate data leakage "
-                        f"or batch effects.")
+        logging.warning(
+            f"  Week alone predicts disease (AUROC={mean_auroc:.3f}). "
+            f"Since disease is balanced across weeks, this may indicate data leakage "
+            f"or batch effects."
+        )
     else:
         logging.info(f"  Week does not strongly predict disease (AUROC={mean_auroc:.3f})")
 
@@ -334,9 +354,11 @@ def check_week_confounder():
         "item": "Week as temporal confounder",
         "pass": not is_risk,
         "detail": f"Week-only logistic regression AUROC = {mean_auroc:.3f} ± {std_auroc:.3f}. "
-                  f"Disease is balanced across weeks (12+12 per week).",
+        f"Disease is balanced across weeks (12+12 per week).",
     }
-    logging.info(f"  [PHASE] check 7: {time.time() - t0:.1f}s -> {'WARNING' if is_risk else 'PASS'}")
+    logging.info(
+        f"  [PHASE] check 7: {time.time() - t0:.1f}s -> {'WARNING' if is_risk else 'PASS'}"
+    )
     return result
 
 
@@ -367,12 +389,14 @@ def check_feature_correlations():
                     continue
                 corr = np.corrcoef(x[nan_mask], y[nan_mask])[0, 1]
                 abs_corr = abs(corr)
-                all_correlations.append({
-                    "feature_set": name,
-                    "feature": col,
-                    "correlation": corr,
-                    "abs_correlation": abs_corr,
-                })
+                all_correlations.append(
+                    {
+                        "feature_set": name,
+                        "feature": col,
+                        "correlation": corr,
+                        "abs_correlation": abs_corr,
+                    }
+                )
                 if abs_corr > 0.9:
                     suspicious.append((name, col, corr))
                     logging.warning(f"  SUSPICIOUS: {name}/{col} r={corr:.4f}")
@@ -426,7 +450,10 @@ def check_feature_correlations():
     ax.set_yticklabels(short_labels, fontsize=7)
 
     plt.colorbar(im, ax=ax, label="Pearson r with disease_label")
-    ax.set_title(f"Feature-Disease Correlations\n{len(feature_list)} features across {len(set_list)} sets", fontsize=11)
+    ax.set_title(
+        f"Feature-Disease Correlations\n{len(feature_list)} features across {len(set_list)} sets",
+        fontsize=11,
+    )
     fig.tight_layout()
 
     out_path = FIGURES_DIR / "leakage_feature_correlation.png"
@@ -437,9 +464,11 @@ def check_feature_correlations():
         "item": "Feature-disease correlations",
         "pass": len(suspicious) == 0,
         "detail": f"{n_features} correlations computed. Max |r| = {max_corr:.4f}. "
-                  f"{len(suspicious)} flagged with |r| > 0.9.",
+        f"{len(suspicious)} flagged with |r| > 0.9.",
     }
-    logging.info(f"  [PHASE] check 8: {time.time() - t0:.1f}s -> {'PASS' if len(suspicious) == 0 else 'WARNING'}")
+    logging.info(
+        f"  [PHASE] check 8: {time.time() - t0:.1f}s -> {'PASS' if len(suspicious) == 0 else 'WARNING'}"
+    )
     logging.info(f"  Heatmap saved: {out_path}")
     return result, corr_df, suspicious
 
@@ -462,7 +491,9 @@ def write_summary(results, suspicious_features, total_time):
         lines.append(f"| {i+1} | {r['item']} | {status} | {r['detail']} |")
 
     lines.append("")
-    lines.append(f"**Overall**: {'All checks passed' if all_pass else 'Some checks failed/flagged — see above'}")
+    lines.append(
+        f"**Overall**: {'All checks passed' if all_pass else 'Some checks failed/flagged — see above'}"
+    )
 
     lines.append("")
     lines.append("## Interpretation")
@@ -490,7 +521,9 @@ def write_summary(results, suspicious_features, total_time):
     lines.append("")
     lines.append("## Reproducibility")
     lines.append("")
-    lines.append(f"- **Config**: seed={SEED}, StratifiedGroupKFold/GroupKFold(n_splits={N_SPLITS}), groups=ifz_id")
+    lines.append(
+        f"- **Config**: seed={SEED}, StratifiedGroupKFold/GroupKFold(n_splits={N_SPLITS}), groups=ifz_id"
+    )
     lines.append(f"- **Feature sets checked**: {', '.join(FEATURE_SETS)}")
     lines.append(f"- **Log**: `{LOG_FILE}`")
     lines.append(f"- **Total runtime**: {total_time:.1f}s")

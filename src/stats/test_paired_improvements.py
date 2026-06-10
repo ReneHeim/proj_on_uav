@@ -135,8 +135,10 @@ def main():
         print("  SUMMARY")
         print(f"{'='*90}")
         for r in all_results:
-            flag = "✓" if r["conclusion"] == "supported" else (
-                "?" if r["conclusion"] == "promising" else " "
+            flag = (
+                "✓"
+                if r["conclusion"] == "supported"
+                else ("?" if r["conclusion"] == "promising" else " ")
             )
             print(
                 f"  [{flag}] {r['comparison']:<48s}  "
