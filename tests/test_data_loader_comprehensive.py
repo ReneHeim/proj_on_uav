@@ -211,9 +211,9 @@ class TestDataLoader:
             expected_columns = {"Xw", "Yw", "band1", "band2", "band3", "elev", "plot_id"}
             for f in output_dir.glob("*.parquet"):
                 df = pl.read_parquet(f)
-                assert set(df.columns) == expected_columns, (
-                    f"Columns mismatch in {f.name}: got {set(df.columns)}"
-                )
+                assert (
+                    set(df.columns) == expected_columns
+                ), f"Columns mismatch in {f.name}: got {set(df.columns)}"
 
     def test_load_by_polygon_data_types(self):
         """Test that numeric data types are preserved as Float64."""
@@ -232,9 +232,9 @@ class TestDataLoader:
             for f in output_dir.glob("*.parquet"):
                 df = pl.read_parquet(f)
                 for col in numeric_cols:
-                    assert df[col].dtype == pl.Float64, (
-                        f"Column {col} in {f.name} has dtype {df[col].dtype}"
-                    )
+                    assert (
+                        df[col].dtype == pl.Float64
+                    ), f"Column {col} in {f.name} has dtype {df[col].dtype}"
                 assert df["plot_id"].dtype == pl.String
 
     def test_load_by_polygon_coordinate_ranges(self):
@@ -297,14 +297,10 @@ class TestDataLoader:
             data_dir = Path(tmp_dir) / "data"
             data_dir.mkdir()
 
-            df_good = pl.DataFrame(
-                {"Xw": [1.0, 2.0], "Yw": [1.0, 2.0], "plot_id": ["a", "b"]}
-            )
+            df_good = pl.DataFrame({"Xw": [1.0, 2.0], "Yw": [1.0, 2.0], "plot_id": ["a", "b"]})
             df_good.write_parquet(data_dir / "good.parquet")
 
-            df_bad = pl.DataFrame(
-                {"Xw": [3.0, 4.0], "Yw": [3.0, 4.0], "elev": [100.0, 101.0]}
-            )
+            df_bad = pl.DataFrame({"Xw": [3.0, 4.0], "Yw": [3.0, 4.0], "elev": [100.0, 101.0]})
             df_bad.write_parquet(data_dir / "bad.parquet")
 
             missing = files_without_plot_id(data_dir)

@@ -5,10 +5,10 @@ import yaml
 
 from src.core.config_object import AttrDict, ConfigValidator, config_object, load_config
 
-
 # ---------------------------------------------------------------------------
 # Error paths
 # ---------------------------------------------------------------------------
+
 
 def test_config_nonexistent_file_raises():
     with pytest.raises(FileNotFoundError, match="Configuration file not found"):
@@ -75,6 +75,7 @@ def test_config_wrong_field_types(tmp_path):
 # ---------------------------------------------------------------------------
 # Success paths
 # ---------------------------------------------------------------------------
+
 
 def _make_minimal_config_dict(tmp_path):
     return {
@@ -153,6 +154,7 @@ def test_config_override_properties(tmp_path):
 # AttrDict
 # ---------------------------------------------------------------------------
 
+
 def test_attrdict_attribute_access():
     ad = AttrDict({"a": 1, "b": 2})
     assert ad.a == 1
@@ -217,6 +219,7 @@ def test_attrdict_nested_creation():
 # ---------------------------------------------------------------------------
 # ConfigValidator
 # ---------------------------------------------------------------------------
+
 
 def test_get_nested_value_valid():
     ad = AttrDict({"a": {"b": {"c": 99}}})

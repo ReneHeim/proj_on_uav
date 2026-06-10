@@ -75,36 +75,36 @@ def _create_synthetic_rpv_data(base_dir, n_points=600):
     noise = np.random.normal(0, 0.015, n_points)
     band1 = np.clip(R + noise, 0.001, 0.999)
 
-    df = pl.DataFrame({
-        "Xw": Xw,
-        "Yw": Yw,
-        "xcam": np.full(n_points, xcam, dtype=np.float32),
-        "ycam": np.full(n_points, ycam, dtype=np.float32),
-        "delta_z": vz_val.astype(np.float32),
-        "elev": np.full(n_points, elev, dtype=np.float32),
-        "sunelev": np.full(n_points, sunelev, dtype=np.float32),
-        "saa": np.full(n_points, saa, dtype=np.float32),
-        "vx": vx_val.astype(np.float32),
-        "vy": vy_val.astype(np.float32),
-        "vz": vz_val.astype(np.float32),
-        "v_norm": v_norm.astype(np.float32),
-        "vza": vza.astype(np.float32),
-        "vaa": vaa.astype(np.float32),
-        "sza": np.full(n_points, sza, dtype=np.float32),
-        "raa": raa.astype(np.float32),
-        "band1": band1.astype(np.float32),
-        "band2": np.random.uniform(0.05, 0.10, n_points).astype(np.float32),
-        "band3": np.random.uniform(0.02, 0.06, n_points).astype(np.float32),
-        "band4": np.random.uniform(0.01, 0.05, n_points).astype(np.float32),
-        "band5": np.random.uniform(0.10, 0.30, n_points).astype(np.float32),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": Xw,
+            "Yw": Yw,
+            "xcam": np.full(n_points, xcam, dtype=np.float32),
+            "ycam": np.full(n_points, ycam, dtype=np.float32),
+            "delta_z": vz_val.astype(np.float32),
+            "elev": np.full(n_points, elev, dtype=np.float32),
+            "sunelev": np.full(n_points, sunelev, dtype=np.float32),
+            "saa": np.full(n_points, saa, dtype=np.float32),
+            "vx": vx_val.astype(np.float32),
+            "vy": vy_val.astype(np.float32),
+            "vz": vz_val.astype(np.float32),
+            "v_norm": v_norm.astype(np.float32),
+            "vza": vza.astype(np.float32),
+            "vaa": vaa.astype(np.float32),
+            "sza": np.full(n_points, sza, dtype=np.float32),
+            "raa": raa.astype(np.float32),
+            "band1": band1.astype(np.float32),
+            "band2": np.random.uniform(0.05, 0.10, n_points).astype(np.float32),
+            "band3": np.random.uniform(0.02, 0.06, n_points).astype(np.float32),
+            "band4": np.random.uniform(0.01, 0.05, n_points).astype(np.float32),
+            "band5": np.random.uniform(0.10, 0.30, n_points).astype(np.float32),
+        }
+    )
     return df
 
 
 def test_script_03_rpv_e2e():
-    proc = subprocess.run(
-        ["python", "-m", "rpv_modelling", "--help"], capture_output=True
-    )
+    proc = subprocess.run(["python", "-m", "rpv_modelling", "--help"], capture_output=True)
     assert proc.returncode == 0
 
 
@@ -128,8 +128,11 @@ def test_rpv_pipeline(tmp_path: Path):
     df.write_parquet(parquet_path)
 
     dummy_files = [
-        "dummy_cams.txt", "dummy_dem.tif", "dummy_gps.csv",
-        "dummy_mosaic.tif", "dummy_ortho.tif",
+        "dummy_cams.txt",
+        "dummy_dem.tif",
+        "dummy_gps.csv",
+        "dummy_mosaic.tif",
+        "dummy_ortho.tif",
     ]
     for fname in dummy_files:
         (base_dir / fname).touch()
@@ -143,10 +146,15 @@ def test_rpv_pipeline(tmp_path: Path):
 
     proc = subprocess.run(
         [
-            "python", "-m", "rpv_modelling",
-            "--config", str(cfg_path),
-            "--base-dir", str(base_dir),
-            "--band", "band1",
+            "python",
+            "-m",
+            "rpv_modelling",
+            "--config",
+            str(cfg_path),
+            "--base-dir",
+            str(base_dir),
+            "--band",
+            "band1",
         ],
         capture_output=True,
     )
@@ -157,6 +165,7 @@ def test_rpv_pipeline(tmp_path: Path):
     assert csv_path.exists(), f"Expected CSV not found: {csv_path}"
 
     import polars as pl
+
     results = pl.read_csv(csv_path)
     assert len(results) > 0
 

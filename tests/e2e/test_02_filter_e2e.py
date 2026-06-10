@@ -16,8 +16,15 @@ def _write_multiband_tif(path, width=10, height=10, count=5, crs="EPSG:32632"):
     for b in range(count):
         data[b] = (b + 1) * 0.01
     with rio.open(
-        path, "w", driver="GTiff", width=width, height=height,
-        count=count, dtype="float32", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=count,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data)
 
@@ -26,8 +33,15 @@ def _write_singleband_tif(path, width=10, height=10, crs="EPSG:32632"):
     transform = from_bounds(0, 0, 10, 10, width, height)
     data = np.ones((height, width), dtype=np.float32)
     with rio.open(
-        path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data, 1)
 

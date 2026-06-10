@@ -3,111 +3,132 @@ import polars as pl
 import pytest
 
 from src.stats.Logistic_regression import (
+    OLS,
     _parse_top_bin_key,
     format_logistic_results,
     logistic_regression,
-    OLS,
     preprocess_healthy_diseased,
 )
 
-
 # ── preprocess_healthy_diseased ───────────────────────────────────────────────
+
 
 class TestPreprocessHealthyDiseased:
     def test_returns_status_column(self):
-        h = pl.DataFrame({
-            "sunelev": [45, 60],
-            "saa": [90, 180],
-            "vaa": [90, 180],
-            "vza": [10, 30],
-            "band5": [0.5, 0.6],
-        })
-        d = pl.DataFrame({
-            "sunelev": [30, 70],
-            "saa": [270, 0],
-            "vaa": [270, 0],
-            "vza": [15, 50],
-            "band5": [0.3, 0.4],
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": [45, 60],
+                "saa": [90, 180],
+                "vaa": [90, 180],
+                "vza": [10, 30],
+                "band5": [0.5, 0.6],
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": [30, 70],
+                "saa": [270, 0],
+                "vaa": [270, 0],
+                "vza": [15, 50],
+                "band5": [0.3, 0.4],
+            }
+        )
         result = preprocess_healthy_diseased(h, d, sample_size=100)
         assert "status" in result.columns
         assert set(result["status"].unique()) == {"healthy", "diseased"}
 
     def test_has_expected_columns(self):
-        h = pl.DataFrame({
-            "sunelev": [45, 60],
-            "saa": [90, 180],
-            "vaa": [90, 180],
-            "vza": [10, 30],
-            "band5": [0.5, 0.6],
-        })
-        d = pl.DataFrame({
-            "sunelev": [30, 70],
-            "saa": [270, 0],
-            "vaa": [270, 0],
-            "vza": [15, 50],
-            "band5": [0.3, 0.4],
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": [45, 60],
+                "saa": [90, 180],
+                "vaa": [90, 180],
+                "vza": [10, 30],
+                "band5": [0.5, 0.6],
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": [30, 70],
+                "saa": [270, 0],
+                "vaa": [270, 0],
+                "vza": [15, 50],
+                "band5": [0.3, 0.4],
+            }
+        )
         result = preprocess_healthy_diseased(h, d, sample_size=100)
         for col in ["sza", "RAA", "raa_bin", "vza_bin"]:
             assert col in result.columns
 
     def test_sample_size_respected(self):
-        h = pl.DataFrame({
-            "sunelev": [45] * 200,
-            "saa": [90] * 200,
-            "vaa": [90] * 200,
-            "vza": [10] * 200,
-            "band5": np.random.uniform(0, 1, 200),
-        })
-        d = pl.DataFrame({
-            "sunelev": [30] * 200,
-            "saa": [270] * 200,
-            "vaa": [270] * 200,
-            "vza": [50] * 200,
-            "band5": np.random.uniform(0, 1, 200),
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": [45] * 200,
+                "saa": [90] * 200,
+                "vaa": [90] * 200,
+                "vza": [10] * 200,
+                "band5": np.random.uniform(0, 1, 200),
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": [30] * 200,
+                "saa": [270] * 200,
+                "vaa": [270] * 200,
+                "vza": [50] * 200,
+                "band5": np.random.uniform(0, 1, 200),
+            }
+        )
         result = preprocess_healthy_diseased(h, d, sample_size=50)
         assert len(result) <= 50
 
     def test_data_fewer_than_sample_size(self):
-        h = pl.DataFrame({
-            "sunelev": [45],
-            "saa": [90],
-            "vaa": [90],
-            "vza": [10],
-            "band5": [0.5],
-        })
-        d = pl.DataFrame({
-            "sunelev": [30],
-            "saa": [270],
-            "vaa": [270],
-            "vza": [50],
-            "band5": [0.3],
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": [45],
+                "saa": [90],
+                "vaa": [90],
+                "vza": [10],
+                "band5": [0.5],
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": [30],
+                "saa": [270],
+                "vaa": [270],
+                "vza": [50],
+                "band5": [0.3],
+            }
+        )
         result = preprocess_healthy_diseased(h, d, sample_size=10_000)
         assert len(result) > 0
 
     def test_status_is_categorical(self):
-        h = pl.DataFrame({
-            "sunelev": [45, 60],
-            "saa": [90, 180],
-            "vaa": [90, 180],
-            "vza": [10, 30],
-            "band5": [0.5, 0.6],
-        })
-        d = pl.DataFrame({
-            "sunelev": [30, 70],
-            "saa": [270, 0],
-            "vaa": [270, 0],
-            "vza": [15, 50],
-            "band5": [0.3, 0.4],
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": [45, 60],
+                "saa": [90, 180],
+                "vaa": [90, 180],
+                "vza": [10, 30],
+                "band5": [0.5, 0.6],
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": [30, 70],
+                "saa": [270, 0],
+                "vaa": [270, 0],
+                "vza": [15, 50],
+                "band5": [0.3, 0.4],
+            }
+        )
         result = preprocess_healthy_diseased(h, d, sample_size=100)
         assert str(result["status"].dtype) == "category"
 
 
 # ── format_logistic_results ───────────────────────────────────────────────────
+
 
 class TestFormatLogisticResults:
     def _make_mock_result(self):
@@ -172,6 +193,7 @@ class TestFormatLogisticResults:
 
 # ── _parse_top_bin_key ───────────────────────────────────────────────────────
 
+
 class TestParseTopBinKey:
     def test_standard_key(self):
         key = "vza_bin=0-20_raa_bin=-90-0"
@@ -204,46 +226,56 @@ class TestParseTopBinKey:
 
 # ── OLS ───────────────────────────────────────────────────────────────────────
 
+
 class TestOLS:
     def test_basic_call(self):
         pytest.importorskip("statsmodels")
-        h = pl.DataFrame({
-            "sunelev": np.random.uniform(30, 70, 100),
-            "saa": np.random.uniform(0, 359, 100),
-            "vaa": np.random.uniform(0, 359, 100),
-            "vza": np.random.uniform(0, 80, 100),
-            "band5": np.random.uniform(0, 1, 100),
-        })
-        d = pl.DataFrame({
-            "sunelev": np.random.uniform(30, 70, 100),
-            "saa": np.random.uniform(0, 359, 100),
-            "vaa": np.random.uniform(0, 359, 100),
-            "vza": np.random.uniform(0, 80, 100),
-            "band5": np.random.uniform(0, 1, 100) + 0.5,
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": np.random.uniform(30, 70, 100),
+                "saa": np.random.uniform(0, 359, 100),
+                "vaa": np.random.uniform(0, 359, 100),
+                "vza": np.random.uniform(0, 80, 100),
+                "band5": np.random.uniform(0, 1, 100),
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": np.random.uniform(30, 70, 100),
+                "saa": np.random.uniform(0, 359, 100),
+                "vaa": np.random.uniform(0, 359, 100),
+                "vza": np.random.uniform(0, 80, 100),
+                "band5": np.random.uniform(0, 1, 100) + 0.5,
+            }
+        )
         df = preprocess_healthy_diseased(h, d, sample_size=200)
         OLS(df)
 
 
 # ── logistic_regression ───────────────────────────────────────────────────────
 
+
 class TestLogisticRegression:
     def test_basic_call(self):
         pytest.importorskip("sklearn")
-        h = pl.DataFrame({
-            "sunelev": np.random.uniform(30, 70, 100),
-            "saa": np.random.uniform(0, 359, 100),
-            "vaa": np.random.uniform(0, 359, 100),
-            "vza": np.random.uniform(0, 80, 100),
-            "band5": np.random.uniform(0, 1, 100),
-        })
-        d = pl.DataFrame({
-            "sunelev": np.random.uniform(30, 70, 100),
-            "saa": np.random.uniform(0, 359, 100),
-            "vaa": np.random.uniform(0, 359, 100),
-            "vza": np.random.uniform(0, 80, 100),
-            "band5": np.random.uniform(0.5, 1.5, 100),
-        })
+        h = pl.DataFrame(
+            {
+                "sunelev": np.random.uniform(30, 70, 100),
+                "saa": np.random.uniform(0, 359, 100),
+                "vaa": np.random.uniform(0, 359, 100),
+                "vza": np.random.uniform(0, 80, 100),
+                "band5": np.random.uniform(0, 1, 100),
+            }
+        )
+        d = pl.DataFrame(
+            {
+                "sunelev": np.random.uniform(30, 70, 100),
+                "saa": np.random.uniform(0, 359, 100),
+                "vaa": np.random.uniform(0, 359, 100),
+                "vza": np.random.uniform(0, 80, 100),
+                "band5": np.random.uniform(0.5, 1.5, 100),
+            }
+        )
         df = preprocess_healthy_diseased(h, d, sample_size=200)
         result = logistic_regression(df)
         assert isinstance(result, pl.DataFrame)

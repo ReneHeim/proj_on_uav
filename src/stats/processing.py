@@ -111,13 +111,17 @@ def process_logistic_regression(out, week, gdf, debug=False):
         # get row where ifz_id is healthy_df
         healthy_rows = gdf.filter(pl.col("ifz_id") == healthy_df).to_dicts()
         if not healthy_rows:
-            logging.warning(f"Plot {healthy_df} not found, skipping pair ({healthy_df}, {diseased_df})")
+            logging.warning(
+                f"Plot {healthy_df} not found, skipping pair ({healthy_df}, {diseased_df})"
+            )
             continue
         healthy_row = healthy_rows[0]
 
         diseased_rows = gdf.filter(pl.col("ifz_id") == diseased_df).to_dicts()
         if not diseased_rows:
-            logging.warning(f"Plot {diseased_df} not found, skipping pair ({healthy_df}, {diseased_df})")
+            logging.warning(
+                f"Plot {diseased_df} not found, skipping pair ({healthy_df}, {diseased_df})"
+            )
             continue
         diseased_row = diseased_rows[0]
 

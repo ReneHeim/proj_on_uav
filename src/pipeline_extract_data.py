@@ -24,11 +24,7 @@ from tqdm import tqdm
 from src.core.config_object import config_object
 from src.core.logging import logging_config
 from src.core.validate import validate_extract_output
-from src.extract.camera import (
-    calculate_angles,
-    get_camera_position,
-    plot_angles,
-)
+from src.extract.camera import calculate_angles, get_camera_position, plot_angles
 from src.extract.date_time import convert_to_timezone
 from src.extract.merge_analysis import merge_data
 from src.extract.polygon_filtering import filter_df_by_polygon
