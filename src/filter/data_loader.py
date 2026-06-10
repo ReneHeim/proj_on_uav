@@ -89,9 +89,11 @@ def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     logging.info(f"Writing to {str(out_dir)}")  # tells you once, up front
 
+    good_files = [f for f in src.glob("*.parquet") if "plot_id" in pl.read_parquet_schema(f)]
+
     for p in polygons:
         target = out_dir / f"{p}.parquet"
-        (pl.scan_parquet(src / "*.parquet").filter(pl.col("plot_id") == p).sink_parquet(target))
+        (pl.scan_parquet(good_files).filter(pl.col("plot_id") == p).sink_parquet(target))
         logging.info(f"  • wrote {str(target)}")
 
 
@@ -164,14 +166,16 @@ def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
     # search for files without plotid:
 
     bad = files_without_plot_id(Path(folder))
+    bad_set = set(bad)
     if len(bad) > 0:
         print(f"Found band {bad} files")
         print(f"{len(bad)} files lack plot_id")
 
     uids = set()
-    # Batches
 
-    for files in batched(folder.glob("*.parquet"), batch_size):
+    for files in batched(
+        (f for f in folder.glob("*.parquet") if f not in bad_set), batch_size
+    ):	
         ids = (pl.scan_parquet(files).select("plot_id").unique().collect())["plot_id"]
         uids.update(ids.to_list())
     return uids

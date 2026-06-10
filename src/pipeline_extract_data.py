@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import argparse
 import glob
 import logging
@@ -16,17 +21,17 @@ import pysolar as solar
 from rasterio.enums import Resampling
 from tqdm import tqdm
 
-from src.Common.config_object import config_object
-from src.Common.logging import logging_config
-from src.Utils.extract_data.camera import (
+from src.core.config_object import config_object
+from src.core.logging import logging_config
+from src.extract.camera import (
     calculate_angles,
     get_camera_position,
     plot_angles,
 )
-from src.Utils.extract_data.date_time import convert_to_timezone
-from src.Utils.extract_data.merge_analysis import merge_data
-from src.Utils.extract_data.polygon_filtering import filter_df_by_polygon
-from src.Utils.extract_data.raster import (
+from src.extract.date_time import convert_to_timezone
+from src.extract.merge_analysis import merge_data
+from src.extract.polygon_filtering import filter_df_by_polygon
+from src.extract.raster import (
     check_alignment,
     coregister_and_resample,
     plotting_raster,

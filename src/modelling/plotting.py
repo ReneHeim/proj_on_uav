@@ -3,7 +3,7 @@ from pathlib import Path
 
 import polars as pl
 
-from src.Utils.extract_data.raster import plotting_raster
+from src.extract.raster import plotting_raster
 
 
 def plot_df(week, gdf, out_dir):

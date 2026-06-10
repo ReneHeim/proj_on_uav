@@ -1,4 +1,10 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import argparse
+import logging
 import re
 from pathlib import Path
 
@@ -6,12 +12,12 @@ import geopandas as gpd
 import pandas as pd
 from colorama import init
 
-from src.Common.config_object import config_object
-from src.Common.logging import logging_config
-from src.Common.search import optimized_recursive_search, order_path_list
-from src.Utils.RPV_modelling.processing import process_weekly_data_rpv
-from src.Utils.RPV_modelling.rpv import *
-from Utils.stats.processing import process_weekly_data_stats
+from src.core.config_object import config_object
+from src.core.logging import logging_config
+from src.core.search import optimized_recursive_search, order_path_list
+from src.modelling.processing import process_weekly_data_rpv
+from src.modelling.rpv import *
+from src.stats.processing import process_weekly_data_stats
 
 IGNORE_DIRS = {"System Volume Information"}
 PATTERN_TMPL = "*{obj}*.parquet"
@@ -56,11 +62,19 @@ def main():
     for key, group in plots_group.items():
         ordered_group = order_path_list(group)
 
-        week_id = re.search(r"week\d+", group[0]).group()
+        # Pad paths to match polygon dataframe row count, filling with None for missing plots
+        gdf_height = gdf.height
+        if len(ordered_group) < gdf_height:
+            ordered_group += [None] * (gdf_height - len(ordered_group))
+        elif len(ordered_group) > gdf_height:
+            logging.warning(
+                f"Truncating {len(ordered_group) - gdf_height} extra paths for {key} "
+                f"({len(ordered_group)} paths vs {gdf_height} plots)"
+            )
+            ordered_group = ordered_group[:gdf_height]
 
-        gdf_tmp = gdf
-        gdf_tmp = gdf_tmp.with_columns([pl.Series("paths", ordered_group)])
-        weeks_dics[week_id] = gdf_tmp
+        gdf_tmp = gdf.with_columns([pl.Series("paths", ordered_group)])
+        weeks_dics[key] = gdf_tmp
 
     # Create rpvs for each
     for week, gdf in weeks_dics.items():

@@ -9,7 +9,7 @@
 
 This repository provides a Python pipeline to extract multi-angular reflectance and geometry from UAV orthophotos, filter data spatially using polygons, and fit RPV models per plot and week.
 
-version: 0.10.0
+version: 0.11.1
 
 ## Features
 
@@ -114,25 +114,25 @@ output/
 #### Step 1: Extract Data
 ```bash
 # Extract per-pixel data from orthophotos and DEM
-python src/pipeline_extract_data.py --config my_config.yml
+python -m src.pipeline_extract_data --config my_config.yml
 
 # With optional co-registration
-python src/pipeline_extract_data.py --config my_config.yml --alignment
+python -m src.pipeline_extract_data --config my_config.yml --alignment
 
 # Without polygon filtering
-python src/pipeline_extract_data.py --config my_config.yml --no-polygon
+python -m src.pipeline_extract_data --config my_config.yml --no-polygon
 ```
 
 #### Step 2: Apply Filters
 ```bash
 # Apply spectral filters and split by polygon
-python src/pipeline_filtering.py --config my_config.yml
+python -m src.pipeline_filtering --config my_config.yml
 ```
 
 #### Step 3: Fit RPV Models
 ```bash
 # Fit RPV models for a specific band
-python src/pipeline_modelling.py --config my_config.yml --band band1
+python -m src.pipeline_modelling --config my_config.yml --band band1
 ```
 
 #### Using Makefile (Alternative)
@@ -169,27 +169,46 @@ make install    # Install dependencies
 
 ```
 proj_on_uav/
-├── src/                    # Source code
-│   ├── Common/            # Common utilities
-│   │   ├── camera.py      # Camera position calculations
-│   │   ├── config_object.py # Configuration management
-│   │   ├── filters.py     # Spectral filters
-│   │   ├── polygon_filtering.py # Spatial filtering
-│   │   ├── raster.py      # Raster operations
-│   │   └── rpv.py         # RPV model fitting
-│   ├── Util/              # Utility functions
-│   ├── 01_main_extract_data.py    # Main extraction script
-│   ├── 02_filtering.py            # Filtering script
-│   └── 03_RPV_modelling.py        # RPV modeling script
-├── tests/                 # Test suite
-│   ├── e2e/              # End-to-end tests
-│   ├── test_*.py         # Unit tests
-│   └── test_smoke.py     # CLI smoke tests
-├── Documentation/         # Documentation
-├── requirements.txt       # Python dependencies
-├── pyproject.toml        # Project configuration
-├── Makefile              # Development commands
-└── README.md             # This file
+├── src/                        # Source code
+│   ├── core/                   # Core utilities
+│   │   ├── config_object.py    # Configuration management
+│   │   ├── logging.py          # Logging setup
+│   │   ├── preprocess.py       # Data preprocessing
+│   │   └── search.py           # File search utilities
+│   ├── extract/                # Data extraction modules
+│   │   ├── camera.py           # Camera position & angle calculations
+│   │   ├── date_time.py        # Timezone & datetime handling
+│   │   ├── merge_analysis.py   # DEM/orthophoto merge & KD-tree matching
+│   │   ├── polygon_filtering.py# Spatial filtering by polygon
+│   │   └── raster.py           # Raster I/O, alignment, plotting
+│   ├── filter/                 # Spectral filtering modules
+│   │   ├── data_loader.py      # Polygon-based data loading
+│   │   └── filters.py          # OSAVI, Excess Green, spectral indices
+│   ├── modelling/              # RPV modelling modules
+│   │   ├── rpv.py              # RPV model fitting (least squares)
+│   │   ├── processing.py       # Weekly RPV batch processing
+│   │   └── plotting.py         # RPV result visualization
+│   ├── stats/                  # Statistical analysis modules
+│   │   ├── ANOVA.py            # ANOVA & Tukey's HSD
+│   │   ├── Logistic_regression.py # Logistic regression & AUROC
+│   │   ├── plotting.py         # Statistical plotting (KDE)
+│   │   └── processing.py       # Weekly stats batch processing
+│   ├── pipeline_extract_data.py# Step 1: Extract per-pixel data
+│   ├── pipeline_filtering.py   # Step 2: Apply spectral filters
+│   ├── pipeline_modelling.py   # Step 3: Fit RPV models
+│   └── config_file_example.yml # Example configuration
+├── main_extract.py             # Entry point wrapper (uav-extract)
+├── filtering.py                # Entry point wrapper (uav-filter)
+├── rpv_modelling.py            # Entry point wrapper (uav-rpv)
+├── tests/                      # Test suite
+│   ├── e2e/                    # End-to-end tests
+│   ├── test_*.py               # Unit tests
+│   └── test_smoke.py           # CLI smoke tests
+├── Documentation/              # Documentation
+├── requirements.txt            # Python dependencies
+├── pyproject.toml              # Project configuration
+├── Makefile                    # Development commands
+└── README.md                   # This file
 ```
 
 

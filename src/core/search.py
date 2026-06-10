@@ -11,6 +11,7 @@ def order_path_list(group):
 
     - Safely handles gaps and large plot IDs by using a dict first.
     - Keeps non-matching paths appended after indexed ones.
+    - Does NOT fill gaps with None -- gaps are simply absent from the result.
     """
     indexed: dict[int, str] = {}
     rest: list[str] = []
@@ -25,12 +26,7 @@ def order_path_list(group):
         else:
             rest.append(path)
 
-    # Rebuild ordered list with gaps filled by None
-    ordered: list[str | None] = []
-    if indexed:
-        for i in range(max(indexed.keys()) + 1):
-            ordered.append(indexed.get(i))
-    # Append leftovers
+    ordered: list[str] = [indexed[i] for i in sorted(indexed.keys())]
     ordered.extend(rest)
     return ordered
 

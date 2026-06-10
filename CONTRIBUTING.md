@@ -39,11 +39,8 @@ Thank you for your interest in contributing to this project! This document provi
 ### 1. Install Dependencies
 
 ```bash
-# Install production dependencies
+# Install dependencies
 pip install -r requirements.txt
-
-# Install development dependencies
-pip install -r requirements-dev.txt
 
 # Install the package in development mode
 pip install -e .

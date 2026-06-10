@@ -7,9 +7,9 @@ import numpy as np
 import polars as pl
 from tqdm import tqdm
 
-from Common.preprocess import df_preprocess
-from src.Utils.extract_data.raster import plotting_raster
-from src.Utils.RPV_modelling.rpv import rpv_fit
+from src.core.preprocess import df_preprocess
+from src.extract.raster import plotting_raster
+from src.modelling.rpv import rpv_fit
 
 
 def process_weekly_data_rpv(
@@ -48,6 +48,9 @@ def process_weekly_data_rpv(
                 cult = row.get("cult", None)
                 treatment = row.get("trt", None)
                 geometry = row.get("geometry", None)
+
+                if row["paths"] is None:
+                    continue
 
                 dg = pl.read_parquet(row["paths"])
 

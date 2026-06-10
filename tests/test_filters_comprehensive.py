@@ -10,7 +10,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from src.Utils.filtering.filters import (
+from src.filter.filters import (
     OSAVI_index_filtering,
     add_mask_and_plot,
     excess_green_filter,

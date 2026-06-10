@@ -1,6 +1,6 @@
 import polars as pl
 
-from src.Utils.filtering.filters import OSAVI_index_filtering, excess_green_filter
+from src.filter.filters import OSAVI_index_filtering, excess_green_filter
 
 
 def test_osavi_and_excess_green():

@@ -14,7 +14,9 @@ import rasterio as rio
 from pyproj import Transformer
 from rasterio.transform import from_bounds
 
-from src.Utils.extract_data.raster import (
+from src.extract.raster import (
+    _auto_figsize,
+    _finite_mask,
     check_alignment,
     coregister_and_resample,
     latlon_to_utm32n_series,
@@ -33,14 +35,12 @@ class TestCoordinateTransformations:
 
     def test_pixel_to_world_coords(self):
         """Test pixel to world coordinate transformation."""
-        # Simple geotransform: [x_origin, pixel_width, 0, y_origin, 0, -pixel_height]
         geo_transform = [1000.0, 1.0, 0.0, 2000.0, 0.0, -1.0]
 
-        # Test single point
         world_x, world_y = pixelToWorldCoords(10, 20, geo_transform)
 
-        assert world_x == 1010.0  # 1000 + 10 * 1
-        assert world_y == 1980.0  # 2000 + 20 * (-1)
+        assert world_x == 1010.0
+        assert world_y == 1980.0
 
     def test_world_to_pixel_coords_int(self):
         """Test world to pixel coordinate transformation with integer output."""
@@ -57,7 +57,6 @@ class TestCoordinateTransformations:
         """Test world to pixel coordinate transformation with float output."""
         geo_transform = [1000.0, 1.0, 0.0, 2000.0, 0.0, -1.0]
 
-        # Test single point
         pixel_x, pixel_y = worldToPixelCoords(1010.5, 1980.5, geo_transform, dtype="float")
 
         assert abs(pixel_x - 11.0) < 1e-6
@@ -67,7 +66,6 @@ class TestCoordinateTransformations:
 
     def test_xyval_function(self):
         """Test xyval function for raster array."""
-        # Create a small test array
         test_array = np.array([[1, 2], [3, 4]])
 
         x, y, values = xyval(test_array)
@@ -76,13 +74,10 @@ class TestCoordinateTransformations:
         assert len(y) == 4
         assert len(values) == 4
 
-        # Check that coordinates are correct (numpy.indices returns row-major order)
-        expected_x = [0, 1, 0, 1]  # Column indices
-        expected_y = [0, 0, 1, 1]  # Row indices
+        expected_x = [0, 1, 0, 1]
+        expected_y = [0, 0, 1, 1]
         expected_values = [1, 2, 3, 4]
 
-        # The actual order might be different due to numpy's ravel behavior
-        # Let's just check that all values are present
         assert set(x) == set(expected_x)
         assert set(y) == set(expected_y)
         assert set(values) == set(expected_values)
@@ -91,7 +86,6 @@ class TestCoordinateTransformations:
         """Test transform to numpy array conversion."""
         from affine import Affine
 
-        # Create a simple affine transform
         transform = Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0)
 
         result = to_numpy2(transform)
@@ -108,13 +102,12 @@ class TestCoordinateTransformations:
 
         transform = Affine(1.0, 0.0, 100.0, 0.0, -1.0, 200.0)
 
-        # Test single point
         x, y = xy_np(transform, 10, 20, offset="center")
 
         assert len(x) == 1
         assert len(y) == 1
-        assert abs(x[0] - 110.5) < 1e-6  # 100 + 10 + 0.5
-        assert abs(y[0] - 179.5) < 1e-6  # 200 - 20 - 0.5
+        assert abs(x[0] - 110.5) < 1e-6
+        assert abs(y[0] - 179.5) < 1e-6
 
     def test_xy_np_multiple_points(self):
         """Test xy_np function with multiple points."""
@@ -173,7 +166,7 @@ class TestRasterOperations:
             result = read_orthophoto_bands(str(raster_path))
 
             assert isinstance(result, pl.DataFrame)
-            assert len(result) == 100  # 10x10 pixels
+            assert len(result) == 100
             assert "band1" in result.columns
             assert "band5" in result.columns
             assert "Xw" in result.columns
@@ -191,25 +184,49 @@ class TestRasterOperations:
             assert "Xw" in result.columns
             assert "Yw" in result.columns
 
+    def test_read_orthophoto_bands_different_band_count(self):
+        """Test reading orthophoto with non-standard band count."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            raster_path = Path(tmp_dir) / "test_3bands.tif"
+            self.create_test_raster(raster_path, bands=3)
+
+            result = read_orthophoto_bands(str(raster_path))
+
+            assert isinstance(result, pl.DataFrame)
+            assert len(result) == 100
+            assert "band1" in result.columns
+            assert "band2" in result.columns
+            assert "band3" in result.columns
+            assert "band4" not in result.columns
+
+    def test_read_orthophoto_bands_no_transform(self):
+        """Test reading orthophoto without coordinate transform."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            raster_path = Path(tmp_dir) / "test_no_transform.tif"
+            self.create_test_raster(raster_path)
+
+            result = read_orthophoto_bands(str(raster_path), transform_to_utm=False)
+
+            assert isinstance(result, pl.DataFrame)
+            assert len(result) == 100
+            assert "Xw" in result.columns
+            assert "Yw" in result.columns
+
     def test_coregister_and_resample(self):
         """Test coregistration and resampling."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create reference raster
             ref_path = Path(tmp_dir) / "ref.tif"
             self.create_test_raster(ref_path, width=10, height=10)
 
-            # Create input raster with different size
             input_path = Path(tmp_dir) / "input.tif"
             self.create_test_raster(input_path, width=8, height=8)
 
-            # Create output path
             output_path = Path(tmp_dir) / "output.tif"
 
             result = coregister_and_resample(str(input_path), str(ref_path), str(output_path))
 
             assert Path(result).exists()
 
-            # Check that output has same dimensions as reference
             with rio.open(result) as dst:
                 assert dst.width == 10
                 assert dst.height == 10
@@ -220,46 +237,49 @@ class TestRasterOperations:
             raster_path = Path(tmp_dir) / "test.tif"
             self.create_test_raster(raster_path)
 
-            # Should be aligned with itself
             assert check_alignment(str(raster_path), str(raster_path))
 
     def test_check_alignment_different_sizes(self):
         """Test alignment check with different sized rasters."""
         with tempfile.TemporaryDirectory() as tmp_dir:
-            # Create rasters with different sizes
             raster1_path = Path(tmp_dir) / "raster1.tif"
             raster2_path = Path(tmp_dir) / "raster2.tif"
 
             self.create_test_raster(raster1_path, width=10, height=10)
             self.create_test_raster(raster2_path, width=8, height=8)
 
-            # The function might return True if the transforms are compatible
-            # Let's just test that it doesn't crash and returns a boolean
             result = check_alignment(str(raster1_path), str(raster2_path))
             assert isinstance(result, bool)
 
+    def test_check_alignment_different_crs(self):
+        """Test alignment check with same bounds but different CRS."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            raster1_path = Path(tmp_dir) / "raster_utm32.tif"
+            raster2_path = Path(tmp_dir) / "raster_wgs84.tif"
+
+            self.create_test_raster(raster1_path, width=10, height=10, crs="EPSG:32632")
+            self.create_test_raster(raster2_path, width=10, height=10, crs="EPSG:4326")
+
+            result = check_alignment(str(raster1_path), str(raster2_path))
+            assert isinstance(result, bool)
+            assert result is False
+
     def test_latlon_to_utm32n_series(self):
         """Test latitude/longitude to UTM conversion."""
-        # Test with single coordinates first
         lat = 52.0
         lon = 13.0
 
         result = latlon_to_utm32n_series(lat, lon)
 
-        # The function returns a tuple of (x, y) coordinates
         assert len(result) == 2
         x, y = result
 
-        # Check that coordinates are reasonable (should be in UTM zone 32N)
-        assert 400000 < x < 900000  # UTM zone 32N x range
-        assert 5000000 < y < 6000000  # UTM zone 32N y range
+        assert 400000 < x < 900000
+        assert 5000000 < y < 6000000
 
-        # Now test with multiple coordinates
         lats = [52.0, 52.1, 52.2]
         lons = [13.0, 13.1, 13.2]
 
-        # The function expects single values, not lists
-        # Let's test each coordinate individually
         for lat, lon in zip(lats, lons):
             result = latlon_to_utm32n_series(lat, lon)
             assert len(result) == 2
@@ -291,27 +311,34 @@ def test_monotonic_local():
 class TestPlottingFunctions:
     """Test plotting functions."""
 
-    def test_plotting_raster_basic(self):
-        """Test basic raster plotting."""
-        df = pl.DataFrame(
+    def _make_test_df(self):
+        return pl.DataFrame(
             {
-                "Xw": [1, 2, 3, 4, 5],
-                "Yw": [1, 2, 3, 4, 5],
-                "band1": [0.1, 0.2, 0.3, 0.4, 0.5],
-                "band2": [0.2, 0.3, 0.4, 0.5, 0.6],
-                "band3": [0.3, 0.4, 0.5, 0.6, 0.7],
-                "elev": [100, 101, 102, 103, 104],
+                "Xw": [1.0, 2.0, 3.0, 4.0, 5.0, 1.5, 2.5, 3.5, 4.5, 5.5],
+                "Yw": [1.0, 2.0, 3.0, 4.0, 5.0, 1.5, 2.5, 3.5, 4.5, 5.5],
+                "band1": [0.1, 0.2, 0.3, 0.4, 0.5, 0.15, 0.25, 0.35, 0.45, 0.55],
+                "band2": [0.2, 0.3, 0.4, 0.5, 0.6, 0.25, 0.35, 0.45, 0.55, 0.65],
+                "band3": [0.3, 0.4, 0.5, 0.6, 0.7, 0.35, 0.45, 0.55, 0.65, 0.75],
+                "OSAVI": [0.55, 0.60, 0.65, 0.70, 0.75, 0.58, 0.63, 0.68, 0.73, 0.78],
+                "NDVI": [0.65, 0.70, 0.75, 0.80, 0.85, 0.68, 0.73, 0.78, 0.83, 0.88],
+                "elev": [100.0, 101.0, 102.0, 103.0, 104.0, 100.5, 101.5, 102.5, 103.5, 104.5],
             }
         )
+
+    def test_plotting_raster_basic(self):
+        """Test basic raster plotting."""
+        df = self._make_test_df()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "plots"
 
-            # Should not raise
-            plotting_raster(df, str(output_path), "test_file")
+            plotting_raster(df, str(output_path), "test_file", ny=5, nx=5, dpi=30)
 
-            # Check if plots were created
             assert (output_path / "bands_data").exists()
+            panels_png = output_path / "bands_data" / "panels_test_file.png"
+            dist_png = output_path / "bands_data" / "band_distributions_test_file.png"
+            assert panels_png.exists()
+            assert dist_png.exists()
 
     def test_plotting_raster_empty_data(self):
         """Test plotting with empty dataframe."""
@@ -320,10 +347,154 @@ class TestPlottingFunctions:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "plots"
 
-            # Should handle empty data gracefully
             plotting_raster(df, str(output_path), "empty_file")
 
-            # Should not crash
+    def test_plotting_raster_with_density(self):
+        """Test plotting with density plot enabled."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(df, str(output_path), "density_test", plot_density=True, ny=5, nx=5, dpi=30)
+
+            panels_png = output_path / "bands_data" / "panels_density_test.png"
+            assert panels_png.exists()
+
+    def test_plotting_raster_with_kde(self):
+        """Test plotting with KDE density mode."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(
+                df, str(output_path), "kde_test", plot_density=True, density_mode="kde", ny=5, nx=5, dpi=30
+            )
+
+            panels_png = output_path / "bands_data" / "panels_kde_test.png"
+            assert panels_png.exists()
+
+    def test_plotting_raster_with_custom_columns(self):
+        """Test plotting with custom columns."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(
+                df, str(output_path), "custom_test", custom_columuns=["OSAVI", "NDVI"], ny=5, nx=5, dpi=30
+            )
+
+            panels_png = output_path / "bands_data" / "panels_custom_test.png"
+            assert panels_png.exists()
+
+    def test_plotting_raster_with_auto_figsize(self):
+        """Test plotting with auto_figsize enabled."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(df, str(output_path), "autofig_test", auto_figsize=True, ny=5, nx=5, dpi=30)
+
+            panels_png = output_path / "bands_data" / "panels_autofig_test.png"
+            assert panels_png.exists()
+
+    def test_plotting_raster_with_band_kde(self):
+        """Test plotting with band_kde enabled."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(df, str(output_path), "bandkde_test", band_kde=True, ny=5, nx=5, dpi=30)
+
+            kde_png = output_path / "bands_data" / "band_kde_bandkde_test.png"
+            assert kde_png.exists()
+
+    def test_plotting_raster_fill_empty(self):
+        """Test plotting with fill_empty disabled."""
+        df = self._make_test_df()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            output_path = Path(tmp_dir) / "plots"
+
+            plotting_raster(df, str(output_path), "fillempty_test", fill_empty=False, ny=5, nx=5, dpi=30)
+
+            panels_png = output_path / "bands_data" / "panels_fillempty_test.png"
+            assert panels_png.exists()
+
+
+def test_auto_figsize():
+    """Test _auto_figsize returns reasonable figure dimensions."""
+    figsize, panelsize = _auto_figsize(
+        nx=1000,
+        ny=800,
+        rows=2,
+        cols=3,
+        pixels_per_bin=4.0,
+        dpi=200,
+        min_panel_size=(4.0, 3.5),
+        max_panel_size=(60.0, 120.0),
+    )
+
+    assert isinstance(figsize, tuple) and len(figsize) == 2
+    assert isinstance(panelsize, tuple) and len(panelsize) == 2
+    assert figsize[0] > 0 and figsize[1] > 0
+    assert panelsize[0] > 0 and panelsize[1] > 0
+
+    panel_w = (1000 * 4.0) / 200
+    panel_h = (800 * 4.0) / 200
+    assert panelsize[0] == panel_w
+    assert panelsize[1] == panel_h
+    assert figsize[0] == 3 * panel_w
+    assert figsize[1] == 2 * panel_h
+
+
+def test_auto_figsize_clamped():
+    """Test _auto_figsize clamps to min/max panel sizes."""
+    figsize, panelsize = _auto_figsize(
+        nx=10,
+        ny=10,
+        rows=1,
+        cols=1,
+        pixels_per_bin=1.0,
+        dpi=100,
+        min_panel_size=(4.0, 3.5),
+        max_panel_size=(60.0, 120.0),
+    )
+
+    assert panelsize[0] == 4.0
+    assert panelsize[1] == 3.5
+
+
+def test_finite_mask():
+    """Test _finite_mask with NaN, Inf, and finite values."""
+    arr = np.array([1.0, np.nan, 3.0, np.inf, -np.inf, 5.0, 2.0], dtype=np.float64)
+
+    mask = _finite_mask(arr)
+
+    assert isinstance(mask, np.ndarray)
+    assert mask.dtype == bool
+    assert bool(mask[0]) is True
+    assert bool(mask[1]) is False
+    assert bool(mask[2]) is True
+    assert bool(mask[3]) is False
+    assert bool(mask[4]) is False
+    assert bool(mask[5]) is True
+    assert bool(mask[6]) is True
+    assert mask.sum() == 4
+
+
+def test_finite_mask_multiple_arrays():
+    """Test _finite_mask with multiple input arrays."""
+    a = np.array([1.0, np.nan, 3.0], dtype=np.float64)
+    b = np.array([np.inf, 2.0, 3.0], dtype=np.float64)
+
+    mask = _finite_mask(a, b)
+
+    assert mask.tolist() == [False, False, True]
 
 
 class TestErrorHandling:
@@ -346,10 +517,7 @@ class TestErrorHandling:
 
     def test_check_alignment_nonexistent_files(self):
         """Test alignment check with nonexistent files."""
-        # The function logs errors but doesn't raise exceptions
-        # So we'll test that it handles the error gracefully
         result = check_alignment("nonexistent1.tif", "nonexistent2.tif")
-        # Should return False or handle the error gracefully
         assert isinstance(result, bool)
 
 

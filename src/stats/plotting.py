@@ -4,79 +4,8 @@ from typing import List, Optional, Tuple
 import numpy as np
 import polars as pl
 from matplotlib import pyplot as plt
-from scipy.ndimage import gaussian_filter1d
 
-
-def _kde1d_fast(
-    v: np.ndarray,
-    x_grid: np.ndarray,
-    bw: float | None = None,
-    bins: int = 1024,
-    vmin: float | None = None,
-    vmax: float | None = None,
-) -> np.ndarray:
-    """
-    Approximate 1D KDE efficiently via histogram + Gaussian smoothing.
-
-    Steps:
-    1) Bin values into a fine histogram.
-    2) Smooth counts with gaussian_filter1d using sigma derived from bandwidth.
-    3) Interpolate smoothed density to x_grid and normalize to integrate to ~1.
-
-    Args:
-        v: 1D array of finite samples.
-        x_grid: Points where the PDF should be evaluated.
-        bw: Bandwidth in data units. If None, use Scott's rule.
-        bins: Number of histogram bins for the smoothing grid.
-        vmin, vmax: Optional clipping range. If None, inferred from data.
-
-    Returns:
-        y_pdf evaluated at x_grid (approximately normalized).
-    """
-    v = v[np.isfinite(v)]
-    if v.size < 5:
-        return np.zeros_like(x_grid)
-
-    # Range and histogram grid
-    lo = np.min(v) if vmin is None else float(vmin)
-    hi = np.max(v) if vmax is None else float(vmax)
-    if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
-        lo, hi = float(np.nanmin(v)), float(np.nanmax(v))
-        if not np.isfinite(lo) or not np.isfinite(hi) or hi <= lo:
-            return np.zeros_like(x_grid)
-
-    edges = np.linspace(lo, hi, bins + 1)
-    centers = 0.5 * (edges[:-1] + edges[1:])
-    counts, _ = np.histogram(v, bins=edges)
-
-    # Bandwidth: Scott's rule if not provided
-    if bw is None:
-        s = np.std(v)
-        n = v.size
-        # Scott's rule: bw = 1.06 * s * n^(-1/5); fallback if s==0
-        bw = 1.06 * (s if s > 0 else (hi - lo) / 6.0) * (n ** (-1.0 / 5.0))
-        if bw <= 0 or not np.isfinite(bw):
-            bw = max((hi - lo) / 100.0, 1e-12)
-
-    # Convert bandwidth to sigma in bins
-    bin_width = centers[1] - centers[0]
-    sigma_bins = max(bw / bin_width, 1e-6)
-
-    # Smooth counts
-    smooth = gaussian_filter1d(counts.astype(float), sigma=sigma_bins, mode="nearest")
-
-    # Convert to density (divide by N and bin width)
-    density_centers = smooth / (v.size * bin_width)
-
-    # Interpolate to requested x_grid
-    y_pdf = np.interp(x_grid, centers, density_centers, left=0.0, right=0.0)
-
-    # Normalize lightly to ensure area ≈ 1 over [lo, hi]
-    area = np.trapezoid(y_pdf, x_grid)
-    if area > 0 and np.isfinite(area):
-        y_pdf = y_pdf / area
-
-    return y_pdf
+from src.extract.raster import _kde1d_fast
 
 
 def angle_kde_plot(

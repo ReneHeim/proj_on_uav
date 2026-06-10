@@ -55,12 +55,12 @@ The processing pipeline follows this general workflow:
 
 ## Configuration and Setup
 
-### `config_objecture_logging()`
+### `logging_config()`
 
-Sets up the logging configuration for the application with both file and console outputs.
+Sets up the logging configuration for the application with both file and console outputs. Located in `src/core/logging.py`.
 
 ```python
-def config_objecture_logging():
+def logging_config():
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
@@ -392,30 +392,16 @@ Main function for processing a single orthophoto image.
 10. Adds filename to the data
 11. Saves processed data to Parquet format
 
-### `build_database(tuple_chunk, source, exiftool_path)`
-
-Processes a chunk of orthophoto images.
-
-**Parameters**:
-- `tuple_chunk`: Tuple of (iteration, image_list)
-- `source`: Source metadata dictionary
-- `exiftool_path`: Path to exiftool executable
-
-**Process**:
-1. Extracts iteration and image list
-2. Sets up processing parameters
-3. Retrieves orthophoto paths
-4. Processes each orthophoto in the chunk
-
 ### `main()`
 
-Main function that initializes processing for all images.
+Main function that initializes processing for all images. Located in `src/pipeline_extract_data.py`.
 
 **Process**:
 1. Sets up logging
 2. Loads configuration from YAML file
 3. Constructs source metadata
-4. Processes each image sequentially
+4. Checks for already-processed images (resume support)
+5. Processes each image sequentially
 
 ---
 
@@ -464,11 +450,11 @@ Analyzes potential matches between datasets using K-d tree spatial indexing.
 For a complete UAV dataset processing:
 
 1. **Preparation**:
-   - Configure settings in `config_file.yaml`
+   - Configure settings in `src/config_file_example.yml` (or copy to your own config)
    - Ensure DEM and orthophoto files are accessible
 
 2. **Execution**:
-   - Run the main script
+   - Run `python -m src.pipeline_extract_data --config my_config.yml`
    - Monitor progress through logging output
 
 3. **Output**:

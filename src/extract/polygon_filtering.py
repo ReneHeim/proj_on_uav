@@ -718,17 +718,16 @@ def plot_results(
         ax=ax, facecolor="none", edgecolor="blue", linestyle="--", linewidth=2, label="Data Bounds"
     )
 
-    # Save the plot
+    # Save or show the plot
     plt.tight_layout()
     if plots_out is not None:
         os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
         plt.savefig(f"{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png", dpi=300)
+        plt.close(fig)
     else:
         plt.savefig(f"polygon_filtering_{polygon_basename}.png", dpi=300)
-
-    # Show plot first, then close
-    plt.show()
-    plt.close()
+        plt.show()
+        plt.close(fig)
 
 
 def filter_df_by_polygon(
@@ -765,8 +764,9 @@ def filter_df_by_polygon(
 
     Returns:
     --------
-    polars.DataFrame
-        Filtered DataFrame containing only points inside the polygon
+    polars.DataFrame or None
+        Filtered DataFrame containing only points inside the polygon,
+        or None if filtering fails (no polygons, no overlap, etc.)
     """
     start_time = time.time()
     points_before = len(df)
@@ -782,14 +782,14 @@ def filter_df_by_polygon(
 
         if polygons_gdf.empty:
             logging.error(f"No valid polygons in {polygon_path}")
-            return df
+            return None
 
         # Apply polygon shrinkage if needed
         polygons_gdf = apply_polygon_shrinkage(polygons_gdf, shrinkage)
 
         if polygons_gdf.empty:
-            logging.warning(f"All polygons empty after shrinkage. Returning original data.")
-            return df
+            logging.warning(f"All polygons empty after shrinkage. Returning None.")
+            return None
 
         # Check for overlap between data and polygons
         has_overlap, data_bounds = check_data_polygon_overlap(df, polygons_gdf)
@@ -818,8 +818,8 @@ def filter_df_by_polygon(
 
         # Check if we processed anything
         if processed_count == 0:
-            logging.warning("No chunks were processed successfully. Returning original data.")
-            return df
+            logging.warning("No chunks were processed successfully. Returning None.")
+            return None
 
         # --- PHASE 7: Combine results ---
         if not filtered_chunks:
@@ -828,8 +828,8 @@ def filter_df_by_polygon(
 
         result_df = combine_chunk_results(filtered_chunks, n_points, phase_time)
         if result_df is None or len(result_df) == 0:
-            logging.warning("No points after filtering. Returning original data.")
-            return df
+            logging.warning("No points after filtering. Returning None.")
+            return None
 
             # --- PHASE 8: Debug visualization ---
         try:
@@ -853,7 +853,7 @@ def filter_df_by_polygon(
         import traceback
 
         logging.error(traceback.format_exc())
-        return df
+        return None
 
     finally:
         disable_timeout()

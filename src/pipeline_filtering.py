@@ -1,13 +1,18 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import argparse
 import glob
 import os
 
 import polars as pl
 
-from src.Common.config_object import config_object
-from src.Common.logging import logging_config
-from src.Utils.filtering.data_loader import load_by_polygon
-from src.Utils.filtering.filters import OSAVI_index_filtering, excess_green_filter
+from src.core.config_object import config_object
+from src.core.logging import logging_config
+from src.filter.data_loader import load_by_polygon
+from src.filter.filters import OSAVI_index_filtering, excess_green_filter
 
 
 def main():

@@ -159,8 +159,9 @@ def plot_heatmap(df, column_name, output_path, sample_size=100000):
     # Save the plot if output_path is provided
     if output_path:
         plt.savefig(f"{output_path}/heatmap_{column_name}.png", dpi=300)
-
-    plt.show()
+        plt.close(fig)
+    else:
+        plt.show()
 
 
 def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, output_path=None):
@@ -231,12 +232,14 @@ def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, out
         plt.grid(True, linestyle="--", alpha=0.7)
         plt.legend()
 
+        plt.tight_layout()
+
         # Save the plot if requested
         if output_path:
             plt.savefig(f"{output_path}/spectrogram.png", dpi=300)
-
-        plt.tight_layout()
-        plt.show()
+            plt.close()
+        else:
+            plt.show()
 
     except Exception as e:
         logging.error(f"Error in plotting spectrogram: {e}")
@@ -293,8 +296,9 @@ def add_mask_and_plot(df, column_name, threshold, above=True, output_path=None):
         # Save the plot if output_path is provided
         if output_path:
             plt.savefig(f"{output_path}/mask_plot_{column_name}.png", dpi=300)
-
-        plt.show()
+            plt.close(fig)
+        else:
+            plt.show()
 
         return df
     except Exception as e:

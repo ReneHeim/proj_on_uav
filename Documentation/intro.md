@@ -2,7 +2,7 @@
 
 ## Why is this repository important to you?
 
-This repository contains code, written in [R](https://www.r-project.org/) and [Python](https://www.python.org/), to reproduce [LINK TO ARTCLE HERE]. If you are using any of the contained code or data, please use the following reference:
+This repository contains code, written in [Python](https://www.python.org/), to reproduce [LINK TO ARTCLE HERE]. If you are using any of the contained code or data, please use the following reference:
 
 Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. H. (2024). An applied framework to unlocking multi‑angular UAV reflectance data: A case study for classification of plant parameters in maize (*Zea mays*). *Precision Agriculture*. (accepted)
 
@@ -10,24 +10,34 @@ Heim, R. HJ., Okole, N., Steppe, K., van Labeke, M.C., Geedicke, I., & Maes, W. 
 
 ## What does this repository contain?
 
-- The [ref](https://github.com/ReneHeim/proj_on_uav/tree/main/ref) directory containing the code that was used to clean and structure the data that was collected for the study XYZ, published here (LINK TBA).
-- The [main](https://github.com/ReneHeim/proj_on_uav/tree/main/main) directory containing the code to re-run the presented method as it was done in the published manuscript.
-- The [main_public](https://github.com/ReneHeim/proj_on_uav/tree/main/main_public) directory containing the code to run our method as it is intended for a new user.
-- The [analysis](https://github.com/ReneHeim/proj_on_uav/tree/main/analysis) directory containing the code that was used to generate the results and visualizations as they were published HERE (LINK TBA).
+The repository is organized into a three-stage pipeline:
+
+- **src/extract/** — Data extraction: reads orthophotos and DEMs, calculates viewing/solar angles, merges pixel-level data
+- **src/filter/** — Spectral filtering: applies vegetation indices (OSAVI, Excess Green) and splits data by polygon
+- **src/modelling/** — RPV model fitting: fits Rahman-Pinty-Verstraete models per plot and week
+- **src/stats/** — Statistical analysis: ANOVA, logistic regression, and effect size calculations
+- **src/core/** — Shared utilities: configuration, logging, preprocessing, and file search
 
 ## How to use this method to unlock multi-angular reflectance data?
 
 ### Installing required software
 
-**Python:** Installing Python 3.X through the [Anaconda distribution](https://professorkazarinoff.github.io/Problem-Solving-101-with-Python/01-What-is-Python/01.03-What-is-Anaconda/). Please follow the instructions, based on your operating system, [HERE](https://docs.anaconda.com/anaconda/install/index.html).
+**Python:** Python 3.10 or higher is required. We recommend using a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+# or .venv\Scripts\activate  # Windows
+```
 
 **Agisoft Metashape:** Please download [Agisoft Metashape Professional](https://www.agisoft.com/downloads/installer/) and purchase a license to allow full functionality.
 
-**Exiftool (by Phil Harvey):** Please follow the [instructions](https://exiftool.org/install.html) to install Exiftool on your operating system and associate the programm with your Python environment.
+**Python dependencies:** Install all required libraries:
 
-**PyExifTool and other Python libraries:** Please use THIS requirements file and the following command to install all necessary Python libraries and your preferred conda environment simultaniously:
-
-`conda env create --name my-env-name --file environment.yml`
+```bash
+pip install -r requirements.txt
+pip install -e .
+```
 
 ### Sample Coordinates
 
@@ -62,12 +72,28 @@ Please save the following files in a single directory:
 ### Python
 
 1. Please download the complete [repository](https://github.com/ReneHeim/proj_on_uav) and keep the directory structure as it is
-2. Open the [config_file.yaml](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/config_file.yaml)
-3. Change the paths, settings, and output according to your specific setup
-4. Execute the [01_main_extract_vza_aza_reflectance.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/01_main_extract_vza_aza_reflectance.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-5. Execute the [02_filter_sample_location.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/02_filter_sample_location.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-6. Execute the [03_merging_sample_locations.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/03_merging_sample_locations.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
-7. Execute the [04_orthomosaic_pixel_data.py](https://github.com/ReneHeim/proj_on_uav/blob/main/main_public/04_orthomosaic_pixel_data.py) with you IDE of choice (the results will be stored in the directory that was specified under *output* in step 3)
+2. Copy and edit the configuration file:
+   ```bash
+   cp src/config_file_example.yml my_config.yml
+   ```
+3. Change the paths, settings, and output in `my_config.yml` according to your specific setup
+4. Run the three pipeline stages:
+   ```bash
+   # Step 1: Extract per-pixel reflectance and geometry
+   python -m src.pipeline_extract_data --config my_config.yml
+
+   # Step 2: Apply spectral filters and split by polygon
+   python -m src.pipeline_filtering --config my_config.yml
+
+   # Step 3: Fit RPV models
+   python -m src.pipeline_modelling --config my_config.yml --band band1
+   ```
+5. Alternatively, use the Makefile shortcuts:
+   ```bash
+   make extract
+   make filter
+   make rpv
+   ```
 
 ### Contact
 

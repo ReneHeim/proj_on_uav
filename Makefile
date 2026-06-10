@@ -72,18 +72,18 @@ docs-serve:  ## Serve documentation locally
 	cd Documentation/_build/html && python -m http.server 8000
 
 extract:  ## Run data extraction
-	$(PY) src/01_main_extract_data.py --config src/config_file_example.yml
+	$(PY) -m src.pipeline_extract_data --config src/config_file_example.yml
 
 filter:  ## Run data filtering
-	$(PY) src/02_filtering.py --config src/config_file_example.yml
+	$(PY) -m src.pipeline_filtering --config src/config_file_example.yml
 
 rpv:  ## Run RPV modeling
-	$(PY) src/03_RPV_modelling.py --config src/config_file_example.yml --band band1
+	$(PY) -m src.pipeline_modelling --config src/config_file_example.yml --band band1
 
 pipeline:  ## Run complete pipeline (extract -> filter -> rpv)
-	$(PY) src/01_main_extract_data.py --config src/config_file_example.yml
-	$(PY) src/02_filtering.py --config src/config_file_example.yml
-	$(PY) src/03_RPV_modelling.py --config src/config_file_example.yml --band band1
+	$(PY) -m src.pipeline_extract_data --config src/config_file_example.yml
+	$(PY) -m src.pipeline_filtering --config src/config_file_example.yml
+	$(PY) -m src.pipeline_modelling --config src/config_file_example.yml --band band1
 
 security:  ## Run security checks
 	bandit -r src/ || true

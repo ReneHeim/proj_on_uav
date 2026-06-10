@@ -7,10 +7,10 @@ import numpy as np
 import polars as pl
 from tqdm import tqdm
 
-from Common.preprocess import df_preprocess
-from src.Utils.extract_data.raster import plotting_raster
-from src.Utils.RPV_modelling.rpv import rpv_fit
-from Utils.stats.Logistic_regression import (
+from src.core.preprocess import df_preprocess
+from src.extract.raster import plotting_raster
+from src.modelling.rpv import rpv_fit
+from src.stats.Logistic_regression import (
     OLS,
     format_logistic_results,
     preprocess_healthy_diseased,
@@ -31,7 +31,7 @@ def process_stats(dg, path, week, out):
         dg = dg.with_columns((((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"))
 
         # === Plot distributions ===
-        from src.Utils.stats.plotting import angle_kde_plot
+        from src.stats.plotting import angle_kde_plot
 
         raa_edges = list(range(-360, 361, 90))
         vza_edges = [0, 20, 40, 60, 80]
@@ -56,7 +56,7 @@ def process_stats(dg, path, week, out):
             )
 
         # Do ANOVA
-        from src.Utils.stats.ANOVA import ANOVA_optimized, ANOVA_preprocess
+        from src.stats.ANOVA import ANOVA_optimized, ANOVA_preprocess
 
         dg = ANOVA_preprocess(dg, raa_edges=raa_edges, vza_edges=vza_edges)
 
@@ -109,8 +109,21 @@ def process_logistic_regression(out, week, gdf, debug=False):
         logging.info(f"Comparing treated plot {healthy_df} with non treated plot {diseased_df}")
 
         # get row where ifz_id is healthy_df
-        healthy_row = gdf.filter(pl.col("ifz_id") == healthy_df).to_dicts()[0]
-        diseased_row = gdf.filter(pl.col("ifz_id") == diseased_df).to_dicts()[0]
+        healthy_rows = gdf.filter(pl.col("ifz_id") == healthy_df).to_dicts()
+        if not healthy_rows:
+            logging.warning(f"Plot {healthy_df} not found, skipping pair ({healthy_df}, {diseased_df})")
+            continue
+        healthy_row = healthy_rows[0]
+
+        diseased_rows = gdf.filter(pl.col("ifz_id") == diseased_df).to_dicts()
+        if not diseased_rows:
+            logging.warning(f"Plot {diseased_df} not found, skipping pair ({healthy_df}, {diseased_df})")
+            continue
+        diseased_row = diseased_rows[0]
+
+        if healthy_row["paths"] is None or diseased_row["paths"] is None:
+            logging.warning(f"Missing path for pair ({healthy_df}, {diseased_df}), skipping")
+            continue
         logging.info("Loaded plot rows in %.2f seconds", time.time() - start_time)
 
         start_time = time.time()
@@ -136,7 +149,7 @@ def process_logistic_regression(out, week, gdf, debug=False):
         logging.info("OLS regression completed in %.2f seconds", time.time() - start_time)
 
         # Do logistic regression
-        from src.Utils.stats.Logistic_regression import logistic_regression
+        from src.stats.Logistic_regression import logistic_regression
 
         start_time = time.time()
         res = logistic_regression(merged_data)
@@ -183,6 +196,9 @@ def process_weekly_data_stats(weeks_dics, out, debug=False, filter={}):
                 cult = row.get("cult", None)
                 treatment = row.get("trt", None)
                 geometry = row.get("geometry", None)
+
+                if row["paths"] is None:
+                    continue
 
                 dg = pl.read_parquet(row["paths"])
 
