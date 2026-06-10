@@ -15,8 +15,15 @@ def _write_multiband_tif(path, width=10, height=10, count=5, crs="EPSG:32632"):
     for b in range(count):
         data[b] = (b + 1) * 0.01
     with rio.open(
-        path, "w", driver="GTiff", width=width, height=height,
-        count=count, dtype="float32", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=count,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data)
 
@@ -25,8 +32,15 @@ def _write_singleband_tif(path, width=10, height=10, crs="EPSG:32632"):
     transform = from_bounds(0, 0, 10, 10, width, height)
     data = np.ones((height, width), dtype=np.float32)
     with rio.open(
-        path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data, 1)
 
@@ -92,6 +106,7 @@ def test_script_01_extract_e2e(tmp_path):
     _write_camera_file(cam_path, "IMG_0001_0")
 
     import geopandas as gpd
+
     gdf = gpd.GeoDataFrame(
         {"id": [1]},
         geometry=gpd.GeoSeries.from_wkt(["POLYGON((0 0,10 0,10 10,0 10,0 0))"]),
@@ -113,7 +128,19 @@ def test_script_01_extract_e2e(tmp_path):
     assert outputs, "No parquet produced by extract script"
 
     df = pl.read_parquet(outputs[0])
-    expected_cols = {"Xw", "Yw", "band1", "band2", "band3", "band4", "band5", "vza", "vaa", "sunelev", "saa"}
+    expected_cols = {
+        "Xw",
+        "Yw",
+        "band1",
+        "band2",
+        "band3",
+        "band4",
+        "band5",
+        "vza",
+        "vaa",
+        "sunelev",
+        "saa",
+    }
     missing = expected_cols - set(df.columns)
     assert not missing, f"Missing columns: {missing}"
 
@@ -146,6 +173,7 @@ def test_pipeline_produces_valid_angles(tmp_path):
     _write_camera_file(cam_path, "IMG_0001_0")
 
     import geopandas as gpd
+
     gdf = gpd.GeoDataFrame(
         {"id": [1]},
         geometry=gpd.GeoSeries.from_wkt(["POLYGON((0 0,10 0,10 10,0 10,0 0))"]),

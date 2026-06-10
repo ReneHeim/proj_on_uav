@@ -356,7 +356,9 @@ class TestPlottingFunctions:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "plots"
 
-            plotting_raster(df, str(output_path), "density_test", plot_density=True, ny=5, nx=5, dpi=30)
+            plotting_raster(
+                df, str(output_path), "density_test", plot_density=True, ny=5, nx=5, dpi=30
+            )
 
             panels_png = output_path / "bands_data" / "panels_density_test.png"
             assert panels_png.exists()
@@ -369,7 +371,14 @@ class TestPlottingFunctions:
             output_path = Path(tmp_dir) / "plots"
 
             plotting_raster(
-                df, str(output_path), "kde_test", plot_density=True, density_mode="kde", ny=5, nx=5, dpi=30
+                df,
+                str(output_path),
+                "kde_test",
+                plot_density=True,
+                density_mode="kde",
+                ny=5,
+                nx=5,
+                dpi=30,
             )
 
             panels_png = output_path / "bands_data" / "panels_kde_test.png"
@@ -383,7 +392,13 @@ class TestPlottingFunctions:
             output_path = Path(tmp_dir) / "plots"
 
             plotting_raster(
-                df, str(output_path), "custom_test", custom_columuns=["OSAVI", "NDVI"], ny=5, nx=5, dpi=30
+                df,
+                str(output_path),
+                "custom_test",
+                custom_columuns=["OSAVI", "NDVI"],
+                ny=5,
+                nx=5,
+                dpi=30,
             )
 
             panels_png = output_path / "bands_data" / "panels_custom_test.png"
@@ -396,7 +411,9 @@ class TestPlottingFunctions:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "plots"
 
-            plotting_raster(df, str(output_path), "autofig_test", auto_figsize=True, ny=5, nx=5, dpi=30)
+            plotting_raster(
+                df, str(output_path), "autofig_test", auto_figsize=True, ny=5, nx=5, dpi=30
+            )
 
             panels_png = output_path / "bands_data" / "panels_autofig_test.png"
             assert panels_png.exists()
@@ -420,7 +437,9 @@ class TestPlottingFunctions:
         with tempfile.TemporaryDirectory() as tmp_dir:
             output_path = Path(tmp_dir) / "plots"
 
-            plotting_raster(df, str(output_path), "fillempty_test", fill_empty=False, ny=5, nx=5, dpi=30)
+            plotting_raster(
+                df, str(output_path), "fillempty_test", fill_empty=False, ny=5, nx=5, dpi=30
+            )
 
             panels_png = output_path / "bands_data" / "panels_fillempty_test.png"
             assert panels_png.exists()

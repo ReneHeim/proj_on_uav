@@ -5,10 +5,10 @@ import pytest
 from src.core.preprocess import df_preprocess
 from src.modelling.rpv import rpv_1, rpv_2, rpv_fit, rpv_side
 
-
 # ---------------------------------------------------------------------------
 # Existing test (kept)
 # ---------------------------------------------------------------------------
+
 
 def test_rpv_preprocess_and_fit():
     df = pl.DataFrame(
@@ -38,6 +38,7 @@ def test_rpv_preprocess_and_fit():
 # ---------------------------------------------------------------------------
 # rpv_1, rpv_2, rpv_side pure function tests
 # ---------------------------------------------------------------------------
+
 
 def test_rpv_1_basic():
     result = rpv_1((30, 0, 0), rho0=0.1, k=1.0, theta=0.0)
@@ -92,6 +93,7 @@ def test_rpv_1_and_rpv_2_differ():
 # rpv_fit with synthetic data
 # ---------------------------------------------------------------------------
 
+
 def test_rpv_fit_synthetic():
     true_rho0 = 0.3
     true_k = 0.8
@@ -107,12 +109,14 @@ def test_rpv_fit_synthetic():
     noise = np.random.normal(0, 0.005, n)
     reflectance = reflectance + noise
 
-    df = pl.DataFrame({
-        "sza": sza,
-        "vza": vza,
-        "raa": raa,
-        "band1": reflectance,
-    })
+    df = pl.DataFrame(
+        {
+            "sza": sza,
+            "vza": vza,
+            "raa": raa,
+            "band1": reflectance,
+        }
+    )
 
     rho0, k, theta, rc, rmse, nrmse = rpv_fit(df, band="band1", n_samples_bins=5)
 
@@ -125,38 +129,43 @@ def test_rpv_fit_synthetic():
 # df_preprocess edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_df_preprocess_empty():
-    df = pl.DataFrame({
-        "Xw": pl.Series([], dtype=pl.Float64),
-        "Yw": pl.Series([], dtype=pl.Float64),
-        "xcam": pl.Series([], dtype=pl.Float64),
-        "ycam": pl.Series([], dtype=pl.Float64),
-        "delta_z": pl.Series([], dtype=pl.Float64),
-        "sunelev": pl.Series([], dtype=pl.Float64),
-        "saa": pl.Series([], dtype=pl.Float64),
-        "band1": pl.Series([], dtype=pl.Float64),
-        "band2": pl.Series([], dtype=pl.Float64),
-        "band3": pl.Series([], dtype=pl.Float64),
-        "band5": pl.Series([], dtype=pl.Float64),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": pl.Series([], dtype=pl.Float64),
+            "Yw": pl.Series([], dtype=pl.Float64),
+            "xcam": pl.Series([], dtype=pl.Float64),
+            "ycam": pl.Series([], dtype=pl.Float64),
+            "delta_z": pl.Series([], dtype=pl.Float64),
+            "sunelev": pl.Series([], dtype=pl.Float64),
+            "saa": pl.Series([], dtype=pl.Float64),
+            "band1": pl.Series([], dtype=pl.Float64),
+            "band2": pl.Series([], dtype=pl.Float64),
+            "band3": pl.Series([], dtype=pl.Float64),
+            "band5": pl.Series([], dtype=pl.Float64),
+        }
+    )
     with pytest.raises(ZeroDivisionError):
         df_preprocess(df)
 
 
 def test_df_preprocess_missing_vx_vy_vz_creates_them():
-    df = pl.DataFrame({
-        "Xw": [0.0],
-        "Yw": [0.0],
-        "xcam": [1.0],
-        "ycam": [2.0],
-        "delta_z": [10.0],
-        "sunelev": [30.0],
-        "saa": [150.0],
-        "band1": [0.2],
-        "band2": [0.2],
-        "band3": [0.1],
-        "band5": [0.2],
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": [0.0],
+            "Yw": [0.0],
+            "xcam": [1.0],
+            "ycam": [2.0],
+            "delta_z": [10.0],
+            "sunelev": [30.0],
+            "saa": [150.0],
+            "band1": [0.2],
+            "band2": [0.2],
+            "band3": [0.1],
+            "band5": [0.2],
+        }
+    )
     result = df_preprocess(df)
     assert "vx" in result.columns
     assert "vy" in result.columns
@@ -167,19 +176,21 @@ def test_df_preprocess_missing_vx_vy_vz_creates_them():
 
 
 def test_df_preprocess_computes_ndvi():
-    df = pl.DataFrame({
-        "Xw": [0.0],
-        "Yw": [0.0],
-        "xcam": [0.0],
-        "ycam": [0.0],
-        "delta_z": [10.0],
-        "sunelev": [30.0],
-        "saa": [150.0],
-        "band1": [0.1],
-        "band2": [0.2],
-        "band3": [0.3],
-        "band5": [0.7],
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": [0.0],
+            "Yw": [0.0],
+            "xcam": [0.0],
+            "ycam": [0.0],
+            "delta_z": [10.0],
+            "sunelev": [30.0],
+            "saa": [150.0],
+            "band1": [0.1],
+            "band2": [0.2],
+            "band3": [0.3],
+            "band5": [0.7],
+        }
+    )
     result = df_preprocess(df)
     expected_ndvi = (0.7 - 0.3) / (0.7 + 0.3)
     assert result["NDVI"][0] == pytest.approx(expected_ndvi, rel=1e-6)

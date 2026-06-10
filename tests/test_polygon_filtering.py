@@ -37,16 +37,19 @@ def test_overlap_detection():
 # 1. filter_df_by_polygon with synthetic data
 # ---------------------------------------------------------------------------
 
+
 def test_filter_df_by_polygon_synthetic_data(tmp_path):
     xs = np.arange(0, 10, 1.0)
     ys = np.arange(0, 10, 1.0)
     X, Y = np.meshgrid(xs, ys)
-    df = pl.DataFrame({
-        "Xw": X.ravel(),
-        "Yw": Y.ravel(),
-        "band1": np.ones(X.size, dtype=np.float64),
-        "elev": np.full(X.size, 100.0, dtype=np.float64),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": X.ravel(),
+            "Yw": Y.ravel(),
+            "band1": np.ones(X.size, dtype=np.float64),
+            "elev": np.full(X.size, 100.0, dtype=np.float64),
+        }
+    )
 
     rect = Polygon([(2.5, 2.5), (7.5, 2.5), (7.5, 7.5), (2.5, 7.5)])
     gdf_poly = gpd.GeoDataFrame({"id": ["plot_A"], "geometry": [rect]}, crs="EPSG:32632")
@@ -73,12 +76,14 @@ def test_filter_df_by_polygon_target_crs_conversion(tmp_path):
     xs = np.arange(0, 6, 1.0)
     ys = np.arange(0, 6, 1.0)
     X, Y = np.meshgrid(xs, ys)
-    df = pl.DataFrame({
-        "Xw": X.ravel(),
-        "Yw": Y.ravel(),
-        "band1": np.ones(X.size, dtype=np.float64),
-        "elev": np.full(X.size, 100.0, dtype=np.float64),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": X.ravel(),
+            "Yw": Y.ravel(),
+            "band1": np.ones(X.size, dtype=np.float64),
+            "elev": np.full(X.size, 100.0, dtype=np.float64),
+        }
+    )
 
     rect = Polygon([(2.5, 2.5), (5.5, 2.5), (5.5, 5.5), (2.5, 5.5)])
     gdf_poly = gpd.GeoDataFrame({"id": ["plot_B"], "geometry": [rect]}, crs="EPSG:32632")
@@ -96,6 +101,7 @@ def test_filter_df_by_polygon_target_crs_conversion(tmp_path):
 # ---------------------------------------------------------------------------
 # 2. load_and_prepare_polygons
 # ---------------------------------------------------------------------------
+
 
 def test_load_and_prepare_polygons_valid(tmp_path):
     rect = Polygon([(10, 10), (20, 10), (20, 20), (10, 20)])
@@ -134,6 +140,7 @@ def test_load_and_prepare_polygons_crs_conversion(tmp_path):
 # 3. apply_polygon_shrinkage
 # ---------------------------------------------------------------------------
 
+
 def test_apply_polygon_shrinkage_reduces_area():
     rect = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
     gdf = gpd.GeoDataFrame(geometry=[rect], crs="EPSG:32632")
@@ -157,6 +164,7 @@ def test_apply_polygon_shrinkage_zero_returns_same():
 # 4. create_union_polygon
 # ---------------------------------------------------------------------------
 
+
 def test_create_union_polygon():
     p1 = Polygon([(0, 0), (5, 0), (5, 5), (0, 5)])
     p2 = Polygon([(3, 3), (8, 3), (8, 8), (3, 8)])
@@ -172,14 +180,17 @@ def test_create_union_polygon():
 # 5. prepare_chunks
 # ---------------------------------------------------------------------------
 
+
 def test_prepare_chunks():
     n = 500
-    df = pl.DataFrame({
-        "Xw": np.random.rand(n),
-        "Yw": np.random.rand(n),
-        "band1": np.ones(n, dtype=np.float64),
-        "elev": np.full(n, 100.0, dtype=np.float64),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": np.random.rand(n),
+            "Yw": np.random.rand(n),
+            "band1": np.ones(n, dtype=np.float64),
+            "elev": np.full(n, 100.0, dtype=np.float64),
+        }
+    )
 
     chunk_indices, max_workers, n_points, n_chunks = prepare_chunks(df)
 
@@ -198,12 +209,14 @@ def test_prepare_chunks():
 
 
 def test_prepare_chunks_small_df():
-    df = pl.DataFrame({
-        "Xw": [0.5],
-        "Yw": [0.5],
-        "band1": [1.0],
-        "elev": [100.0],
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": [0.5],
+            "Yw": [0.5],
+            "band1": [1.0],
+            "elev": [100.0],
+        }
+    )
 
     chunk_indices, max_workers, n_points, n_chunks = prepare_chunks(df)
     assert n_chunks == 1
@@ -213,6 +226,7 @@ def test_prepare_chunks_small_df():
 # ---------------------------------------------------------------------------
 # 6. combine_chunk_results
 # ---------------------------------------------------------------------------
+
 
 def test_combine_chunk_results():
     chunk1 = gpd.GeoDataFrame(
@@ -241,13 +255,16 @@ def test_combine_chunk_results_empty():
 # 7. Edge cases
 # ---------------------------------------------------------------------------
 
+
 def test_filter_df_by_polygon_empty_df(tmp_path):
     rect = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
     gdf = gpd.GeoDataFrame({"id": ["A"], "geometry": [rect]}, crs="EPSG:32632")
     path = tmp_path / "empty.gpkg"
     gdf.to_file(path, driver="GPKG")
 
-    df = pl.DataFrame(schema={"Xw": pl.Float64, "Yw": pl.Float64, "band1": pl.Float64, "elev": pl.Float64})
+    df = pl.DataFrame(
+        schema={"Xw": pl.Float64, "Yw": pl.Float64, "band1": pl.Float64, "elev": pl.Float64}
+    )
     result = filter_df_by_polygon(df, str(path), target_crs="EPSG:32632", shrinkage=0, debug=False)
     assert result is None
 
@@ -256,12 +273,14 @@ def test_filter_df_by_polygon_no_points_inside(tmp_path):
     xs = np.arange(0, 3, 1.0)
     ys = np.arange(0, 3, 1.0)
     X, Y = np.meshgrid(xs, ys)
-    df = pl.DataFrame({
-        "Xw": X.ravel(),
-        "Yw": Y.ravel(),
-        "band1": np.ones(X.size, dtype=np.float64),
-        "elev": np.full(X.size, 100.0, dtype=np.float64),
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": X.ravel(),
+            "Yw": Y.ravel(),
+            "band1": np.ones(X.size, dtype=np.float64),
+            "elev": np.full(X.size, 100.0, dtype=np.float64),
+        }
+    )
 
     far_rect = Polygon([(100, 100), (110, 100), (110, 110), (100, 110)])
     gdf = gpd.GeoDataFrame({"id": ["far"], "geometry": [far_rect]}, crs="EPSG:32632")
@@ -273,12 +292,14 @@ def test_filter_df_by_polygon_no_points_inside(tmp_path):
 
 
 def test_empty_polygon_file_returns_none(tmp_path):
-    df = pl.DataFrame({
-        "Xw": [1.0, 2.0],
-        "Yw": [1.0, 2.0],
-        "band1": [1.0, 1.0],
-        "elev": [100.0, 100.0],
-    })
+    df = pl.DataFrame(
+        {
+            "Xw": [1.0, 2.0],
+            "Yw": [1.0, 2.0],
+            "band1": [1.0, 1.0],
+            "elev": [100.0, 100.0],
+        }
+    )
 
     path = tmp_path / "empty_poly.gpkg"
     gdf_empty = gpd.GeoDataFrame(geometry=[], crs="EPSG:32632")

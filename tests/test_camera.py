@@ -4,10 +4,10 @@ import pytest
 
 from src.extract.camera import calculate_angles
 
-
 # ---------------------------------------------------------------------------
 # Value correctness
 # ---------------------------------------------------------------------------
+
 
 def test_calculate_angles_basic():
     df = pl.DataFrame(
@@ -151,6 +151,7 @@ def test_calculate_angles_large_elevation_variation():
 # ---------------------------------------------------------------------------
 # band1==65535 masking
 # ---------------------------------------------------------------------------
+
 
 def test_calculate_angles_masks_65535():
     df = pl.DataFrame(

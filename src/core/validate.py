@@ -22,20 +22,38 @@ from typing import Dict, List, Set
 import polars as pl
 
 REQUIRED_COLUMNS = [
-    "Xw", "Yw", "band1", "band2", "band3", "band4", "band5",
-    "elev", "delta_z", "delta_x", "delta_y", "distance_xy",
-    "angle_rad", "vza", "vaa_rad", "vaa_temp", "vaa",
-    "xcam", "ycam", "sunelev", "saa", "path",
+    "Xw",
+    "Yw",
+    "band1",
+    "band2",
+    "band3",
+    "band4",
+    "band5",
+    "elev",
+    "delta_z",
+    "delta_x",
+    "delta_y",
+    "distance_xy",
+    "angle_rad",
+    "vza",
+    "vaa_rad",
+    "vaa_temp",
+    "vaa",
+    "xcam",
+    "ycam",
+    "sunelev",
+    "saa",
+    "path",
 ]
 
 OPTIONAL_COLUMNS = ["plot_id", "OSAVI", "ExcessGreen"]
 
 QUALITY_CHECKS = {
-    "vza":    {"min": 0.0,  "max": 90.0, "label": "view zenith angle"},
-    "vaa":    {"min": 0.0,  "max": 360.0, "label": "view azimuth angle"},
-    "sunelev":{"min": -10.0,"max": 90.0, "label": "sun elevation"},
-    "saa":    {"min": 0.0,  "max": 360.0, "label": "solar azimuth"},
-    "elev":   {"min": -500.0,"max": 9000.0,"label": "elevation"},
+    "vza": {"min": 0.0, "max": 90.0, "label": "view zenith angle"},
+    "vaa": {"min": 0.0, "max": 360.0, "label": "view azimuth angle"},
+    "sunelev": {"min": -10.0, "max": 90.0, "label": "sun elevation"},
+    "saa": {"min": 0.0, "max": 360.0, "label": "solar azimuth"},
+    "elev": {"min": -500.0, "max": 9000.0, "label": "elevation"},
 }
 
 BAND_RANGE = {"min": 0.0, "max": 2.0, "label": "band reflectance"}
@@ -109,7 +127,9 @@ def validate_extract_output(output_dir: Path, *, raise_on_error: bool = False) -
         result["ok"] = False
         logging.error(f"Reference schema missing required: {missing_req}")
 
-    extra_cols = [c for c in reference_cols if c not in REQUIRED_COLUMNS and c not in OPTIONAL_COLUMNS]
+    extra_cols = [
+        c for c in reference_cols if c not in REQUIRED_COLUMNS and c not in OPTIONAL_COLUMNS
+    ]
     result["extra_columns"] = extra_cols
 
     without_plot = [f for f, s in schemas.items() if "plot_id" not in s]
@@ -170,9 +190,7 @@ def validate_extract_output(output_dir: Path, *, raise_on_error: bool = False) -
                 )
                 result["ok"] = False
             if vmin < -0.01 and bcol != "band_label":
-                result["range_issues"].append(
-                    f"{f.name}: {bcol} min={vmin:.4f} < 0"
-                )
+                result["range_issues"].append(f"{f.name}: {bcol} min={vmin:.4f} < 0")
                 result["ok"] = False
 
     # --- Phase 4: Summary ---
@@ -200,8 +218,10 @@ def validate_extract_output(output_dir: Path, *, raise_on_error: bool = False) -
 def validate_single_parquet(path: Path) -> Dict:
     """Validate a single parquet file. Returns same structure as validate_extract_output."""
     import tempfile
+
     tmpdir = Path(tempfile.mkdtemp())
     import shutil
+
     dst = tmpdir / path.name
     shutil.copy2(path, dst)
     result = validate_extract_output(tmpdir)
@@ -211,6 +231,7 @@ def validate_single_parquet(path: Path) -> Dict:
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Validate extraction output")
     parser.add_argument("--dir", type=Path, required=True, help="Extract output directory")
     parser.add_argument("--raise", dest="raise_on_error", action="store_true")
@@ -220,4 +241,5 @@ if __name__ == "__main__":
     result = validate_extract_output(Path(args.dir), raise_on_error=args.raise_on_error)
 
     import json
+
     print(json.dumps(result, indent=2, default=str))

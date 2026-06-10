@@ -173,9 +173,7 @@ def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
 
     uids = set()
 
-    for files in batched(
-        (f for f in folder.glob("*.parquet") if f not in bad_set), batch_size
-    ):	
+    for files in batched((f for f in folder.glob("*.parquet") if f not in bad_set), batch_size):
         ids = (pl.scan_parquet(files).select("plot_id").unique().collect())["plot_id"]
         uids.update(ids.to_list())
     return uids

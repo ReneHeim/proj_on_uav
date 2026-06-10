@@ -31,16 +31,30 @@ def test_merge_data(tmp_path):
     for b in range(5):
         data[b] = (b + 1) * 0.01
     with rio.open(
-        band_path, "w", driver="GTiff", width=width, height=height,
-        count=5, dtype="float32", crs=crs, transform=transform,
+        band_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=5,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(data)
 
     dem_path = tmp_path / "dem.tif"
     dem_data = np.arange(100.0, 100.0 + height * width, dtype=np.float32).reshape(height, width)
     with rio.open(
-        dem_path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        dem_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(dem_data, 1)
 
@@ -72,14 +86,18 @@ def test_merge_data(tmp_path):
 
 
 def test_analyze_kdtree_50_percent_overlap():
-    df_dem = pl.DataFrame({
-        "Xw": [0.0, 1.0, 2.0, 3.0],
-        "Yw": [0.0, 1.0, 2.0, 3.0],
-    })
-    df_all = pl.DataFrame({
-        "Xw": [0.0, 1.0, 5.0, 6.0],
-        "Yw": [0.0, 1.0, 5.0, 6.0],
-    })
+    df_dem = pl.DataFrame(
+        {
+            "Xw": [0.0, 1.0, 2.0, 3.0],
+            "Yw": [0.0, 1.0, 2.0, 3.0],
+        }
+    )
+    df_all = pl.DataFrame(
+        {
+            "Xw": [0.0, 1.0, 5.0, 6.0],
+            "Yw": [0.0, 1.0, 5.0, 6.0],
+        }
+    )
 
     stats = analyze_kdtree_matching(df_dem, df_all, precision=0, max_distance=1.0)
     assert stats["exact_matches"] == 2
@@ -87,14 +105,18 @@ def test_analyze_kdtree_50_percent_overlap():
 
 
 def test_analyze_kdtree_no_overlap():
-    df_dem = pl.DataFrame({
-        "Xw": [0.0, 1.0, 2.0],
-        "Yw": [0.0, 1.0, 2.0],
-    })
-    df_all = pl.DataFrame({
-        "Xw": [100.0, 101.0, 102.0],
-        "Yw": [100.0, 101.0, 102.0],
-    })
+    df_dem = pl.DataFrame(
+        {
+            "Xw": [0.0, 1.0, 2.0],
+            "Yw": [0.0, 1.0, 2.0],
+        }
+    )
+    df_all = pl.DataFrame(
+        {
+            "Xw": [100.0, 101.0, 102.0],
+            "Yw": [100.0, 101.0, 102.0],
+        }
+    )
 
     stats = analyze_kdtree_matching(df_dem, df_all, precision=0, max_distance=1.0)
     assert stats["exact_matches"] == 0
@@ -124,8 +146,15 @@ def test_reproject_dem_to_band_grid_single(tmp_path):
     dem_transform = from_bounds(0, 0, 10, 10, dem_width, dem_height)
     dem_data = np.ones((dem_height, dem_width), dtype=np.float32) * 42.0
     with rio.open(
-        dem_path, "w", driver="GTiff", width=dem_width, height=dem_height,
-        count=1, dtype="float32", crs=crs, transform=dem_transform,
+        dem_path,
+        "w",
+        driver="GTiff",
+        width=dem_width,
+        height=dem_height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=dem_transform,
     ) as dst:
         dst.write(dem_data, 1)
 
@@ -133,14 +162,19 @@ def test_reproject_dem_to_band_grid_single(tmp_path):
     band_transform = from_bounds(0, 0, 10, 10, band_width, band_height)
     band_data = np.zeros((1, band_height, band_width), dtype=np.float32)
     with rio.open(
-        band_path, "w", driver="GTiff", width=band_width, height=band_height,
-        count=1, dtype="float32", crs=crs, transform=band_transform,
+        band_path,
+        "w",
+        driver="GTiff",
+        width=band_width,
+        height=band_height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=band_transform,
     ) as dst:
         dst.write(band_data)
 
-    result_path = reproject_dem_to_band_grid_single(
-        str(dem_path), str(band_path), str(out_path)
-    )
+    result_path = reproject_dem_to_band_grid_single(str(dem_path), str(band_path), str(out_path))
     assert result_path == str(out_path)
 
     with rio.open(out_path) as src:
@@ -157,16 +191,30 @@ def test_sample_dem_at_band_pixels(tmp_path):
     band_path = tmp_path / "band.tif"
     band_data = np.zeros((1, height, width), dtype=np.float32)
     with rio.open(
-        band_path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        band_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(band_data)
 
     dem_path = tmp_path / "dem.tif"
     dem_data = np.arange(10.0, 10.0 + width * height, dtype=np.float32).reshape(height, width)
     with rio.open(
-        dem_path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        dem_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(dem_data, 1)
 
@@ -184,8 +232,15 @@ def test_sample_dem_at_band_pixels_with_nan(tmp_path):
     band_path = tmp_path / "band.tif"
     band_data = np.zeros((1, height, width), dtype=np.float32)
     with rio.open(
-        band_path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        band_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(band_data)
 
@@ -194,8 +249,15 @@ def test_sample_dem_at_band_pixels_with_nan(tmp_path):
     dem_data[0, 0] = np.nan
     dem_data[1, 1] = np.nan
     with rio.open(
-        dem_path, "w", driver="GTiff", width=width, height=height,
-        count=1, dtype="float32", crs=crs, transform=transform,
+        dem_path,
+        "w",
+        driver="GTiff",
+        width=width,
+        height=height,
+        count=1,
+        dtype="float32",
+        crs=crs,
+        transform=transform,
     ) as dst:
         dst.write(dem_data, 1)
 
