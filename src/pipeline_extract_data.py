@@ -23,6 +23,7 @@ from tqdm import tqdm
 
 from src.core.config_object import config_object
 from src.core.logging import logging_config
+from src.core.validate import validate_extract_output
 from src.extract.camera import (
     calculate_angles,
     get_camera_position,
@@ -340,6 +341,24 @@ def main():
         )
         end_DEM_i = timer()
         logging.info(f"Total time for iteration {i}: {end_DEM_i - start_DEM_i:.2f} seconds")
+
+    # --- Post-extract validation ---
+    logging.info("Running post-extraction data validation...")
+    result = validate_extract_output(Path(source["out"]))
+    if result["ok"]:
+        logging.info(f"Validation PASSED: {result['n_files']} files OK")
+    else:
+        logging.error(
+            f"Validation found issues: {len(result['schema_issues'])} schema, "
+            f"{len(result['range_issues'])} range, "
+            f"{len(result['files_without_plot_id'])} missing plot_id"
+        )
+        if result["schema_issues"]:
+            for s in result["schema_issues"][:5]:
+                logging.error(f"  Schema: {s}")
+        if result["range_issues"]:
+            for r in result["range_issues"][:5]:
+                logging.error(f"  Range: {r}")
 
 
 if __name__ == "__main__":

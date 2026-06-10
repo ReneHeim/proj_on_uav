@@ -409,9 +409,6 @@ def plot_no_overlap(gdf_poly, data_bounds, plots_out=None, img_name=None, debug=
     else:
         plt.savefig(f"no_overlap_issue.png", dpi=300)
 
-    # Only display if we have enough time remaining
-    if debug == True:
-        plt.show()
     plt.close()
 
 
@@ -718,16 +715,14 @@ def plot_results(
         ax=ax, facecolor="none", edgecolor="blue", linestyle="--", linewidth=2, label="Data Bounds"
     )
 
-    # Save or show the plot
+    # Save the plot
     plt.tight_layout()
     if plots_out is not None:
         os.makedirs(f"{plots_out}/polygon_filtering_data", exist_ok=True)
         plt.savefig(f"{plots_out}/polygon_filtering_data/polygon_filtering_{img_name}.png", dpi=300)
-        plt.close(fig)
     else:
         plt.savefig(f"polygon_filtering_{polygon_basename}.png", dpi=300)
-        plt.show()
-        plt.close(fig)
+    plt.close(fig)
 
 
 def filter_df_by_polygon(

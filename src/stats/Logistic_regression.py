@@ -24,6 +24,7 @@ def preprocess_healthy_diseased(
             [
                 (90 - pl.col("sunelev")).alias("sza"),
                 (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("RAA"),
+                (((pl.col("saa") - pl.col("vaa") + 180) % 360) - 180).alias("raa"),
             ]
         )
 

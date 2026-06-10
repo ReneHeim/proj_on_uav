@@ -42,7 +42,7 @@ def main():
 
     config = config_object(args.config)
 
-    if args.band == 0:
+    if str(args.band) == "0":
         bands = [f"band{i}" for i in range(1, config.bands + 1)]
     else:
         bands = [args.band]
@@ -57,6 +57,12 @@ def main():
     gdf = pd.DataFrame(gpd.read_file(config.main_polygon_path))
     gdf["geometry"] = gdf["geometry"].apply(lambda geom: geom.wkt if geom else None)
     gdf = pl.from_pandas(pd.DataFrame(gdf))
+
+    # Ensure ifz_id column exists (2025 polygon files use different schema)
+    if "ifz_id" not in gdf.columns:
+        gdf = gdf.with_row_index("ifz_id", offset=90001)
+    if "cult" not in gdf.columns and "cultivar" in gdf.columns:
+        gdf = gdf.rename({"cultivar": "cult"})
 
     weeks_dics = {}
     for key, group in plots_group.items():
