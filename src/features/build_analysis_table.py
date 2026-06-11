@@ -230,11 +230,7 @@ def process_plot_file(
     except Exception:
         tqdm.write(f"  [warn] plot_{plot_idx}: aggregation failed, trying without streaming")
         try:
-            result = (
-                lf_long.group_by(["plot_id", "vza_bin", "band"])
-                .agg(agg_exprs)
-                .collect()
-            )
+            result = lf_long.group_by(["plot_id", "vza_bin", "band"]).agg(agg_exprs).collect()
         except Exception as e:
             tqdm.write(f"  [skip] plot_{plot_idx}: {e}")
             return None
@@ -261,10 +257,7 @@ def process_plot_file(
     band_wl_map = {b: BAND_INFO[b]["wavelength_nm"] for b in BAND_COLS}
     result = result.with_columns(
         pl.col("band").replace_strict(band_name_map).alias("band_name"),
-        pl.col("band")
-        .replace_strict(band_wl_map)
-        .cast(pl.Int32)
-        .alias("wavelength_nm"),
+        pl.col("band").replace_strict(band_wl_map).cast(pl.Int32).alias("wavelength_nm"),
     )
 
     # Drop rows with NULL vza_bin or "60+" (VZA > 60°)
@@ -328,9 +321,7 @@ def build_table(
                     continue
 
                 try:
-                    df_part = process_plot_file(
-                        fpath, wkey, pidx, meta_year, sample_size
-                    )
+                    df_part = process_plot_file(fpath, wkey, pidx, meta_year, sample_size)
                     if df_part is not None and not df_part.is_empty():
                         all_parts.append(df_part)
                 except Exception as e:

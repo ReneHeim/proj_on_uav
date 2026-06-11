@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -112,13 +113,21 @@ def evaluate_permutation_test(name):
     logging.info(f"  NaN fraction in features: {nan_frac:.4f}")
 
     # --- Build pipeline ---
-    pipe = Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("lr", LogisticRegression(
-            class_weight="balanced", penalty="l2", max_iter=2000, random_state=SEED,
-        )),
-    ])
+    pipe = Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "lr",
+                LogisticRegression(
+                    class_weight="balanced",
+                    penalty="l2",
+                    max_iter=2000,
+                    random_state=SEED,
+                ),
+            ),
+        ]
+    )
 
     # --- Fixed CV splits (GroupKFold, label-independent) ---
     gkf = GroupKFold(n_splits=N_SPLITS)
@@ -132,7 +141,9 @@ def evaluate_permutation_test(name):
         overlap = train_grp & test_grp
         if overlap:
             logging.error(f"  LEAKAGE Fold {fold}: overlap={len(overlap)}")
-        logging.info(f"  Fold {fold}: train={len(train_idx)} test={len(test_idx)} overlap={len(overlap)}")
+        logging.info(
+            f"  Fold {fold}: train={len(train_idx)} test={len(test_idx)} overlap={len(overlap)}"
+        )
 
     # --- True AUROC ---
     t_true = time.time()
@@ -148,7 +159,9 @@ def evaluate_permutation_test(name):
         score = compute_auroc_for_splits(X, y_shuffled, splits, pipe)
         null_scores.append(score)
         if (i + 1) % 20 == 0:
-            logging.info(f"  Permutation {i+1}/{N_PERMUTATIONS}: mean null AUROC={np.mean(null_scores):.4f}")
+            logging.info(
+                f"  Permutation {i+1}/{N_PERMUTATIONS}: mean null AUROC={np.mean(null_scores):.4f}"
+            )
 
     null_scores = np.array(null_scores)
     logging.info(f"  [PHASE] {N_PERMUTATIONS} permutations: {time.time() - t_perm:.1f}s")
@@ -158,7 +171,9 @@ def evaluate_permutation_test(name):
     logging.info(f"  True AUROC: {true_auroc:.4f}")
     logging.info(f"  Null mean: {null_scores.mean():.4f} ± {null_scores.std():.4f}")
     logging.info(f"  Null 95th percentile: {perc_95:.4f}")
-    logging.info(f"  p-value: {p_value:.4f} ({'SIGNIFICANT' if p_value < 0.05 else 'NOT significant'})")
+    logging.info(
+        f"  p-value: {p_value:.4f} ({'SIGNIFICANT' if p_value < 0.05 else 'NOT significant'})"
+    )
     logging.info(f"  [PHASE] Total {name}: {time.time() - t0:.1f}s")
 
     return {
@@ -181,9 +196,24 @@ def plot_results(results, df_info):
         null = res["null_scores"]
         true = res["true_auroc"]
 
-        ax.hist(null, bins=25, alpha=0.7, color="steelblue", edgecolor="white", label="Null distribution")
-        ax.axvline(true, color="crimson", linewidth=2, linestyle="--", label=f"True AUROC={true:.3f}")
-        ax.axvline(res["perc_95"], color="gray", linewidth=1.5, linestyle=":", label=f"95th pct={res['perc_95']:.3f}")
+        ax.hist(
+            null,
+            bins=25,
+            alpha=0.7,
+            color="steelblue",
+            edgecolor="white",
+            label="Null distribution",
+        )
+        ax.axvline(
+            true, color="crimson", linewidth=2, linestyle="--", label=f"True AUROC={true:.3f}"
+        )
+        ax.axvline(
+            res["perc_95"],
+            color="gray",
+            linewidth=1.5,
+            linestyle=":",
+            label=f"95th pct={res['perc_95']:.3f}",
+        )
 
         ax.set_title(f"{res['name']}  p={res['p_value']:.3f}")
         ax.set_xlabel("AUROC")
@@ -208,19 +238,23 @@ def save_results(results):
 
     rows = []
     for res in results:
-        rows.append({
-            "feature_set": res["name"],
-            "iteration": -1,
-            "AUROC": res["true_auroc"],
-            "is_true": 1,
-        })
-        for i, score in enumerate(res["null_scores"]):
-            rows.append({
+        rows.append(
+            {
                 "feature_set": res["name"],
-                "iteration": i,
-                "AUROC": score,
-                "is_true": 0,
-            })
+                "iteration": -1,
+                "AUROC": res["true_auroc"],
+                "is_true": 1,
+            }
+        )
+        for i, score in enumerate(res["null_scores"]):
+            rows.append(
+                {
+                    "feature_set": res["name"],
+                    "iteration": i,
+                    "AUROC": score,
+                    "is_true": 0,
+                }
+            )
 
     out_df = pl.DataFrame(rows)
     csv_path = RESULTS_DIR / "permutation_test_scores.csv"
@@ -232,8 +266,12 @@ def write_summary(results, total_time):
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     lines = ["## Results: Label Permutation Test", ""]
-    lines.append("| Feature Set | True AUROC | Null Mean | Null Std | 95th Pct | p-value | Significant |")
-    lines.append("|------------|-----------|-----------|---------|---------|---------|-------------|")
+    lines.append(
+        "| Feature Set | True AUROC | Null Mean | Null Std | 95th Pct | p-value | Significant |"
+    )
+    lines.append(
+        "|------------|-----------|-----------|---------|---------|---------|-------------|"
+    )
 
     for res in results:
         sig = "Yes" if res["p_value"] < 0.05 else "No"
@@ -245,17 +283,23 @@ def write_summary(results, total_time):
 
     delta = results[1]["true_auroc"] - results[0]["true_auroc"] if len(results) >= 2 else 0
     lines.append("")
-    lines.append(f"**Interpretation**: True AUROC values are compared against a null distribution "
-                 f"generated by shuffling disease labels within (cultivar, week) groups "
-                 f"{N_PERMUTATIONS} times. The multiangular feature set (M5) is evaluated "
-                 f"against the nadir baseline (M1). "
-                 f"A p-value < 0.05 indicates the model captures signal beyond chance-level "
-                 f"structure preserved within cultivar and week constraints.")
+    lines.append(
+        f"**Interpretation**: True AUROC values are compared against a null distribution "
+        f"generated by shuffling disease labels within (cultivar, week) groups "
+        f"{N_PERMUTATIONS} times. The multiangular feature set (M5) is evaluated "
+        f"against the nadir baseline (M1). "
+        f"A p-value < 0.05 indicates the model captures signal beyond chance-level "
+        f"structure preserved within cultivar and week constraints."
+    )
     lines.append("")
-    lines.append(f"**Outputs**: `outputs/results/permutation_test_scores.csv`, "
-                 f"`outputs/figures/permutation_test_multiangular_vs_nadir.png`")
-    lines.append(f"**Config**: CV=GroupKFold(n_splits={N_SPLITS}) by ifz_id, seed={SEED}, "
-                 f"permutations={N_PERMUTATIONS}, shuffle within (cultivar, week)")
+    lines.append(
+        f"**Outputs**: `outputs/results/permutation_test_scores.csv`, "
+        f"`outputs/figures/permutation_test_multiangular_vs_nadir.png`"
+    )
+    lines.append(
+        f"**Config**: CV=GroupKFold(n_splits={N_SPLITS}) by ifz_id, seed={SEED}, "
+        f"permutations={N_PERMUTATIONS}, shuffle within (cultivar, week)"
+    )
     lines.append(f"**Log**: `{LOG_FILE}`")
     lines.append(f"**Total runtime**: {total_time:.1f}s")
 

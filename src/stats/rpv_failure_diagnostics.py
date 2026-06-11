@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import polars as pl
+
 plt.style.use("seaborn-v0_8-whitegrid")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -139,37 +140,43 @@ def collect_all_results() -> pl.DataFrame:
 
 def compute_summary(df: pl.DataFrame) -> pl.DataFrame:
     """Compute per-week, per-band summary statistics."""
-    summary = df.group_by(["week", "band"]).agg(
-        pl.len().alias("n_success"),
-        pl.col("nrmse").mean().alias("nrmse_mean"),
-        pl.col("nrmse").std().alias("nrmse_std"),
-        pl.col("nrmse").min().alias("nrmse_min"),
-        pl.col("nrmse").max().alias("nrmse_max"),
-        pl.col("rmse").mean().alias("rmse_mean"),
-        pl.col("rmse").std().alias("rmse_std"),
-        pl.col("rmse").min().alias("rmse_min"),
-        pl.col("rmse").max().alias("rmse_max"),
-        pl.col("rho0").mean().alias("rho0_mean"),
-        pl.col("rho0").std().alias("rho0_std"),
-        pl.col("rho0").min().alias("rho0_min"),
-        pl.col("rho0").max().alias("rho0_max"),
-        pl.col("theta").mean().alias("theta_mean"),
-        pl.col("theta").std().alias("theta_std"),
-        pl.col("theta").min().alias("theta_min"),
-        pl.col("theta").max().alias("theta_max"),
-        pl.col("k").mean().alias("k_mean"),
-        pl.col("k").std().alias("k_std"),
-        pl.col("k").min().alias("k_min"),
-        pl.col("k").max().alias("k_max"),
-    ).sort(["week", "band"])
+    summary = (
+        df.group_by(["week", "band"])
+        .agg(
+            pl.len().alias("n_success"),
+            pl.col("nrmse").mean().alias("nrmse_mean"),
+            pl.col("nrmse").std().alias("nrmse_std"),
+            pl.col("nrmse").min().alias("nrmse_min"),
+            pl.col("nrmse").max().alias("nrmse_max"),
+            pl.col("rmse").mean().alias("rmse_mean"),
+            pl.col("rmse").std().alias("rmse_std"),
+            pl.col("rmse").min().alias("rmse_min"),
+            pl.col("rmse").max().alias("rmse_max"),
+            pl.col("rho0").mean().alias("rho0_mean"),
+            pl.col("rho0").std().alias("rho0_std"),
+            pl.col("rho0").min().alias("rho0_min"),
+            pl.col("rho0").max().alias("rho0_max"),
+            pl.col("theta").mean().alias("theta_mean"),
+            pl.col("theta").std().alias("theta_std"),
+            pl.col("theta").min().alias("theta_min"),
+            pl.col("theta").max().alias("theta_max"),
+            pl.col("k").mean().alias("k_mean"),
+            pl.col("k").std().alias("k_std"),
+            pl.col("k").min().alias("k_min"),
+            pl.col("k").max().alias("k_max"),
+        )
+        .sort(["week", "band"])
+    )
     return summary
 
 
 def plot_nrmse_by_band_week(df: pl.DataFrame):
     """Bar chart: mean NRMSE by band, grouped by week."""
-    summary = df.group_by(["week", "band"]).agg(
-        pl.col("nrmse").mean().alias("nrmse_mean")
-    ).sort(["week", "band"])
+    summary = (
+        df.group_by(["week", "band"])
+        .agg(pl.col("nrmse").mean().alias("nrmse_mean"))
+        .sort(["week", "band"])
+    )
 
     weeks = sorted(df["week"].unique().to_list())
     n_bands = len(BANDS)
@@ -185,13 +192,27 @@ def plot_nrmse_by_band_week(df: pl.DataFrame):
             v = row["nrmse_mean"].to_list()
             vals.append(v[0] if v else 0)
         offset = (i - n_bands / 2 + 0.5) * width
-        bars = ax.bar(x + offset, vals, width, label=BAND_LABELS[band],
-                      color=BAND_COLORS[band], edgecolor="white", linewidth=0.5)
+        bars = ax.bar(
+            x + offset,
+            vals,
+            width,
+            label=BAND_LABELS[band],
+            color=BAND_COLORS[band],
+            edgecolor="white",
+            linewidth=0.5,
+        )
         # Annotate each bar with value
         for bar, val in zip(bars, vals):
             if val > 0:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                        f"{val:.3f}", ha="center", va="bottom", fontsize=7, rotation=90)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.01,
+                    f"{val:.3f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    rotation=90,
+                )
 
     ax.axhline(y=0.5, color="gray", linestyle="--", linewidth=1, alpha=0.7, label="NRMSE = 0.5")
 
@@ -215,8 +236,9 @@ def plot_rho0_by_band(df: pl.DataFrame):
     fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
 
     data_by_band = [df.filter(pl.col("band") == b)["rho0"].drop_nulls().to_numpy() for b in BANDS]
-    bp = ax.boxplot(data_by_band, tick_labels=[BAND_LABELS[b] for b in BANDS],
-                    patch_artist=True, widths=0.5)
+    bp = ax.boxplot(
+        data_by_band, tick_labels=[BAND_LABELS[b] for b in BANDS], patch_artist=True, widths=0.5
+    )
 
     for i, band in enumerate(BANDS):
         bp["boxes"][i].set_facecolor(BAND_COLORS[band])
@@ -232,8 +254,12 @@ def plot_rho0_by_band(df: pl.DataFrame):
     }
     for i, band in enumerate(BANDS):
         lo, hi = expected[band]
-        ax.hlines(y=lo, xmin=i + 0.6, xmax=i + 1.4, colors="black", linestyles="dotted", linewidth=1)
-        ax.hlines(y=hi, xmin=i + 0.6, xmax=i + 1.4, colors="black", linestyles="dotted", linewidth=1)
+        ax.hlines(
+            y=lo, xmin=i + 0.6, xmax=i + 1.4, colors="black", linestyles="dotted", linewidth=1
+        )
+        ax.hlines(
+            y=hi, xmin=i + 0.6, xmax=i + 1.4, colors="black", linestyles="dotted", linewidth=1
+        )
         ax.fill_between([i + 0.6, i + 1.4], lo, hi, alpha=0.08, color="green")
 
     ax.set_ylabel("rho0")
@@ -252,8 +278,9 @@ def plot_theta_by_band(df: pl.DataFrame):
     fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
 
     data_by_band = [df.filter(pl.col("band") == b)["theta"].drop_nulls().to_numpy() for b in BANDS]
-    bp = ax.boxplot(data_by_band, tick_labels=[BAND_LABELS[b] for b in BANDS],
-                    patch_artist=True, widths=0.5)
+    bp = ax.boxplot(
+        data_by_band, tick_labels=[BAND_LABELS[b] for b in BANDS], patch_artist=True, widths=0.5
+    )
 
     for i, band in enumerate(BANDS):
         bp["boxes"][i].set_facecolor(BAND_COLORS[band])
@@ -279,9 +306,11 @@ def plot_nrmse_by_cultivar_treatment(df: pl.DataFrame):
         logger.warning("cultivar/treatment columns missing; skipping cultivar-treatment plot")
         return
 
-    summary = df.group_by(["cultivar", "treatment"]).agg(
-        pl.col("nrmse").mean().alias("nrmse_mean")
-    ).sort(["cultivar", "treatment"])
+    summary = (
+        df.group_by(["cultivar", "treatment"])
+        .agg(pl.col("nrmse").mean().alias("nrmse_mean"))
+        .sort(["cultivar", "treatment"])
+    )
 
     groups = summary["cultivar"].unique().to_list()
     treatments = sorted(summary["treatment"].unique().to_list())
@@ -299,12 +328,19 @@ def plot_nrmse_by_cultivar_treatment(df: pl.DataFrame):
             v = row["nrmse_mean"].to_list()
             vals.append(v[0] if v else 0)
         offset = (i - len(treatments) / 2 + 0.5) * width
-        bars = ax.bar(x + offset, vals, width, label=trt,
-                      color=colors_trt.get(trt, "gray"), edgecolor="white")
+        bars = ax.bar(
+            x + offset, vals, width, label=trt, color=colors_trt.get(trt, "gray"), edgecolor="white"
+        )
         for bar, val in zip(bars, vals):
             if val > 0:
-                ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
-                        f"{val:.3f}", ha="center", va="bottom", fontsize=9)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.005,
+                    f"{val:.3f}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=9,
+                )
 
     ax.set_xlabel("Cultivar")
     ax.set_ylabel("Mean NRMSE")
@@ -324,11 +360,19 @@ def plot_nrmse_by_cultivar_treatment(df: pl.DataFrame):
 def save_fit_quality_table(summary: pl.DataFrame):
     """Save the per-week, per-band fit quality table."""
     cols_out = [
-        "week", "band", "n_success",
-        "nrmse_mean", "nrmse_std", "nrmse_min", "nrmse_max",
-        "rho0_mean", "rho0_std",
-        "theta_mean", "theta_std",
-        "k_mean", "k_std",
+        "week",
+        "band",
+        "n_success",
+        "nrmse_mean",
+        "nrmse_std",
+        "nrmse_min",
+        "nrmse_max",
+        "rho0_mean",
+        "rho0_std",
+        "theta_mean",
+        "theta_std",
+        "k_mean",
+        "k_std",
     ]
     available = [c for c in cols_out if c in summary.columns]
     tbl = summary.select(available).sort(["week", "band"])
@@ -395,9 +439,11 @@ def print_interpretation(df: pl.DataFrame):
         mu = vals.mean()
         in_range = np.sum((vals >= lo) & (vals <= hi)) / len(vals)
         status = "EXPECTED" if lo <= mu <= hi else "BELOW expected" if mu < lo else "ABOVE expected"
-        print(f"   {band} ({name:>9s}): rho0 = {mu:.4f}  "
-              f"(expected {lo:.2f}–{hi:.2f}) → {status} "
-              f"({in_range*100:.0f}% of fits in range)")
+        print(
+            f"   {band} ({name:>9s}): rho0 = {mu:.4f}  "
+            f"(expected {lo:.2f}–{hi:.2f}) → {status} "
+            f"({in_range*100:.0f}% of fits in range)"
+        )
 
     # Systematic vs variable failure
     print(f"\n4. SYSTEMATIC VS VARIABLE FAILURE")
@@ -415,12 +461,16 @@ def print_interpretation(df: pl.DataFrame):
     # Key finding
     nir_rho0 = df.filter(pl.col("band") == "band5")["rho0"].drop_nulls().mean()
     nir_vals = df.filter(pl.col("band") == "band5")["rho0"].drop_nulls().to_numpy()
-    nir_in_range = np.sum((nir_vals >= 0.30) & (nir_vals <= 0.60)) / len(nir_vals) if len(nir_vals) > 0 else 0
+    nir_in_range = (
+        np.sum((nir_vals >= 0.30) & (nir_vals <= 0.60)) / len(nir_vals) if len(nir_vals) > 0 else 0
+    )
 
     print(f"\n5. KEY FINDING")
     if nir_rho0 is not None:
-        print(f"   NIR rho0 = {nir_rho0:.4f} (expected 0.30–0.60 for vegetation; "
-              f"only {nir_in_range*100:.0f}% in range).")
+        print(
+            f"   NIR rho0 = {nir_rho0:.4f} (expected 0.30–0.60 for vegetation; "
+            f"only {nir_in_range*100:.0f}% in range)."
+        )
     print(f"   NRMSE mean = {nrmse_vals.mean():.4f} (threshold for acceptable fit < 0.2).")
     print(f"   theta near-zero for {frac_near_zero*100:.0f}% of fits — no BRDF asymmetry captured.")
     print(f"   The RPV model systematically fails to describe angular reflectance")

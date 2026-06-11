@@ -13,7 +13,10 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
+
+import warnings
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,11 +24,10 @@ import polars as pl
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
-from sklearn.model_selection import StratifiedGroupKFold, GroupKFold
+from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # ---------------------------------------------------------------------------
@@ -53,10 +55,14 @@ SCRIPT_NAME = "angle_band_ablation"
 # Constants
 # ---------------------------------------------------------------------------
 BANDS = ["band1", "band2", "band3", "band4", "band5"]
-BAND_NAMES = {"band1": "Blue (475nm)", "band2": "Green (560nm)", "band3": "Red (668nm)",
-              "band4": "Red Edge (717nm)", "band5": "NIR (842nm)"}
-BAND_SHORT = {"band1": "Blue", "band2": "Green", "band3": "Red",
-              "band4": "RedEdge", "band5": "NIR"}
+BAND_NAMES = {
+    "band1": "Blue (475nm)",
+    "band2": "Green (560nm)",
+    "band3": "Red (668nm)",
+    "band4": "Red Edge (717nm)",
+    "band5": "NIR (842nm)",
+}
+BAND_SHORT = {"band1": "Blue", "band2": "Green", "band3": "Red", "band4": "RedEdge", "band5": "NIR"}
 
 VZA_BINS = [0, 15, 25, 35, 45, 60]
 VZA_LABELS = ["0-15", "15-25", "25-35", "35-45", "45-60"]
@@ -93,8 +99,10 @@ def log_phase(name, elapsed):
 # Data loading
 # ---------------------------------------------------------------------------
 
+
 def load_polygon_meta():
     import geopandas as gpd
+
     gdf = gpd.read_file(POLYGON_PATH)
     gdf["disease_label"] = gdf["ino"].astype(int)
     gdf["plot_id"] = "plot_" + (gdf["ifz_id"] - 90001).astype(str)
@@ -122,7 +130,9 @@ def process_parquet(pf, idx=0, total=0):
     )
 
     t_total = time.time() - t0
-    logging.info(f"  [{idx+1}/{total}] {pf.name}: read={t_read:.1f}s total={t_total:.1f}s rows={df.height:,}")
+    logging.info(
+        f"  [{idx+1}/{total}] {pf.name}: read={t_read:.1f}s total={t_total:.1f}s rows={df.height:,}"
+    )
     return df
 
 
@@ -209,6 +219,7 @@ def build_feature_matrix():
 # Feature column selection
 # ---------------------------------------------------------------------------
 
+
 def get_angle_columns(vza_label):
     lbl = vza_label.replace("-", "_")
     return [f"{b}_vza{lbl}" for b in BANDS]
@@ -270,16 +281,22 @@ def band_subset_features(band_list):
 # Model and CV
 # ---------------------------------------------------------------------------
 
+
 def build_pipeline():
-    return Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        ("lr", LogisticRegression(
-            class_weight="balanced",
-            max_iter=1000,
-            random_state=SEED,
-        )),
-    ])
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "lr",
+                LogisticRegression(
+                    class_weight="balanced",
+                    max_iter=1000,
+                    random_state=SEED,
+                ),
+            ),
+        ]
+    )
 
 
 def run_cv_split(X, y, groups):
@@ -295,11 +312,23 @@ def evaluate_columns(feature_df, col_names, label="unknown"):
     """Train and CV-evaluate using a subset of feature columns. Returns AUROC stats."""
     available = [c for c in col_names if c in feature_df.columns]
     if not available:
-        return {"label": label, "n_features": 0, "AUROC_mean": np.nan, "AUROC_std": np.nan, "n_rows": 0}
+        return {
+            "label": label,
+            "n_features": 0,
+            "AUROC_mean": np.nan,
+            "AUROC_std": np.nan,
+            "n_rows": 0,
+        }
 
     sub = feature_df.select(["plot_id", "week", "disease_label"] + available).drop_nulls()
     if sub.height < 10:
-        return {"label": label, "n_features": len(available), "AUROC_mean": np.nan, "AUROC_std": np.nan, "n_rows": sub.height}
+        return {
+            "label": label,
+            "n_features": len(available),
+            "AUROC_mean": np.nan,
+            "AUROC_std": np.nan,
+            "n_rows": sub.height,
+        }
 
     X = sub.select(available).to_numpy()
     y = sub["disease_label"].to_numpy()
@@ -339,6 +368,7 @@ def evaluate_columns(feature_df, col_names, label="unknown"):
 # Angle Ablation
 # ---------------------------------------------------------------------------
 
+
 def run_angle_ablation(feature_df):
     logging.info("=== Angle Ablation ===")
     t0 = time.time()
@@ -349,9 +379,11 @@ def run_angle_ablation(feature_df):
         res = evaluate_columns(feature_df, cols, label=name)
         res["vza_labels"] = ", ".join(vza_labels)
         results.append(res)
-        logging.info(f"  {name}: {res['n_features']} features, "
-                      f"AUROC={res['AUROC_mean']:.4f}±{res['AUROC_std']:.4f} "
-                      f"(n={res['n_rows']})")
+        logging.info(
+            f"  {name}: {res['n_features']} features, "
+            f"AUROC={res['AUROC_mean']:.4f}±{res['AUROC_std']:.4f} "
+            f"(n={res['n_rows']})"
+        )
 
     log_phase("Angle ablation", time.time() - t0)
     return pl.DataFrame(results)
@@ -360,6 +392,7 @@ def run_angle_ablation(feature_df):
 # ---------------------------------------------------------------------------
 # Band Ablation
 # ---------------------------------------------------------------------------
+
 
 def run_band_ablation(feature_df):
     logging.info("=== Band Ablation ===")
@@ -371,9 +404,11 @@ def run_band_ablation(feature_df):
         res = evaluate_columns(feature_df, cols, label=name)
         res["bands"] = ", ".join(band_list)
         results.append(res)
-        logging.info(f"  {name}: {res['n_features']} features, "
-                      f"AUROC={res['AUROC_mean']:.4f}±{res['AUROC_std']:.4f} "
-                      f"(n={res['n_rows']})")
+        logging.info(
+            f"  {name}: {res['n_features']} features, "
+            f"AUROC={res['AUROC_mean']:.4f}±{res['AUROC_std']:.4f} "
+            f"(n={res['n_rows']})"
+        )
 
     log_phase("Band ablation", time.time() - t0)
     return pl.DataFrame(results)
@@ -382,6 +417,7 @@ def run_band_ablation(feature_df):
 # ---------------------------------------------------------------------------
 # Heatmap: single (band, VZA bin) feature model
 # ---------------------------------------------------------------------------
+
 
 def run_heatmap(feature_df):
     logging.info("=== Heatmap: band × VZA bin AUROC ===")
@@ -407,13 +443,19 @@ def run_heatmap(feature_df):
 # Figures
 # ---------------------------------------------------------------------------
 
+
 def plot_angle_ablation(angle_df):
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     name_order = [
-        "vza_0_only", "vza_15_only", "vza_25_only",
-        "vza_35_only", "vza_45_only",
-        "all_vza", "all_except_0", "all_except_60",
+        "vza_0_only",
+        "vza_15_only",
+        "vza_25_only",
+        "vza_35_only",
+        "vza_45_only",
+        "all_vza",
+        "all_except_0",
+        "all_except_60",
     ]
     df = angle_df.to_pandas()
     df = df.dropna(subset=["AUROC_mean"])
@@ -429,28 +471,45 @@ def plot_angle_ablation(angle_df):
     stds = [r["AUROC_std"] for r in ordered]
 
     display_labels = {
-        "vza_0_only": "0-15° only", "vza_15_only": "15-25° only",
-        "vza_25_only": "25-35° only", "vza_35_only": "35-45° only",
-        "vza_45_only": "45-60° only", "all_vza": "All VZA",
-        "all_except_0": "Excl. 0-15°", "all_except_60": "Excl. 45-60°",
+        "vza_0_only": "0-15° only",
+        "vza_15_only": "15-25° only",
+        "vza_25_only": "25-35° only",
+        "vza_35_only": "35-45° only",
+        "vza_45_only": "45-60° only",
+        "all_vza": "All VZA",
+        "all_except_0": "Excl. 0-15°",
+        "all_except_60": "Excl. 45-60°",
     }
     tick_labels = [display_labels.get(l, l) for l in labels]
 
     science_colors = {
-        "vza_0_only": "#3B7A9E", "vza_15_only": "#E88C46", "vza_25_only": "#84B082",
-        "vza_35_only": "#E24E42", "vza_45_only": "#8E5EA2",
-        "all_vza": "#2C3E50", "all_except_0": "#6BB5A8", "all_except_60": "#D4A35B",
+        "vza_0_only": "#3B7A9E",
+        "vza_15_only": "#E88C46",
+        "vza_25_only": "#84B082",
+        "vza_35_only": "#E24E42",
+        "vza_45_only": "#8E5EA2",
+        "all_vza": "#2C3E50",
+        "all_except_0": "#6BB5A8",
+        "all_except_60": "#D4A35B",
     }
     colors = [science_colors.get(l, "#999999") for l in labels]
 
     fig, ax = plt.subplots(figsize=(12, 5))
     xs = np.arange(len(labels))
-    bars = ax.bar(xs, means, yerr=stds, color=colors, capsize=5, width=0.65,
-                  edgecolor="white", linewidth=0.8)
+    bars = ax.bar(
+        xs, means, yerr=stds, color=colors, capsize=5, width=0.65, edgecolor="white", linewidth=0.8
+    )
 
     for bar, mean_val in zip(bars, means):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                f"{mean_val:.3f}", ha="center", va="bottom", fontsize=8, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{mean_val:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            fontweight="bold",
+        )
 
     ax.set_xticks(xs)
     ax.set_xticklabels(tick_labels, fontsize=9, rotation=25, ha="right")
@@ -472,8 +531,14 @@ def plot_band_ablation(band_df):
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
     name_order = [
-        "blue_only", "green_only", "red_only", "red_edge_only", "nir_only",
-        "visible_only", "red_edge_nir", "all_bands",
+        "blue_only",
+        "green_only",
+        "red_only",
+        "red_edge_only",
+        "nir_only",
+        "visible_only",
+        "red_edge_nir",
+        "all_bands",
     ]
     df = band_df.to_pandas()
     df = df.dropna(subset=["AUROC_mean"])
@@ -489,28 +554,45 @@ def plot_band_ablation(band_df):
     stds = [r["AUROC_std"] for r in ordered]
 
     display_labels = {
-        "blue_only": "Blue only", "green_only": "Green only",
-        "red_only": "Red only", "red_edge_only": "Red Edge only",
-        "nir_only": "NIR only", "visible_only": "Visible (1-3)",
-        "red_edge_nir": "Red Edge + NIR", "all_bands": "All bands",
+        "blue_only": "Blue only",
+        "green_only": "Green only",
+        "red_only": "Red only",
+        "red_edge_only": "Red Edge only",
+        "nir_only": "NIR only",
+        "visible_only": "Visible (1-3)",
+        "red_edge_nir": "Red Edge + NIR",
+        "all_bands": "All bands",
     }
     tick_labels = [display_labels.get(l, l) for l in labels]
 
     science_colors = {
-        "blue_only": "#3B7A9E", "green_only": "#84B082", "red_only": "#E24E42",
-        "red_edge_only": "#E88C46", "nir_only": "#8E5EA2",
-        "visible_only": "#6BB5A8", "red_edge_nir": "#D4A35B", "all_bands": "#2C3E50",
+        "blue_only": "#3B7A9E",
+        "green_only": "#84B082",
+        "red_only": "#E24E42",
+        "red_edge_only": "#E88C46",
+        "nir_only": "#8E5EA2",
+        "visible_only": "#6BB5A8",
+        "red_edge_nir": "#D4A35B",
+        "all_bands": "#2C3E50",
     }
     colors = [science_colors.get(l, "#999999") for l in labels]
 
     fig, ax = plt.subplots(figsize=(12, 5))
     xs = np.arange(len(labels))
-    bars = ax.bar(xs, means, yerr=stds, color=colors, capsize=5, width=0.65,
-                  edgecolor="white", linewidth=0.8)
+    bars = ax.bar(
+        xs, means, yerr=stds, color=colors, capsize=5, width=0.65, edgecolor="white", linewidth=0.8
+    )
 
     for bar, mean_val in zip(bars, means):
-        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
-                f"{mean_val:.3f}", ha="center", va="bottom", fontsize=8, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height() + 0.01,
+            f"{mean_val:.3f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            fontweight="bold",
+        )
 
     ax.set_xticks(xs)
     ax.set_xticklabels(tick_labels, fontsize=9, rotation=25, ha="right")
@@ -545,8 +627,7 @@ def plot_heatmap(heatmap_df):
     data = pivot.loc[row_order, col_order] if row_order and col_order else pivot
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    im = ax.imshow(data.values, aspect="auto", cmap="RdYlBu", vmin=0.4, vmax=0.85,
-                   origin="upper")
+    im = ax.imshow(data.values, aspect="auto", cmap="RdYlBu", vmin=0.4, vmax=0.85, origin="upper")
 
     ax.set_xticks(np.arange(len(data.columns)))
     ax.set_xticklabels(data.columns, fontsize=10)
@@ -561,8 +642,16 @@ def plot_heatmap(heatmap_df):
             val = data.values[i, j]
             if not np.isnan(val):
                 text_color = "white" if val < 0.55 else "black"
-                ax.text(j, i, f"{val:.3f}", ha="center", va="center",
-                        fontsize=8, fontweight="bold", color=text_color)
+                ax.text(
+                    j,
+                    i,
+                    f"{val:.3f}",
+                    ha="center",
+                    va="center",
+                    fontsize=8,
+                    fontweight="bold",
+                    color=text_color,
+                )
 
     cbar = fig.colorbar(im, ax=ax, shrink=0.85, pad=0.02)
     cbar.set_label("AUROC", fontsize=10)
@@ -578,6 +667,7 @@ def plot_heatmap(heatmap_df):
 # Markdown Summary
 # ---------------------------------------------------------------------------
 
+
 def write_markdown_summary(angle_df, band_df, heatmap_df):
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     path = REPORTS_DIR / f"{SCRIPT_NAME}_summary.md"
@@ -592,16 +682,22 @@ def write_markdown_summary(angle_df, band_df, heatmap_df):
     lines.append("| VZA Subset | Features | AUROC (mean) | AUROC (std) | n Rows |")
     lines.append("|-----------|----------|-------------|------------|--------|")
     for row in angle_df.sort("label").to_dicts():
-        lines.append(f"| {row['label']} | {row['n_features']} | "
-                     f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} | {row['n_rows']} |")
+        lines.append(
+            f"| {row['label']} | {row['n_features']} | "
+            f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} | {row['n_rows']} |"
+        )
     lines.append("")
 
     # best angle
-    valid_angle = angle_df.filter(pl.col("AUROC_mean").is_not_nan()).sort("AUROC_mean", descending=True)
+    valid_angle = angle_df.filter(pl.col("AUROC_mean").is_not_nan()).sort(
+        "AUROC_mean", descending=True
+    )
     if valid_angle.height > 0:
         best_angle = valid_angle.row(0, named=True)
-        lines.append(f"**Best angle subset**: {best_angle['label']} "
-                     f"(AUROC = {best_angle['AUROC_mean']:.4f} ± {best_angle['AUROC_std']:.4f})")
+        lines.append(
+            f"**Best angle subset**: {best_angle['label']} "
+            f"(AUROC = {best_angle['AUROC_mean']:.4f} ± {best_angle['AUROC_std']:.4f})"
+        )
         lines.append("")
 
     # ---- Band ablation table ----
@@ -609,15 +705,21 @@ def write_markdown_summary(angle_df, band_df, heatmap_df):
     lines.append("| Band Subset | Features | AUROC (mean) | AUROC (std) | n Rows |")
     lines.append("|-----------|----------|-------------|------------|--------|")
     for row in band_df.sort("label").to_dicts():
-        lines.append(f"| {row['label']} | {row['n_features']} | "
-                     f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} | {row['n_rows']} |")
+        lines.append(
+            f"| {row['label']} | {row['n_features']} | "
+            f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} | {row['n_rows']} |"
+        )
     lines.append("")
 
-    valid_band = band_df.filter(pl.col("AUROC_mean").is_not_nan()).sort("AUROC_mean", descending=True)
+    valid_band = band_df.filter(pl.col("AUROC_mean").is_not_nan()).sort(
+        "AUROC_mean", descending=True
+    )
     if valid_band.height > 0:
         best_band = valid_band.row(0, named=True)
-        lines.append(f"**Best band subset**: {best_band['label']} "
-                     f"(AUROC = {best_band['AUROC_mean']:.4f} ± {best_band['AUROC_std']:.4f})")
+        lines.append(
+            f"**Best band subset**: {best_band['label']} "
+            f"(AUROC = {best_band['AUROC_mean']:.4f} ± {best_band['AUROC_std']:.4f})"
+        )
         lines.append("")
 
     # ---- Heatmap table ----
@@ -625,56 +727,81 @@ def write_markdown_summary(angle_df, band_df, heatmap_df):
     lines.append("| Band | VZA Bin | AUROC (mean) | AUROC (std) |")
     lines.append("|------|---------|-------------|------------|")
     for row in heatmap_df.sort(["band", "vza_bin"]).to_dicts():
-        lines.append(f"| {row['band']} | {row['vza_bin']} | "
-                     f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} |")
+        lines.append(
+            f"| {row['band']} | {row['vza_bin']} | "
+            f"{row['AUROC_mean']:.4f} | {row['AUROC_std']:.4f} |"
+        )
     lines.append("")
 
     # best single feature
-    valid_hm = heatmap_df.filter(pl.col("AUROC_mean").is_not_nan()).sort("AUROC_mean", descending=True)
+    valid_hm = heatmap_df.filter(pl.col("AUROC_mean").is_not_nan()).sort(
+        "AUROC_mean", descending=True
+    )
     if valid_hm.height > 0:
         best_hm = valid_hm.row(0, named=True)
-        lines.append(f"**Best single feature**: {best_hm['band']} in VZA {best_hm['vza_bin']} "
-                     f"(AUROC = {best_hm['AUROC_mean']:.4f} ± {best_hm['AUROC_std']:.4f})")
+        lines.append(
+            f"**Best single feature**: {best_hm['band']} in VZA {best_hm['vza_bin']} "
+            f"(AUROC = {best_hm['AUROC_mean']:.4f} ± {best_hm['AUROC_std']:.4f})"
+        )
         lines.append("")
 
     # Interpretation
     lines.append("## Interpretation\n")
     lines.append("### Which VZA bin contributes most?\n")
 
-    iso_angles = angle_df.filter(
-        pl.col("label").is_in(["vza_0_only", "vza_15_only", "vza_25_only",
-                               "vza_35_only", "vza_45_only"])
-    ).filter(pl.col("AUROC_mean").is_not_nan()).sort("AUROC_mean", descending=True)
+    iso_angles = (
+        angle_df.filter(
+            pl.col("label").is_in(
+                ["vza_0_only", "vza_15_only", "vza_25_only", "vza_35_only", "vza_45_only"]
+            )
+        )
+        .filter(pl.col("AUROC_mean").is_not_nan())
+        .sort("AUROC_mean", descending=True)
+    )
     if iso_angles.height > 0:
         best_iso = iso_angles.row(0, named=True)
-        lines.append(f"The most informative single VZA bin is **{best_iso['label']}** "
-                     f"(AUROC = {best_iso['AUROC_mean']:.4f}), suggesting that "
-                     f"reflectance from {best_iso['label'].replace('_only','')} viewing angles "
-                     f"carries the strongest disease signal.")
+        lines.append(
+            f"The most informative single VZA bin is **{best_iso['label']}** "
+            f"(AUROC = {best_iso['AUROC_mean']:.4f}), suggesting that "
+            f"reflectance from {best_iso['label'].replace('_only','')} viewing angles "
+            f"carries the strongest disease signal."
+        )
     lines.append("")
 
     lines.append("### Which spectral band is most discriminative?\n")
-    iso_bands = band_df.filter(
-        pl.col("label").is_in(["blue_only", "green_only", "red_only", "red_edge_only", "nir_only"])
-    ).filter(pl.col("AUROC_mean").is_not_nan()).sort("AUROC_mean", descending=True)
+    iso_bands = (
+        band_df.filter(
+            pl.col("label").is_in(
+                ["blue_only", "green_only", "red_only", "red_edge_only", "nir_only"]
+            )
+        )
+        .filter(pl.col("AUROC_mean").is_not_nan())
+        .sort("AUROC_mean", descending=True)
+    )
     if iso_bands.height > 0:
         best_iso_b = iso_bands.row(0, named=True)
-        lines.append(f"The most discriminative single band is **{best_iso_b['label']}** "
-                     f"(AUROC = {best_iso_b['AUROC_mean']:.4f}).")
+        lines.append(
+            f"The most discriminative single band is **{best_iso_b['label']}** "
+            f"(AUROC = {best_iso_b['AUROC_mean']:.4f})."
+        )
     lines.append("")
 
     lines.append("### Does red-edge or NIR carry the angular signal?\n")
-    lines.append("The heatmap shows which (band, angle) combinations are most predictive "
-                 "as single features. The red-edge (717 nm) and NIR (842 nm) bands "
-                 "at moderate-to-high VZA are expected to carry angular information "
-                 "related to canopy structure changes caused by disease.")
+    lines.append(
+        "The heatmap shows which (band, angle) combinations are most predictive "
+        "as single features. The red-edge (717 nm) and NIR (842 nm) bands "
+        "at moderate-to-high VZA are expected to carry angular information "
+        "related to canopy structure changes caused by disease."
+    )
     lines.append("")
 
     # Reproducibility
     lines.append("## Reproducibility\n")
     lines.append(f"- **Script**: `src/models/angle_band_ablation.py`")
     lines.append(f"- **Random seed**: {SEED}")
-    lines.append(f"- **CV method**: StratifiedGroupKFold (n_splits={N_SPLITS}, fallback to GroupKFold)")
+    lines.append(
+        f"- **CV method**: StratifiedGroupKFold (n_splits={N_SPLITS}, fallback to GroupKFold)"
+    )
     lines.append(f"- **Classifier**: LogisticRegression (class_weight=balanced, max_iter=1000)")
     lines.append(f"- **VZA bins**: {VZA_BINS}")
     lines.append(f"- **Sample size**: {MAX_SAMPLE:,} rows per parquet")
@@ -702,6 +829,7 @@ def write_markdown_summary(angle_df, band_df, heatmap_df):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     setup_logging()

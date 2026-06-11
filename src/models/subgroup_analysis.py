@@ -24,6 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -115,18 +116,20 @@ def apply_subgroup_filter(df, subgroup_key):
 
 
 def build_pipeline():
-    return Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        (
-            "lr",
-            LogisticRegression(
-                class_weight="balanced",
-                max_iter=1000,
-                random_state=SEED,
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "lr",
+                LogisticRegression(
+                    class_weight="balanced",
+                    max_iter=1000,
+                    random_state=SEED,
+                ),
             ),
-        ),
-    ])
+        ]
+    )
 
 
 def compute_metrics(y_true, y_pred, y_proba):
@@ -196,16 +199,18 @@ def evaluate_feature_set_for_subgroup(fs_name, df_full, subgroup_key):
 
         metrics = compute_metrics(y_test, y_pred, y_proba)
 
-        fold_results.append({
-            "feature_set": fs_name,
-            "subgroup": subgroup_key,
-            "fold": fold,
-            "n_train": len(y_train),
-            "n_test": len(y_test),
-            "positive_rate_train": y_train.mean(),
-            "positive_rate_test": y_test.mean(),
-            **metrics,
-        })
+        fold_results.append(
+            {
+                "feature_set": fs_name,
+                "subgroup": subgroup_key,
+                "fold": fold,
+                "n_train": len(y_train),
+                "n_test": len(y_test),
+                "positive_rate_train": y_train.mean(),
+                "positive_rate_test": y_test.mean(),
+                **metrics,
+            }
+        )
 
     return fold_results
 
@@ -223,9 +228,7 @@ def run_subgroup_analysis():
         for subgroup_key in SUBGROUPS:
             logging.info(f"  --- subgroup: {subgroup_key} ---")
             try:
-                results = evaluate_feature_set_for_subgroup(
-                    fs_name, df, subgroup_key
-                )
+                results = evaluate_feature_set_for_subgroup(fs_name, df, subgroup_key)
                 all_folds.extend(results)
             except Exception as e:
                 logging.error(f"    ERROR {fs_name}/{subgroup_key}: {e}")
@@ -264,16 +267,23 @@ def compute_delta_per_subgroup(summary_df):
         if len(m1) > 0 and len(m3) > 0:
             m1_auc = m1["AUROC_mean"][0]
             m3_auc = m3["AUROC_mean"][0]
-            if m1_auc is not None and not np.isnan(m1_auc) and m3_auc is not None and not np.isnan(m3_auc):
-                records.append({
-                    "subgroup": subgroup_key,
-                    "M1_AUROC_mean": m1_auc,
-                    "M3_AUROC_mean": m3_auc,
-                    "delta_AUROC": m3_auc - m1_auc,
-                    "M1_AUPRC_mean": m1["AUPRC_mean"][0],
-                    "M3_AUPRC_mean": m3["AUPRC_mean"][0],
-                    "delta_AUPRC": m3["AUPRC_mean"][0] - m1["AUPRC_mean"][0],
-                })
+            if (
+                m1_auc is not None
+                and not np.isnan(m1_auc)
+                and m3_auc is not None
+                and not np.isnan(m3_auc)
+            ):
+                records.append(
+                    {
+                        "subgroup": subgroup_key,
+                        "M1_AUROC_mean": m1_auc,
+                        "M3_AUROC_mean": m3_auc,
+                        "delta_AUROC": m3_auc - m1_auc,
+                        "M1_AUPRC_mean": m1["AUPRC_mean"][0],
+                        "M3_AUPRC_mean": m3["AUPRC_mean"][0],
+                        "delta_AUPRC": m3["AUPRC_mean"][0] - m1["AUPRC_mean"][0],
+                    }
+                )
     return pl.DataFrame(records)
 
 
@@ -316,12 +326,14 @@ def compute_delta_per_week(fold_df):
 
                 auroc = roc_auc_score(y_test, y_proba)
 
-                week_results.append({
-                    "feature_set": fs_name,
-                    "week": week,
-                    "fold": fold,
-                    "AUROC": auroc,
-                })
+                week_results.append(
+                    {
+                        "feature_set": fs_name,
+                        "week": week,
+                        "fold": fold,
+                        "AUROC": auroc,
+                    }
+                )
 
     week_df = pl.DataFrame(week_results)
     week_summary = (
@@ -336,22 +348,25 @@ def compute_delta_per_week(fold_df):
     # Compute delta per week
     delta_week = []
     for week in sorted(all_weeks):
-        m1_row = week_summary.filter(
-            (pl.col("feature_set") == "M1") & (pl.col("week") == week)
-        )
-        m3_row = week_summary.filter(
-            (pl.col("feature_set") == "M3") & (pl.col("week") == week)
-        )
+        m1_row = week_summary.filter((pl.col("feature_set") == "M1") & (pl.col("week") == week))
+        m3_row = week_summary.filter((pl.col("feature_set") == "M3") & (pl.col("week") == week))
         if len(m1_row) and len(m3_row):
             m1_val = m1_row["AUROC_mean"][0]
             m3_val = m3_row["AUROC_mean"][0]
-            if m1_val is not None and not np.isnan(m1_val) and m3_val is not None and not np.isnan(m3_val):
-                delta_week.append({
-                    "week": int(week),
-                    "M1_AUROC_mean": m1_val,
-                    "M3_AUROC_mean": m3_val,
-                    "delta_AUROC": m3_val - m1_val,
-                })
+            if (
+                m1_val is not None
+                and not np.isnan(m1_val)
+                and m3_val is not None
+                and not np.isnan(m3_val)
+            ):
+                delta_week.append(
+                    {
+                        "week": int(week),
+                        "M1_AUROC_mean": m1_val,
+                        "M3_AUROC_mean": m3_val,
+                        "delta_AUROC": m3_val - m1_val,
+                    }
+                )
 
     return pl.DataFrame(delta_week)
 
@@ -379,15 +394,22 @@ def plot_delta_by_cultivar(summary_df, delta_df):
         return
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    bars = ax.bar(valid_sg, deltas, color=["#2ecc71", "#3498db"],
-                  width=0.5, edgecolor="white", linewidth=1.2)
+    bars = ax.bar(
+        valid_sg, deltas, color=["#2ecc71", "#3498db"], width=0.5, edgecolor="white", linewidth=1.2
+    )
     ax.axhline(y=0, color="black", linewidth=1)
 
     for bar, val in zip(bars, deltas):
         ypos = bar.get_height()
         voff = 0.01 if ypos >= 0 else -0.04
-        ax.text(bar.get_x() + bar.get_width() / 2, ypos + voff,
-                f"{val:+.3f}", ha="center", fontweight="bold", fontsize=11)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            ypos + voff,
+            f"{val:+.3f}",
+            ha="center",
+            fontweight="bold",
+            fontsize=11,
+        )
 
     ax.set_ylabel("ΔAUROC (M3 − M1)")
     ax.set_title("Multiangular Advantage by Cultivar", fontweight="bold")
@@ -430,16 +452,21 @@ def plot_delta_by_treatment(summary_df, delta_df):
 
     fig, ax = plt.subplots(figsize=(6, 4))
     colors = ["#2ecc71", "#e74c3c"]
-    bars = ax.bar(valid_labels, deltas, color=colors, width=0.5,
-                  edgecolor="white", linewidth=1.2)
+    bars = ax.bar(valid_labels, deltas, color=colors, width=0.5, edgecolor="white", linewidth=1.2)
     ax.axhline(y=0, color="black", linewidth=1)
 
     for bar, val in zip(bars, deltas):
         ypos = bar.get_height()
         voff = 0.01 if ypos >= 0 else -0.04
         label = f"{val:+.3f}" if val != 0 else "N/A"
-        ax.text(bar.get_x() + bar.get_width() / 2, ypos + voff,
-                label, ha="center", fontweight="bold", fontsize=10)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            ypos + voff,
+            label,
+            ha="center",
+            fontweight="bold",
+            fontsize=10,
+        )
 
     ax.set_ylabel("ΔAUROC (M3 − M1)")
     ax.set_title("Multiangular Advantage by Treatment", fontweight="bold")
@@ -475,17 +502,22 @@ def plot_delta_by_week(week_delta_df):
         return
     labels, deltas = zip(*valid)
 
-    colors = ["#3498db", "#9b59b6", "#e74c3c", "#e67e22"][:len(labels)]
+    colors = ["#3498db", "#9b59b6", "#e74c3c", "#e67e22"][: len(labels)]
     fig, ax = plt.subplots(figsize=(7, 4))
-    bars = ax.bar(labels, deltas, color=colors,
-                  width=0.5, edgecolor="white", linewidth=1.2)
+    bars = ax.bar(labels, deltas, color=colors, width=0.5, edgecolor="white", linewidth=1.2)
     ax.axhline(y=0, color="black", linewidth=1)
 
     for bar, val in zip(bars, deltas):
         ypos = bar.get_height()
         voff = 0.01 if ypos >= 0 else -0.04
-        ax.text(bar.get_x() + bar.get_width() / 2, ypos + voff,
-                f"{val:+.3f}", ha="center", fontweight="bold", fontsize=11)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            ypos + voff,
+            f"{val:+.3f}",
+            ha="center",
+            fontweight="bold",
+            fontsize=11,
+        )
 
     ax.set_ylabel("ΔAUROC (M3 − M1)")
     ax.set_title("Multiangular Advantage by Week", fontweight="bold")
@@ -509,8 +541,10 @@ def write_markdown_summary(summary_df, delta_df, week_delta_df):
     lines = []
     lines.append("## Results: Subgroup Robustness Analysis")
     lines.append("")
-    lines.append("Comparison of M1 (Nadir bands) vs M3 (Multiangular VZA) across "
-                 "cultivar and treatment subgroups.")
+    lines.append(
+        "Comparison of M1 (Nadir bands) vs M3 (Multiangular VZA) across "
+        "cultivar and treatment subgroups."
+    )
     lines.append("")
     lines.append("CV: StratifiedGroupKFold(n_splits=5) by plot_id.")
     lines.append("")
@@ -531,7 +565,7 @@ def write_markdown_summary(summary_df, delta_df, week_delta_df):
             "-------------------|-------------------|-------|"
         )
         for row in sub.iter_rows(named=True):
-            name = row['feature_set']
+            name = row["feature_set"]
             lines.append(
                 f"| {name} ({DISPLAY.get(name, name)}) "
                 f"| {row['AUROC_mean']:.3f} ± {row['AUROC_std']:.3f} "
@@ -613,7 +647,9 @@ def write_markdown_summary(summary_df, delta_df, week_delta_df):
 
     # Reproducibility
     lines.append("## Reproducibility")
-    lines.append(f"- Model: LogisticRegression(class_weight='balanced', max_iter=1000, random_state={SEED})")
+    lines.append(
+        f"- Model: LogisticRegression(class_weight='balanced', max_iter=1000, random_state={SEED})"
+    )
     lines.append("- Preprocessing: SimpleImputer(median) + StandardScaler")
     lines.append(f"- CV: StratifiedGroupKFold(n_splits={N_SPLITS}) by plot_id")
     lines.append("- Feature sets: M1 (nadir bands), M3 (multiangular VZA)")
