@@ -297,5 +297,3 @@ OSAVI uses band3 (red) and band5 (NIR): `(1+0.16)*(NIR-Red)/(NIR+Red+0.16)`
 - **rho0**: ~0.03 (blue) to ~0.27 (NIR) for healthy vegetation
 - **theta**: near 0 ± 0.2 (low BRDF asymmetry captured)
 - ~25% of orthophotos overlap field plots (remaining are edge/routing images)
-
-
