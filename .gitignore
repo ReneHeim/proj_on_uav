@@ -137,3 +137,7 @@ dmypy.json
 Documentation/_build/
 process.log
 output/
+
+# Analysis outputs / paper results (keep out of public repository)
+outputs/
+polygon_filtering_rect*.png

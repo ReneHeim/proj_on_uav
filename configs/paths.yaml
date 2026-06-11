@@ -1,0 +1,59 @@
+# Configuration — shared paths for analysis scripts
+# All scripts in src/features/, src/models/, src/stats/ should load from here
+
+heim_root: "/run/media/davidem/Heim"
+stats_root: "/run/media/davidem/Heim/stats"
+output_root: "outputs"
+
+# Polygon / metadata files
+polygon_2024: "/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg"
+polygon_2025: "/run/media/davidem/Heim/2025_oncerco_plot_polygons.gpkg"
+
+# Week definitions
+weeks:
+  2024_wk0:
+    label: "week0"
+    date: "2024-06-03"
+    per_plot_dir: "/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"
+    rpv_dir: "/run/media/davidem/Heim/RPV_Results/V12/week0"
+    stats_dir: "/run/media/davidem/Heim/stats/V1/week0"
+    polygon: "polygon_2024"
+  2024_wk3:
+    label: "week3"
+    date: "2024-06-24"
+    per_plot_dir: "/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"
+    rpv_dir: "/run/media/davidem/Heim/RPV_Results/V12/week3"
+    stats_dir: "/run/media/davidem/Heim/stats/V1/week3"
+    polygon: "polygon_2024"
+  2024_wk5:
+    label: "week5"
+    date: "2024-07-15"
+    per_plot_dir: "/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"
+    rpv_dir: "/run/media/davidem/Heim/RPV_Results/V12/week5"
+    stats_dir: "/run/media/davidem/Heim/stats/V1/week5"
+    polygon: "polygon_2024"
+  2024_wk8:
+    label: "week8"
+    date: "2024-08-26"
+    per_plot_dir: "/run/media/davidem/Heim/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df"
+    rpv_dir: "/run/media/davidem/Heim/RPV_Results/V12/week8"
+    stats_dir: "/run/media/davidem/Heim/stats/V1/week8"
+    polygon: "polygon_2024"
+
+# Band definitions (MicaSense Altum)
+bands:
+  band1: {name: "Blue", wavelength_nm: 475}
+  band2: {name: "Green", wavelength_nm: 560}
+  band3: {name: "Red", wavelength_nm: 668}
+  band4: {name: "Red Edge", wavelength_nm: 717}
+  band5: {name: "NIR", wavelength_nm: 842}
+
+# Viewing angle bins (used by RPV fitting and analysis)
+vza_bins: [0, 15, 25, 35, 45, 60]
+raa_bins: [-360, -270, -180, -90, 0, 90, 180, 270, 360]
+
+# Disease label definition (2024 only)
+disease_column: "ino"
+disease_labels:
+  healthy: false
+  diseased: true
