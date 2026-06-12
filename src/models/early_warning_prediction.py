@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -99,9 +100,7 @@ def build_temporal_dataset(df, t, t_plus_delta):
     join_cols = ["plot_id"]
     if "year" in df.columns:
         join_cols.insert(0, "year")
-    df_target = df.filter(pl.col("week") == t_plus_delta).select(
-        join_cols + ["disease_label"]
-    )
+    df_target = df.filter(pl.col("week") == t_plus_delta).select(join_cols + ["disease_label"])
 
     merged = df_t.join(df_target, on=join_cols, suffix="_target")
     merged = merged.rename({"disease_label_target": "target_label"})
@@ -113,18 +112,20 @@ def build_temporal_dataset(df, t, t_plus_delta):
 
 
 def build_pipeline():
-    return Pipeline([
-        ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
-        (
-            "lr",
-            LogisticRegression(
-                class_weight="balanced",
-                max_iter=1000,
-                random_state=SEED,
+    return Pipeline(
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            (
+                "lr",
+                LogisticRegression(
+                    class_weight="balanced",
+                    max_iter=1000,
+                    random_state=SEED,
+                ),
             ),
-        ),
-    ])
+        ]
+    )
 
 
 def compute_metrics(y_true, y_pred, y_proba):
@@ -178,17 +179,19 @@ def evaluate_temporal_pair(df, feature_set_name, t, t_plus_delta, delta):
 
         metrics = compute_metrics(y_test, y_pred, y_proba)
 
-        fold_results.append({
-            "feature_set": feature_set_name,
-            "week_t": t,
-            "week_t_plus_delta": t_plus_delta,
-            "delta": delta,
-            "fold": fold,
-            "n_train": len(y_train),
-            "n_test": len(y_test),
-            "positive_rate_test": y_test.mean(),
-            **metrics,
-        })
+        fold_results.append(
+            {
+                "feature_set": feature_set_name,
+                "week_t": t,
+                "week_t_plus_delta": t_plus_delta,
+                "delta": delta,
+                "fold": fold,
+                "n_train": len(y_train),
+                "n_test": len(y_test),
+                "positive_rate_test": y_test.mean(),
+                **metrics,
+            }
+        )
 
     return fold_results
 
@@ -250,9 +253,16 @@ def plot_early_warning_results(summary_df):
             labels = [f"{r['feature_set']} (Δt={delta})" for r in sub.iter_rows(named=True)]
 
             color = "#3498db" if delta == 1 else "#e74c3c"
-            ax.bar(x + (delta - 1.5) * 0.35, means, 0.3 - 0.05 * delta,
-                   yerr=stds, color=color, alpha=0.8, capsize=4,
-                   label=f"Δt={delta}")
+            ax.bar(
+                x + (delta - 1.5) * 0.35,
+                means,
+                0.3 - 0.05 * delta,
+                yerr=stds,
+                color=color,
+                alpha=0.8,
+                capsize=4,
+                label=f"Δt={delta}",
+            )
 
         ax.set_title(metric, fontweight="bold")
         ax.set_ylabel(metric)
@@ -262,8 +272,9 @@ def plot_early_warning_results(summary_df):
         if idx == 0:
             ax.legend(fontsize=8)
 
-    fig.suptitle("Early-Warning Prediction: M1 (Nadir) vs M3 (Multiangular)",
-                 fontweight="bold", fontsize=13)
+    fig.suptitle(
+        "Early-Warning Prediction: M1 (Nadir) vs M3 (Multiangular)", fontweight="bold", fontsize=13
+    )
     fig.tight_layout()
     out_path = FIGURES_DIR / "early_warning_comparison.png"
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
@@ -279,10 +290,16 @@ def plot_early_warning_results(summary_df):
             auroc[r["feature_set"]] = r["AUROC_mean"]
         delta_auc = auroc.get("M3", 0) - auroc.get("M1", 0)
         color = "#3498db" if delta == 1 else "#e74c3c"
-        ax2.bar([delta], [delta_auc], color=color, width=0.5,
-                edgecolor="white", linewidth=1.2)
-        ax2.text(delta, delta_auc + 0.01, f"{delta_auc:+.3f}",
-                 ha="center", va="bottom", fontweight="bold", fontsize=11)
+        ax2.bar([delta], [delta_auc], color=color, width=0.5, edgecolor="white", linewidth=1.2)
+        ax2.text(
+            delta,
+            delta_auc + 0.01,
+            f"{delta_auc:+.3f}",
+            ha="center",
+            va="bottom",
+            fontweight="bold",
+            fontsize=11,
+        )
 
     ax2.axhline(y=0, color="black", linewidth=1)
     ax2.set_xticks([1, 2])
@@ -339,7 +356,9 @@ def write_markdown_summary(summary_df, fold_df):
         if m1 and m3:
             d_auc = m3[0]["AUROC_mean"] - m1[0]["AUROC_mean"]
             d_auprc = m3[0]["AUPRC_mean"] - m1[0]["AUPRC_mean"]
-            lines.append(f"**ΔAUROC (M3−M1)**: {d_auc:+.3f} — {'Multiangular advantage' if d_auc > 0 else 'Nadir advantage'}")
+            lines.append(
+                f"**ΔAUROC (M3−M1)**: {d_auc:+.3f} — {'Multiangular advantage' if d_auc > 0 else 'Nadir advantage'}"
+            )
             lines.append(f"**ΔAUPRC (M3−M1)**: {d_auprc:+.3f}")
             lines.append("")
 
@@ -372,7 +391,9 @@ def write_markdown_summary(summary_df, fold_df):
     # Reproducibility
     lines.append("## Reproducibility")
     lines.append("")
-    lines.append(f"- Model: LogisticRegression(class_weight='balanced', max_iter=1000, random_state={SEED})")
+    lines.append(
+        f"- Model: LogisticRegression(class_weight='balanced', max_iter=1000, random_state={SEED})"
+    )
     lines.append("- Preprocessing: SimpleImputer(median) + StandardScaler")
     lines.append("- CV: GroupKFold (n_splits≤5) by plot_id")
     lines.append("- Feature sets: M1 (nadir bands), M3 (multiangular VZA)")

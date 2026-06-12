@@ -36,7 +36,10 @@ from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+from src.models.feature_selection import (
+    assert_reflectance_only,
+    reflectance_feature_columns,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 

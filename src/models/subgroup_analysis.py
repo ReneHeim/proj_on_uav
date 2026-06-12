@@ -41,7 +41,10 @@ from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+from src.models.feature_selection import (
+    assert_reflectance_only,
+    reflectance_feature_columns,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -178,8 +181,7 @@ def evaluate_feature_set_for_subgroup(fs_name, df_full, subgroup_key):
 
     if len(np.unique(y)) < 2:
         logging.info(
-            f"    {fs_name}/{subgroup_key}: single class only "
-            f"(pos={pos_rate:.2f}) — skipping"
+            f"    {fs_name}/{subgroup_key}: single class only " f"(pos={pos_rate:.2f}) — skipping"
         )
         return []
 
