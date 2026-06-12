@@ -443,7 +443,7 @@ def write_markdown_summary(
 
     lines.append("")
 
-    report_dir = Path("outputs/reports")
+    report_dir = Path("outputs/quarantine_flawed_analysis/reports")
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / "mixed_effects_summary.md"
     report_path.write_text("\n".join(lines))
@@ -479,7 +479,7 @@ def main():
     results_m3 = extract_ols_results(result_m3, "Model3")
     results_strat = extract_stratified_results(stratified)
 
-    results_dir = Path("outputs/results")
+    results_dir = Path("outputs/quarantine_flawed_analysis/results")
     results_dir.mkdir(parents=True, exist_ok=True)
     path_m1 = results_dir / "mixed_effects_angle_disease.csv"
     path_m2 = results_dir / "mixed_effects_model2.csv"
@@ -492,7 +492,7 @@ def main():
     logging.info(f"Saved: {path_m1}")
     logging.info(f"Saved: {path_m2}")
 
-    figures_dir = Path("outputs/figures")
+    figures_dir = Path("outputs/quarantine_flawed_analysis/figures")
     figures_dir.mkdir(parents=True, exist_ok=True)
     interaction_path = figures_dir / "mixed_effects_interaction_plot.png"
     make_interaction_plot(pdf, interaction_path, value_col=value_col)

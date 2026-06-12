@@ -407,7 +407,7 @@ def write_markdown_summary(all_results_df, output_paths, config_info):
 
     lines.append("")
 
-    report_dir = Path("outputs/reports")
+    report_dir = Path("outputs/quarantine_flawed_analysis/reports")
     report_dir.mkdir(parents=True, exist_ok=True)
     report_path = report_dir / "anova_aggregated_summary.md"
     report_path.write_text("\n".join(lines))
@@ -452,7 +452,7 @@ def main():
         [by_band, by_disease, by_cultivar, by_treatment, interaction], how="diagonal"
     )
     all_results = all_results.with_columns(pl.col("significant").cast(pl.Boolean))
-    results_dir = Path("outputs/results")
+    results_dir = Path("outputs/quarantine_flawed_analysis/results")
     results_dir.mkdir(parents=True, exist_ok=True)
     result_path = results_dir / "anova_aggregated_angle_disease.csv"
     all_results.write_csv(result_path)

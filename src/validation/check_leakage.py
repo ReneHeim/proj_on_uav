@@ -36,6 +36,8 @@ from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 FEATURE_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "features"
@@ -43,8 +45,8 @@ LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "logs"
 REPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "reports"
 FIGURES_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "figures"
 
-FEATURE_SETS = ["M0", "M1", "M2", "M3", "M4", "M5"]
-EXCLUDE_COLS = ["plot_id", "week", "cult", "trt", "disease_label"]
+FEATURE_SETS = ["M1", "M2", "M3", "M4", "M5"]
+EXCLUDE_COLS = ["plot_id", "week", "year", "cult", "trt", "disease_label"]
 SEED = 42
 N_SPLITS = 5
 
@@ -140,7 +142,8 @@ def check_pixel_independence():
     for name in FEATURE_SETS:
         try:
             df = load_feature_set(name)
-            feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+            feature_cols = reflectance_feature_columns(df.columns)
+            assert_reflectance_only(feature_cols, f"check_leakage:{name}")
             has_aggregation = any(
                 "_mean" in c
                 or "_median" in c
@@ -203,25 +206,26 @@ def check_metadata_in_features():
     logging.info("  Check 4: Metadata Columns in Features")
     logging.info("=" * 60)
 
-    metadata_cols = {"cult", "trt", "week"}
+    metadata_cols = {"cult", "trt", "week", "year"}
     all_ok = True
     for name in FEATURE_SETS:
         try:
             df = load_feature_set(name)
-            feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+            feature_cols = reflectance_feature_columns(df.columns)
+            assert_reflectance_only(feature_cols, f"check_leakage:{name}")
             leakage = metadata_cols & set(feature_cols)
             if leakage:
                 logging.error(f"  {name}: LEAKAGE - metadata in features: {leakage}")
                 all_ok = False
             else:
-                logging.info(f"  {name}: OK (cult/trt/week excluded)")
+                logging.info(f"  {name}: OK (cult/trt/week/year excluded)")
         except FileNotFoundError:
             pass
 
     result = {
         "item": "Metadata columns in features",
         "pass": all_ok,
-        "detail": f"cult, trt, week excluded from feature columns in all sets",
+        "detail": "cult, trt, week, and year excluded from feature columns in all sets",
     }
     logging.info(f"  [PHASE] check 4: {time.time() - t0:.1f}s -> {'PASS' if all_ok else 'FAIL'}")
     return result
@@ -240,7 +244,8 @@ def check_label_in_features():
     for name in FEATURE_SETS:
         try:
             df = load_feature_set(name)
-            feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+            feature_cols = reflectance_feature_columns(df.columns)
+            assert_reflectance_only(feature_cols, f"check_leakage:{name}")
             if "disease_label" in feature_cols:
                 logging.error(f"  {name}: LEAKAGE - disease_label in features")
                 all_ok = False
@@ -379,7 +384,8 @@ def check_feature_correlations():
             continue
         try:
             df = load_feature_set(name)
-            feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+            feature_cols = reflectance_feature_columns(df.columns)
+            assert_reflectance_only(feature_cols, f"check_leakage:{name}")
             y = df["disease_label"].to_numpy().astype(np.float64)
 
             for col in feature_cols:

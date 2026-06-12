@@ -48,8 +48,7 @@ def load_polygon_meta():
     meta = {}
     for season, path in POLYGON_PATHS.items():
         gdf = gpd.read_file(path)
-        if "ino" not in gdf.columns:
-            gdf["ino"] = gdf["trt"] == "no_trt"  # infer from treatment
+        has_observed_label = "ino" in gdf.columns
 
         # ifz_id → zero-indexed plot_id
         for i, row in gdf.iterrows():
@@ -58,10 +57,13 @@ def load_polygon_meta():
             else:
                 plot_idx = i
             pid = f"plot_{plot_idx}"
+            disease_label = None
+            if has_observed_label and row.get("ino") is not None:
+                disease_label = int(row["ino"])
             meta[(season, pid)] = {
                 "cult": row.get("cult", row.get("cultivar")),
                 "trt": row["trt"],
-                "disease_label": int(row["ino"]),
+                "disease_label": disease_label,
             }
     return meta
 

@@ -28,13 +28,15 @@ from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-FEATURE_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "features"
-RESULTS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "results"
-LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "logs"
-REPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "reports"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+FEATURE_DIR = PROJECT_ROOT / "outputs" / "features"
+QUARANTINE_DIR = PROJECT_ROOT / "outputs" / "quarantine_flawed_analysis"
+RESULTS_DIR = QUARANTINE_DIR / "results"
+LOGS_DIR = PROJECT_ROOT / "outputs" / "logs"
+REPORTS_DIR = QUARANTINE_DIR / "reports"
 
 FEATURE_SETS = ["M0", "M1", "M2", "M3", "M4", "M5"]
-EXCLUDE_COLS = ["plot_id", "week", "cult", "trt", "disease_label"]
+EXCLUDE_COLS = ["plot_id", "week", "year", "cult", "trt", "disease_label"]
 SEED = 42
 N_SPLITS = 5
 
@@ -235,11 +237,13 @@ def evaluate_feature_set(name, year=None):
 
 
 def main(years=None):
+    explicitly_requested = years is not None
     if years is None:
         years = ["all", "2024", "2025"]
     elif isinstance(years, str):
         years = [years]
 
+    summaries = []
     for year in years:
         logging.info(f"\n{'#'*60}")
         logging.info(f"  YEAR: {year}")
@@ -256,6 +260,9 @@ def main(years=None):
                 logging.error(f"ERROR {fs_name}: {e}", exc_info=True)
 
         if not all_folds:
+            if explicitly_requested:
+                raise RuntimeError(f"No model results were produced for requested year {year}")
+            logging.warning("No model results were produced for year %s", year)
             continue
 
         fold_df = pl.DataFrame(all_folds)
@@ -279,7 +286,11 @@ def main(years=None):
             .sort("AUROC_mean", descending=True)
         )
         summary_df.write_csv(year_res_dir / "model_comparison_summary.csv")
+        summaries.append(summary_df)
 
+    if not summaries:
+        raise RuntimeError("No model results were produced for any requested year")
+    summary_df = pl.concat(summaries, how="diagonal_relaxed")
     summary_df.write_csv(RESULTS_DIR / "model_comparison_summary.csv")
 
     logging.info(f"\n{'='*80}")
@@ -304,7 +315,9 @@ def main(years=None):
 
     # --- Markdown summary ---
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    md = f"""## Results: Feature Set Comparison (with overfitting check)
+    md = f"""## Quarantined Result: Feature Set Comparison (with overfitting check)
+
+**Status**: exploratory/confounded. These outputs are kept in `outputs/quarantine_flawed_analysis/` and should not be used as paper-ready evidence of early disease prediction. The predictors exclude metadata, but the available 2024 target is an inoculation/status label aligned with treatment and field layout; angular availability and geometry are not controlled in this random grouped-CV comparison.
 
 
 | Feature Set | C | Test AUROC | Train AUROC | Max Gap | F1 | Overfit |
@@ -336,7 +349,7 @@ Train-test gaps > 0.15 indicate potential overfitting — C=0.1 provides stronge
 
 **Spatial CV**: Verified — zero plot_id overlap between train and test folds.
 
-**Outputs**: `outputs/results/model_comparison_by_fold.csv`, `outputs/results/model_comparison_summary.csv`
+**Outputs**: `outputs/quarantine_flawed_analysis/results/model_comparison_by_fold.csv`, `outputs/quarantine_flawed_analysis/results/model_comparison_summary.csv`
 **Config**: `configs/paths.yaml`, seed=42, StratifiedGroupKFold(n_splits=5), groups=ifz_id
 **Log**: `{LOG_FILE}`
 """

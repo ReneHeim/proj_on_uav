@@ -27,13 +27,17 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
-FEATURE_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "features"
-RESULTS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "results"
-LOGS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "logs"
-REPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "reports"
-FIGURES_DIR = Path(__file__).resolve().parent.parent.parent / "outputs" / "figures"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+FEATURE_DIR = PROJECT_ROOT / "outputs" / "features"
+QUARANTINE_DIR = PROJECT_ROOT / "outputs" / "quarantine_flawed_analysis"
+RESULTS_DIR = QUARANTINE_DIR / "results"
+LOGS_DIR = PROJECT_ROOT / "outputs" / "logs"
+REPORTS_DIR = QUARANTINE_DIR / "reports"
+FIGURES_DIR = QUARANTINE_DIR / "figures"
 
 FEATURE_SETS = ["M1", "M5"]
 N_PERMUTATIONS = 100
@@ -96,8 +100,8 @@ def evaluate_permutation_test(name):
     t_load = time.time()
     logging.info(f"  [PHASE] data loading: {t_load - t0:.1f}s")
 
-    EXCLUDE_COLS = ["plot_id", "week", "cult", "trt", "disease_label"]
-    feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+    feature_cols = reflectance_feature_columns(df.columns)
+    assert_reflectance_only(feature_cols, f"permutation_signal_test:{name}")
     logging.info(f"  Features: {len(feature_cols)}, samples: {df.shape[0]}")
 
     X = df.select(feature_cols).to_numpy()

@@ -41,18 +41,21 @@ from sklearn.model_selection import GroupKFold, StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
 PROJ = Path(__file__).resolve().parent.parent.parent
 FEATURE_DIR = PROJ / "outputs" / "features"
-RESULTS_DIR = PROJ / "outputs" / "results"
-FIGURES_DIR = PROJ / "outputs" / "figures"
-REPORTS_DIR = PROJ / "outputs" / "reports"
+QUARANTINE_DIR = PROJ / "outputs" / "quarantine_flawed_analysis"
+RESULTS_DIR = QUARANTINE_DIR / "results"
+FIGURES_DIR = QUARANTINE_DIR / "figures"
+REPORTS_DIR = QUARANTINE_DIR / "reports"
 LOGS_DIR = PROJ / "outputs" / "logs"
 
 FEATURE_SETS = ["M1", "M3"]
 DISPLAY = {"M1": "Nadir bands", "M3": "Multiangular VZA"}
-EXCLUDE_COLS = ["plot_id", "week", "cult", "trt", "disease_label"]
+EXCLUDE_COLS = ["plot_id", "week", "year", "cult", "trt", "disease_label"]
 SEED = 42
 N_SPLITS = 5
 
@@ -156,7 +159,8 @@ def evaluate_feature_set_for_subgroup(fs_name, df_full, subgroup_key):
     """Evaluate one feature set on one subgroup."""
     df = apply_subgroup_filter(df_full, subgroup_key)
 
-    feature_cols = [c for c in df.columns if c not in EXCLUDE_COLS]
+    feature_cols = reflectance_feature_columns(df.columns)
+    assert_reflectance_only(feature_cols, f"subgroup_analysis:{fs_name}")
     if not feature_cols:
         logging.info(f"    {fs_name}/{subgroup_key}: no features — skipping")
         return []
@@ -171,6 +175,13 @@ def evaluate_feature_set_for_subgroup(fs_name, df_full, subgroup_key):
 
     unique_plots = len(np.unique(groups))
     pos_rate = y.mean()
+
+    if len(np.unique(y)) < 2:
+        logging.info(
+            f"    {fs_name}/{subgroup_key}: single class only "
+            f"(pos={pos_rate:.2f}) — skipping"
+        )
+        return []
 
     if unique_plots < 3 or len(y) < 4:
         logging.info(
@@ -192,6 +203,10 @@ def evaluate_feature_set_for_subgroup(fs_name, df_full, subgroup_key):
     for fold, (train_idx, test_idx) in enumerate(splits):
         X_train, X_test = X[train_idx], X[test_idx]
         y_train, y_test = y[train_idx], y[test_idx]
+
+        if len(np.unique(y_train)) < 2 or len(np.unique(y_test)) < 2:
+            logging.info(f"      fold {fold}: single class in train/test — skipping")
+            continue
 
         pipe.fit(X_train, y_train)
         y_pred = pipe.predict(X_test)
@@ -304,7 +319,8 @@ def compute_delta_per_week(fold_df):
             if len(df_w) < 4:
                 continue
 
-            feature_cols = [c for c in df_w.columns if c not in EXCLUDE_COLS]
+            feature_cols = reflectance_feature_columns(df_w.columns)
+            assert_reflectance_only(feature_cols, f"subgroup_analysis:{fs_name}:week{week}")
             X = df_w.select(feature_cols).to_numpy()
             y = df_w["disease_label"].to_numpy()
 

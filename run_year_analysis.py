@@ -45,8 +45,11 @@ def run_year(year: str) -> None:
     print(f"  RUNNING MODEL COMPARISON FOR {year}")
     print(f"{'=' * 60}")
 
+    for f in res_dir.glob("*.csv"):
+        f.unlink()
+
     proc = subprocess.run(
-        [sys.executable, "-m", "src.models.compare_feature_sets"],
+        [sys.executable, "-m", "src.models.compare_feature_sets", "--year", year],
         capture_output=True,
         text=True,
         cwd=str(PROJECT_ROOT),
@@ -61,17 +64,24 @@ def run_year(year: str) -> None:
             f"Model comparison failed for {year}; see outputs/{year}/logs/compare_{year}.log"
         )
 
+    expected_results = [
+        res_dir / "model_comparison_by_fold.csv",
+        res_dir / "model_comparison_summary.csv",
+    ]
+    missing_results = [path for path in expected_results if not path.exists()]
+    if missing_results:
+        missing = ", ".join(str(path.relative_to(PROJECT_ROOT)) for path in missing_results)
+        raise RuntimeError(
+            f"Model comparison produced no usable result files for {year}: {missing}; "
+            f"see outputs/{year}/logs/compare_{year}.log"
+        )
+
     for line in proc.stdout.splitlines():
         if any(
             kw in line
             for kw in ["Set", "AUROC", "M1", "M2", "M3", "M4", "M5", "OVERFIT", "HIGH", "Overfit"]
         ):
             print(line)
-
-    for f in res_dir.glob("*.csv"):
-        f.unlink()
-    for f in (PROJECT_ROOT / "outputs" / "results").glob("*.csv"):
-        shutil.copy(f, res_dir / f.name)
 
     feat_year_dir = PROJECT_ROOT / "outputs" / year / "features"
     feat_year_dir.mkdir(parents=True, exist_ok=True)

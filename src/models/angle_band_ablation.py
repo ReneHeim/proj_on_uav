@@ -43,10 +43,11 @@ POLYGON_PATH = "/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg"
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 OUT_DIR = ROOT / "outputs"
-RESULTS_DIR = OUT_DIR / "results"
-FIGURES_DIR = OUT_DIR / "figures"
+QUARANTINE_DIR = OUT_DIR / "quarantine_flawed_analysis"
+RESULTS_DIR = QUARANTINE_DIR / "results"
+FIGURES_DIR = QUARANTINE_DIR / "figures"
 LOGS_DIR = OUT_DIR / "logs"
-REPORTS_DIR = OUT_DIR / "reports"
+REPORTS_DIR = QUARANTINE_DIR / "reports"
 
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 SCRIPT_NAME = "angle_band_ablation"
