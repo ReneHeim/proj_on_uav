@@ -14,6 +14,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.transforms import blended_transform_factory
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -45,8 +46,11 @@ WEEK_COLORS = {
 CULTIVAR_STYLES = {"aluco": ("#0072B2", "-"), "capone": ("#D55E00", "--")}
 SEED = 42
 MAX_PLOT_SAMPLE = 500_000
+FINE_VZA_MIN = 10
+FINE_VZA_MAX = 55
 WEEK_PLOT_DIRS = {
     0: Path("/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"),
+    2: Path("/run/media/davidem/Heim/2024/recovered_weeks/week2/output/plots"),
     3: Path("/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"),
     5: Path("/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"),
     6: Path("/run/media/davidem/Heim/2024/recovered_weeks/week6/output/plots"),
@@ -135,9 +139,9 @@ def load_polygon_meta() -> dict[str, dict[str, object]]:
 
 
 def assign_fine_vza_bins(frame: pl.DataFrame) -> pl.DataFrame:
-    vza_low = (((pl.col("vza") - 10) / 5).floor() * 5 + 10).cast(pl.Int64)
+    vza_low = (((pl.col("vza") - FINE_VZA_MIN) / 5).floor() * 5 + FINE_VZA_MIN).cast(pl.Int64)
     return (
-        frame.filter((pl.col("vza") >= 10) & (pl.col("vza") < 60))
+        frame.filter((pl.col("vza") >= FINE_VZA_MIN) & (pl.col("vza") < FINE_VZA_MAX))
         .with_columns(vza_low.alias("vza_low"))
         .with_columns(
             (pl.col("vza_low").cast(pl.Utf8) + pl.lit("-") + (pl.col("vza_low") + 5).cast(pl.Utf8)).alias(
@@ -167,7 +171,7 @@ def load_fine_vza_from_plot_parquets() -> pl.DataFrame:
             read_seconds.append(time.perf_counter() - read_started)
             if frame.height > MAX_PLOT_SAMPLE:
                 frame = frame.sample(n=MAX_PLOT_SAMPLE, seed=SEED)
-            mask = pl.col("vza").is_not_nan() & (pl.col("vza") >= 10) & (pl.col("vza") < 60)
+            mask = pl.col("vza").is_not_nan() & (pl.col("vza") >= FINE_VZA_MIN) & (pl.col("vza") < FINE_VZA_MAX)
             for band in band_columns:
                 mask = mask & pl.col(band).is_not_nan() & (pl.col(band) > 0)
             frame = assign_fine_vza_bins(frame.filter(mask))
@@ -219,6 +223,17 @@ def bootstrap_median(values: np.ndarray, rng: np.random.Generator) -> tuple[floa
     return tuple(np.quantile(np.median(samples, axis=1), [0.025, 0.975]))
 
 
+def paired_cohens_d(values: np.ndarray) -> float:
+    """Cohen's dz for paired differences against the reference VZA class."""
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return np.nan
+    sd = np.std(values, ddof=1)
+    if sd == 0:
+        return np.nan
+    return float(np.mean(values) / sd)
+
+
 def build_summaries(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     started = time.perf_counter()
     reference_class = long.sort("vza_midpoint")["vza_class"][0]
@@ -262,7 +277,10 @@ def build_summaries(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.
                 "vza_class": keys[3],
                 "vza_midpoint": keys[4],
                 "matched_plots": group["plot_id"].n_unique(),
+                "mean_absolute_contrast": float(np.mean(values)),
                 "median_absolute_contrast": float(np.median(values)),
+                "sd_absolute_contrast": float(np.std(values, ddof=1)) if values.size > 1 else np.nan,
+                "cohens_dz": paired_cohens_d(values),
                 "ci_low": ci_low,
                 "ci_high": ci_high,
                 "median_relative_contrast": float(np.median(group["relative_contrast"].to_numpy())),
@@ -352,7 +370,7 @@ def week_color(week: int) -> str:
 
 def plot_angular_fingerprints(summary: pl.DataFrame, output_dir: Path) -> None:
     started = time.perf_counter()
-    figure, axes = plt.subplots(2, 3, figsize=(10.8, 6.5), constrained_layout=True)
+    figure, axes = plt.subplots(2, 3, figsize=(14.2, 8.4), constrained_layout=True)
     for index, (band, band_name) in enumerate(BANDS.items()):
         axis = axes.flat[index]
         for week in sorted(summary["week"].unique().to_list()):
@@ -381,14 +399,31 @@ def plot_angular_fingerprints(summary: pl.DataFrame, output_dir: Path) -> None:
     log_phase("angular_fingerprint_figure", started)
 
 
-def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path) -> None:
+def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path, reference_class: str) -> None:
     started = time.perf_counter()
     weeks = sorted(contrasts["week"].unique().to_list())
     angle_order = contrasts.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
-    height = max(5.9, len(BANDS) * len(angle_order) * 0.22)
-    figure, axes = plt.subplots(1, len(weeks), figsize=(12.7, height), sharey=True, constrained_layout=True)
-    labels = [f"{band_name}  {angle}" for band_name in BANDS.values() for angle in angle_order]
+    height = max(8.4, len(BANDS) * len(angle_order) * 0.32)
+    figure, axes = plt.subplots(
+        1,
+        len(weeks),
+        figsize=(3.15 * len(weeks) + 2.2, height),
+        sharex=True,
+        sharey=True,
+        constrained_layout=True,
+    )
+    if len(weeks) == 1:
+        axes = [axes]
+    labels = [angle for _ in BANDS for angle in angle_order]
     y = np.arange(len(labels))
+    lower = float(contrasts["ci_low"].min())
+    upper = float(contrasts["ci_high"].max())
+    span = max(upper - lower, 0.01)
+    x_min = min(lower - 0.08 * span, -0.005)
+    x_max = max(upper + 0.08 * span, 0.005)
+    group_size = len(angle_order)
+    band_centers = [index * group_size + (group_size - 1) / 2 for index in range(len(BANDS))]
+    separators = [index * group_size - 0.5 for index in range(1, len(BANDS))]
     for axis, week in zip(axes, weeks):
         values, lows, highs = [], [], []
         for band in BANDS:
@@ -407,16 +442,25 @@ def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path) -> None:
             fmt="o",
             color="#176B6B",
             ecolor="#76A9A9",
-            markersize=3.5,
+            markersize=4.2,
             capsize=2,
-            linewidth=1,
+            elinewidth=0.9,
+            linewidth=0.9,
         )
-        axis.axvline(0, color="#333333", linewidth=0.8)
-        axis.set_title(f"Week {week}", fontsize=10, fontweight="bold")
-        axis.set_xlabel("Off-nadir minus nadir", fontsize=9)
+        axis.axvline(0, color="#222222", linewidth=1.25, zorder=0)
+        for separator in separators:
+            axis.axhline(separator, color="#C8CDD1", linewidth=0.8, zorder=0)
+        axis.set_title(f"Week {week}", fontsize=11, fontweight="bold")
+        axis.set_xlim(x_min, x_max)
         style_axis(axis)
-    axes[0].set_yticks(y, labels, fontsize=7)
+        axis.grid(axis="x", color="#ECEFF1", linewidth=0.5)
+    axes[0].set_yticks(y, labels, fontsize=8)
+    transform = blended_transform_factory(axes[0].transAxes, axes[0].transData)
+    for center, band_name in zip(band_centers, BANDS.values()):
+        axes[0].text(-0.23, center, band_name, transform=transform, ha="right", va="center", fontsize=9.5, fontweight="bold")
     axes[0].invert_yaxis()
+    figure.suptitle("Matched angular reflectance effect by week", fontsize=13, fontweight="bold")
+    figure.supxlabel(f"Reflectance difference vs {reference_class} degree VZA", fontsize=11)
     save_figure(figure, output_dir / "figures/main/matched_off_nadir_effects_preliminary")
     log_phase("matched_contrast_figure", started)
 
@@ -425,7 +469,13 @@ def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path) -> None:
     started = time.perf_counter()
     selected_bands = list(BANDS)
     weeks = sorted(long["week"].unique().to_list())
-    figure, axes = plt.subplots(len(selected_bands), len(weeks), figsize=(12, 10.5), sharex=True, constrained_layout=True)
+    figure, axes = plt.subplots(
+        len(selected_bands),
+        len(weeks),
+        figsize=(3.15 * len(weeks), 13.5),
+        sharex=True,
+        constrained_layout=True,
+    )
     for row_index, band in enumerate(selected_bands):
         for column_index, week in enumerate(weeks):
             axis = axes[row_index, column_index]
@@ -478,6 +528,7 @@ def write_report(
     contrasts: pl.DataFrame,
     models: pl.DataFrame,
     log_path: Path,
+    fine_vza_bins: bool = False,
 ) -> None:
     started = time.perf_counter()
     weeks = sorted(long["week"].unique().to_list())
@@ -485,10 +536,12 @@ def write_report(
     pending_weeks = [week for week in [2, 4, 6, 7] if week not in weeks]
     pending_text = ", ".join(map(str, pending_weeks)) if pending_weeks else "none"
     strongest = (
-        contrasts.with_columns(pl.col("median_absolute_contrast").abs().alias("magnitude"))
+        contrasts.filter(pl.col("matched_plots") >= 10)
+        .with_columns(pl.col("median_absolute_contrast").abs().alias("magnitude"))
         .sort("magnitude", descending=True)
         .head(10)
     )
+    sparse = contrasts.filter(pl.col("matched_plots") < 10).sort("matched_plots", "week", "vza_midpoint")
     significant = models.filter(pl.col("p_value").is_not_null() & (pl.col("p_value") < 0.05)).height
     lines = [
         "# Preliminary Result 1: Reflectance Across Viewing Angles",
@@ -505,15 +558,34 @@ def write_report(
         "",
         "## Largest Matched Angular Contrasts",
         "",
-        "| Week | Band | VZA class | Median contrast | Bootstrap 95% CI | Matched plots |",
-        "|---:|---|---|---:|---:|---:|",
+        "| Week | Band | VZA class | Median contrast | Bootstrap 95% CI | Cohen's dz | Matched plots |",
+        "|---:|---|---|---:|---:|---:|---:|",
     ]
     for row in strongest.iter_rows(named=True):
         lines.append(
             f"| {row['week']} | {row['band_name']} | {row['vza_class']} | "
             f"{row['median_absolute_contrast']:.4f} | [{row['ci_low']:.4f}, {row['ci_high']:.4f}] | "
+            f"{row['cohens_dz']:.2f} | "
             f"{row['matched_plots']} |"
         )
+    if sparse.height:
+        sparse_descriptions = [
+            f"Week {row['week']} {row['band_name']} {row['vza_class']} (n={row['matched_plots']})"
+            for row in sparse.iter_rows(named=True)
+        ]
+        lines.extend(
+            [
+                "",
+                "**Coverage caveat**: Headline contrasts require at least 10 matched plots. "
+                f"Sparse estimates retained only in the full CSV: {', '.join(sparse_descriptions)}.",
+            ]
+        )
+    if fine_vza_bins:
+        input_lines = ["- Inputs: plot-level parquet directories:"] + [
+            f"  - Week {week}: `{directory}`" for week, directory in sorted(WEEK_PLOT_DIRS.items())
+        ]
+    else:
+        input_lines = [f"- Input: `{input_path}`"]
     lines.extend(
         [
             "",
@@ -529,7 +601,7 @@ def write_report(
             "",
             "## Reproducibility",
             "",
-            f"- Input: `{input_path}`",
+            *input_lines,
             f"- Log: `{log_path}`",
             f"- Random seed: `{SEED}`",
             "- Confidence intervals for matched contrasts: 2,000 bootstrap resamples of the median.",
@@ -553,6 +625,7 @@ def main() -> None:
     logging.info("Starting preliminary Result 1 analysis")
 
     long = load_fine_vza_from_plot_parquets() if args.fine_vza_bins else load_long(args.input)
+    reference_class = long.sort("vza_midpoint")["vza_class"][0]
     summary, matched, contrasts = build_summaries(long)
     models = fit_models(long)
 
@@ -565,9 +638,17 @@ def main() -> None:
     models.write_csv(results_dir / "angle_week_cultivar_models_preliminary.csv")
 
     plot_angular_fingerprints(summary, args.output_dir)
-    plot_matched_contrasts(contrasts, args.output_dir)
+    plot_matched_contrasts(contrasts, args.output_dir, reference_class)
     plot_cultivar_curves(long, args.output_dir)
-    write_report(args.output_dir, args.input, long, contrasts, models, log_path)
+    write_report(
+        args.output_dir,
+        args.input,
+        long,
+        contrasts,
+        models,
+        log_path,
+        fine_vza_bins=args.fine_vza_bins,
+    )
     log_phase("total", total_started)
 
 
