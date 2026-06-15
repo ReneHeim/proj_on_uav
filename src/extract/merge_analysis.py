@@ -1,6 +1,11 @@
 import logging
-import os
+import tempfile
+from pathlib import Path
 from timeit import default_timer as timer
+
+import matplotlib
+
+matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -123,18 +128,17 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
     try:
         logging.info("Starting merge_data for single DEM...")
 
-        # Define a temporary file path for the reprojected DEM
-        temp_dem_path = os.path.join(os.path.dirname(band_path), "temp_reprojected_dem.tif")
-
-        # Reproject the DEM to match the band grid
-        reproject_dem_to_band_grid_single(
-            dem_path, band_path, temp_dem_path, resampling_method=Resampling.bilinear
-        )
-        logging.info(f"Reprojected DEM saved to {temp_dem_path}")
-
-        # Sample the reprojected DEM
-        dem_sampled = sample_dem_at_band_pixels(band_path, temp_dem_path)
-        logging.info("DEM sampling complete.")
+        with tempfile.TemporaryDirectory(prefix="oncerco_dem_") as temp_dir:
+            temp_dem_path = Path(temp_dir) / "reprojected_dem.tif"
+            reproject_dem_to_band_grid_single(
+                dem_path,
+                band_path,
+                str(temp_dem_path),
+                resampling_method=Resampling.bilinear,
+            )
+            logging.info(f"Reprojected DEM saved to temporary workspace {temp_dem_path}")
+            dem_sampled = sample_dem_at_band_pixels(band_path, str(temp_dem_path))
+            logging.info("DEM sampling complete.")
 
         # Add the DEM values as a new column in the band DataFrame.
         df_merged = df_allbands.with_columns(
@@ -144,11 +148,6 @@ def merge_data(df_allbands, band_path, dem_path, debug="verbose"):
         if debug:
             merged_size = len(df_merged)
             logging.info(f"Merge completed: {merged_size} points merged.")
-
-        # Remove the temporary file
-        if os.path.exists(temp_dem_path):
-            os.remove(temp_dem_path)
-            logging.info(f"Temporary file {temp_dem_path} removed.")
 
         end_merge = timer()
         merge_time = end_merge - start_merge

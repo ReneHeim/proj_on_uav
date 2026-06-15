@@ -15,11 +15,14 @@ from datetime import datetime
 from pathlib import Path, PureWindowsPath
 from timeit import default_timer as timer
 
+import matplotlib
 import numpy as np
 import polars as pl
 import pysolar as solar
 from rasterio.enums import Resampling
 from tqdm import tqdm
+
+matplotlib.use("Agg")
 
 from src.core.config_object import config_object
 from src.core.logging import logging_config
@@ -74,23 +77,20 @@ def check_already_processed(out_dir):
     return processed
 
 
-def remove_images_already_processed(inp_dir, out_dir):
+def remove_images_already_processed(inp_pattern, out_dir):
     processed = check_already_processed(out_dir)
-    inp_dir = inp_dir.replace("*.tif", "")
-    imgs = list(Path(inp_dir).glob("*.tif"))
-    nums = [
-        int(re.match(r".*IMG_(\d+)_\d+\.tif$", p.name).group(1))
-        for p in imgs
-        if re.match(r".*IMG_(\d+)_\d+\.tif$", p.name)
-    ]
-    to_drop = [i for i, n in enumerate(nums) if n in processed]
-    for i in sorted(to_drop, reverse=True):  # delete back-to-front
-        del imgs[i]
+    all_imgs = [Path(path) for path in glob.glob(inp_pattern)]
+    imgs = []
+    for image in all_imgs:
+        match = re.match(r".*IMG_(\d+)_\d+\.tif$", image.name)
+        if match is None or int(match.group(1)) not in processed:
+            imgs.append(image)
 
     logging.info(
-        f"Images To Process: {len(imgs)}, Images Already Processed:{len(processed)}, Total number of images: {len(glob.glob(inp_dir + "*.tif"))}"
+        f"Images To Process: {len(imgs)}, Images Already Processed:{len(processed)}, "
+        f"Total number of images: {len(all_imgs)}"
     )
-    return imgs  # remaining *.tif* paths
+    return imgs
 
 
 # ------------------------------
@@ -177,7 +177,12 @@ def process_orthophoto(
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
         # Get camera position from the camera file
-        lon, lat, zcam = get_camera_position(cam_path, name, source["target_crs"])
+        lon, lat, zcam = get_camera_position(
+            cam_path,
+            name,
+            source["target_crs"],
+            orthophoto_path=orthophoto,
+        )
 
         # Optional: Ensure DEM and orthophoto are aligned
         if alignment:
@@ -231,12 +236,17 @@ def process_orthophoto(
         df_merged = df_merged.with_columns([pl.lit(file).alias("path")])
         # Filter black pixels
         len_before = len(df_merged)
-        for column in df_merged.columns:
-            if "band" in column:
-                df_merged = df_merged.with_columns([pl.col(column).replace(0, np.nan)])
+        band_columns = [f"band{x}" for x in range(1, source["bands"] + 1)]
+        df_merged = df_merged.with_columns(
+            [pl.col(column).replace(0, np.nan) for column in band_columns]
+        ).filter(pl.all_horizontal([pl.col(column).is_finite() for column in band_columns]))
+
+        if df_merged.is_empty():
+            raise ValueError("No finite five-band reflectance remains after NoData filtering.")
 
         logging.info(
-            f"Black pixel filtering: {len_before} -> {len(df_merged)} | Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%"
+            f"NoData filtering: {len_before} -> {len(df_merged)} | "
+            f"Percentage of points filtered: {(len_before-len(df_merged))/len_before * 100}%"
         )
 
         # PART 5: plot and save the merged data

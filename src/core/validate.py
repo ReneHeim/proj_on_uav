@@ -181,7 +181,10 @@ def validate_extract_output(output_dir: Path, *, raise_on_error: bool = False) -
 
         for bcol in [c for c in df.columns if c.startswith("band")]:
             vals = df[bcol].drop_nulls()
+            vals = vals.filter(vals.is_finite())
             if vals.len() == 0:
+                result["range_issues"].append(f"{f.name}: {bcol} has no finite values")
+                result["ok"] = False
                 continue
             vmin, vmax = vals.min(), vals.max()
             if vmax > BAND_RANGE["max"] * 2:

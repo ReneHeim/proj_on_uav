@@ -1,12 +1,48 @@
 import numpy as np
 import polars as pl
 import pytest
+import rasterio
+from rasterio.transform import from_origin
 
-from src.extract.camera import calculate_angles
+from src.extract.camera import calculate_angles, get_camera_position
 
 # ---------------------------------------------------------------------------
 # Value correctness
 # ---------------------------------------------------------------------------
+
+
+def test_get_camera_position_uses_nearest_duplicate(tmp_path):
+    camera_path = tmp_path / "cameras.txt"
+    camera_path.write_text(
+        "# Cameras (2)\n"
+        "# PhotoID, X, Y, Z, Omega, Phi, Kappa, r11, r12, r13, r21, r22, r23, r31, r32, r33\n"
+        "IMG_0001_6\t9.0\t51.0\t100\t0\t0\t0\t1\t0\t0\t0\t1\t0\t0\t0\t1\n"
+        "IMG_0001_6\t10.0\t52.0\t200\t0\t0\t0\t1\t0\t0\t0\t1\t0\t0\t0\t1\n",
+        encoding="utf-8",
+    )
+    raster_path = tmp_path / "IMG_0001_6.tif"
+    with rasterio.open(
+        raster_path,
+        "w",
+        driver="GTiff",
+        width=10,
+        height=10,
+        count=1,
+        dtype="float32",
+        crs="EPSG:4326",
+        transform=from_origin(9.99, 52.01, 0.002, 0.002),
+    ) as dst:
+        dst.write(np.ones((1, 10, 10), dtype=np.float32))
+
+    x, y, z = get_camera_position(
+        camera_path,
+        "IMG_0001_6",
+        orthophoto_path=raster_path,
+    )
+
+    assert x == pytest.approx(10.0)
+    assert y == pytest.approx(52.0)
+    assert z == pytest.approx(200.0)
 
 
 def test_calculate_angles_basic():

@@ -3,8 +3,13 @@ import os
 import traceback
 from timeit import default_timer as timer
 
+import matplotlib
 import numpy as np
 import polars as pl
+import rasterio
+
+matplotlib.use("Agg")
+
 from matplotlib import pyplot as plt
 from rasterio.warp import transform
 
@@ -122,24 +127,27 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         raise
 
 
-def get_camera_position(cam_path, name, target_crs=None):
+def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None):
     """
     Extract the 3D position of a specific camera/image from a text file.
 
     Args:
         cam_path (str or Path): Path to camera position file (tab-separated, no header, skip 2 rows).
-        name (str): Substring to match the 'PhotoID' of the image/camera.
+        name (str): Exact 'PhotoID' of the image/camera.
         target_crs (str, optional): EPSG code (e.g., 'EPSG:32632'). If set, position is reprojected.
+        orthophoto_path (str or Path, optional): Orthophoto used to disambiguate duplicate PhotoIDs.
 
     Returns:
         tuple (float, float, float): (x, y, z) camera coordinates. May be lon/lat or projected.
 
     Raises:
         - Any file or parsing errors will be logged and re-raised.
-        - If name not found, may raise IndexError.
+        - If name is not found, raises ValueError.
 
     Notes:
         - Assumes file structure and delimiters are correct.
+        - Duplicate PhotoIDs are resolved using the camera position nearest the
+          orthophoto footprint center.
         - Uses rasterio.transform for CRS change (if needed).
     """
     start = timer()
@@ -170,8 +178,41 @@ def get_camera_position(cam_path, name, target_crs=None):
                 pl.col("Z").cast(pl.Float32),
             ]
         )
-        campos1 = campos.filter(pl.col("PhotoID").str.contains(name))
-        lon, lat, zcam = campos1["X"][0], campos1["Y"][0], campos1["Z"][0]
+        matches = campos.filter(pl.col("PhotoID") == name)
+        if matches.is_empty():
+            raise ValueError(f"Camera {name!r} not found in {cam_path}")
+
+        selected_index = 0
+        if matches.height > 1 and orthophoto_path is not None:
+            with rasterio.open(orthophoto_path) as src:
+                center_x = (src.bounds.left + src.bounds.right) / 2
+                center_y = (src.bounds.bottom + src.bounds.top) / 2
+                raster_crs = str(src.crs)
+
+            camera_x, camera_y = transform(
+                "EPSG:4326",
+                raster_crs,
+                matches["X"].to_list(),
+                matches["Y"].to_list(),
+            )
+            distances = [
+                (x - center_x) ** 2 + (y - center_y) ** 2
+                for x, y in zip(camera_x, camera_y)
+            ]
+            selected_index = int(np.argmin(distances))
+            logging.info(
+                f"Resolved {matches.height} camera rows for {name} using "
+                f"orthophoto footprint proximity (selected row {selected_index})"
+            )
+        elif matches.height > 1:
+            logging.warning(
+                f"Found {matches.height} camera rows for {name}; using the first "
+                "because no orthophoto path was provided"
+            )
+
+        lon = matches["X"][selected_index]
+        lat = matches["Y"][selected_index]
+        zcam = matches["Z"][selected_index]
 
         if target_crs is not None:
             lon, lat = transform("EPSG:4326", target_crs, [lon], [lat])

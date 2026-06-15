@@ -195,3 +195,39 @@ class TestValidateExtractOutput:
             result = validate_extract_output(out)
             assert result["ok"]
             assert result["files_without_plot_id"] == []
+
+    def test_all_nan_band_fails(self):
+        """A present band column with no finite reflectance must fail validation."""
+        df = pl.DataFrame(
+            {
+                "Xw": [1.0],
+                "Yw": [1.0],
+                "band1": [np.nan],
+                "band2": [np.nan],
+                "band3": [np.nan],
+                "band4": [np.nan],
+                "band5": [np.nan],
+                "elev": [100.0],
+                "delta_z": [50.0],
+                "delta_x": [1.0],
+                "delta_y": [1.0],
+                "distance_xy": [1.0],
+                "angle_rad": [0.5],
+                "vza": [30.0],
+                "vaa_rad": [1.0],
+                "vaa_temp": [1.0],
+                "vaa": [90.0],
+                "xcam": [0.0],
+                "ycam": [0.0],
+                "sunelev": [40.0],
+                "saa": [180.0],
+                "path": ["/a.tif"],
+                "plot_id": ["plot_1"],
+            }
+        )
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d)
+            df.write_parquet(out / "test1.parquet")
+            result = validate_extract_output(out)
+            assert not result["ok"]
+            assert "band1 has no finite values" in result["range_issues"][0]
