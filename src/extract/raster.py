@@ -17,6 +17,10 @@ from concurrent.futures import ThreadPoolExecutor
 from timeit import default_timer as timer
 
 import affine
+import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl

@@ -6,6 +6,19 @@ from matplotlib import pyplot as plt
 from shapely.geometry.point import Point
 
 
+def spectral_index_expressions() -> list[pl.Expr]:
+    """Return the standard spectral-index expressions used by the filtering pipeline."""
+    soil_adjustment = 0.16
+    return [
+        (
+            (1 + soil_adjustment)
+            * (pl.col("band5") - pl.col("band3"))
+            / (pl.col("band5") + pl.col("band3") + soil_adjustment)
+        ).alias("OSAVI"),
+        (2 * pl.col("band2") - pl.col("band3") - pl.col("band1")).alias("ExcessGreen"),
+    ]
+
+
 def OSAVI_index_filtering(df, removal_threshold=None):
     """
     Compute the OSAVI index for each row and optionally filter out rows
@@ -34,19 +47,7 @@ def OSAVI_index_filtering(df, removal_threshold=None):
         if missing_columns:
             raise ValueError(f"Missing required columns for OSAVI calculation: {missing_columns}")
 
-        # Calculate OSAVI index
-        Y = 0.16
-        df = df.with_columns(
-            [
-                (
-                    (1 + Y)
-                    * (
-                        (pl.col("band5") - pl.col("band3"))
-                        / (pl.col("band5") + pl.col("band3") + Y)
-                    )
-                ).alias("OSAVI")
-            ]
-        )
+        df = df.with_columns(spectral_index_expressions()[0])
 
         # Filter based on OSAVI index
         if removal_threshold is not None:
@@ -90,10 +91,7 @@ def excess_green_filter(df, removal_threshold=None):
                 f"Missing required columns for Excess Green calculation: {missing_columns}"
             )
 
-        # Calculate Excess Green index
-        df = df.with_columns(
-            [(2 * pl.col("band2") - pl.col("band3") - pl.col("band1")).alias("ExcessGreen")]
-        )
+        df = df.with_columns(spectral_index_expressions()[1])
 
         if removal_threshold is not None:
             len_before = len(df)

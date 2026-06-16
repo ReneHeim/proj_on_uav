@@ -7,12 +7,10 @@ import argparse
 import glob
 import os
 
-import polars as pl
-
 from src.core.config_object import config_object
 from src.core.logging import logging_config
 from src.filter.data_loader import load_by_polygon
-from src.filter.filters import OSAVI_index_filtering, excess_green_filter
+from src.filter.filters import spectral_index_expressions
 
 
 def main():
@@ -34,26 +32,11 @@ def main():
 
     if not paths:
         raise RuntimeError(f"No parquet files found in {config.main_extract_out}")
-    df = pl.read_parquet(paths[0])
-
-    ## Apply OSAVI index filtering
-    df = OSAVI_index_filtering(df)
-    df = excess_green_filter(df)
-    print(df.columns)
-
-    # Plot heatmaps
-    # plot_heatmap(df, "OSAVI", config.main_extract_out)
-    # plot_heatmap(df, "ExcessGreen", config.main_extract_out)
-
-    # Plot Spectrograms
-    bands_wavelength_list = [475, 560, 668, 717, 842]
-
-    # plot_spectrogram(df,bands_wavelength_list=bands_wavelength_list,n_bands=5)
-
-    # add_mask_and_plot(df,"OSAVI",0.4)
-    # add_mask_and_plot(df,"ExcessGreen",0.03)
-
-    dfs = load_by_polygon(str(config.main_extract_out), str(config.main_extract_out_polygons_df))
+    load_by_polygon(
+        str(config.main_extract_out),
+        str(config.main_extract_out_polygons_df),
+        derived_columns=spectral_index_expressions(),
+    )
 
 
 if __name__ == "__main__":

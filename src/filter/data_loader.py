@@ -1,6 +1,7 @@
 import logging
 from itertools import islice
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Optional
 
 import polars as pl
@@ -65,7 +66,12 @@ def split_by_polygon(dataframes: list[pl.DataFrame], polygons: set[str]) -> dict
     }
 
 
-def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
+def stream_to_parquet(
+    src: Path,
+    polygons: set[str],
+    out_dir: Path,
+    derived_columns: Sequence[pl.Expr] = (),
+) -> None:
     """
     Streams rows for each specified polygon from all Parquet files in a source folder and writes them to separate Parquet files in an output directory.
 
@@ -93,7 +99,10 @@ def stream_to_parquet(src: Path, polygons: set[str], out_dir: Path) -> None:
 
     for p in polygons:
         target = out_dir / f"{p}.parquet"
-        (pl.scan_parquet(good_files).filter(pl.col("plot_id") == p).sink_parquet(target))
+        lazy_frame = pl.scan_parquet(good_files)
+        if derived_columns:
+            lazy_frame = lazy_frame.with_columns(derived_columns)
+        lazy_frame.filter(pl.col("plot_id") == p).sink_parquet(target)
         logging.info(f"  • wrote {str(target)}")
 
 
@@ -179,7 +188,12 @@ def unique_plot_ids_scan(folder: Path, batch_size=100) -> set[str]:
     return uids
 
 
-def load_by_polygon(df_folder: str, df_polygon_folder: str, specific: Optional[str] = None) -> str:
+def load_by_polygon(
+    df_folder: str,
+    df_polygon_folder: str,
+    specific: Optional[str] = None,
+    derived_columns: Sequence[pl.Expr] = (),
+) -> str:
     """
     Loads all .parquet files from a folder and writes each polygon's data to separate files,
     minimizing RAM usage by not returning dataframes.
@@ -198,7 +212,12 @@ def load_by_polygon(df_folder: str, df_polygon_folder: str, specific: Optional[s
     "done" when operation is complete.
     """
     polygons = {specific} if specific else unique_plot_ids_scan(Path(df_folder))
-    stream_to_parquet(Path(df_folder), polygons, Path(df_polygon_folder))
+    stream_to_parquet(
+        Path(df_folder),
+        polygons,
+        Path(df_polygon_folder),
+        derived_columns=derived_columns,
+    )
     return "done"
 
 

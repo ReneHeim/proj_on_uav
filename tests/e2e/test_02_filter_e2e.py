@@ -148,6 +148,15 @@ def test_filter_pipeline(tmp_path: Path):
         df = pl.read_parquet(pq_path)
         assert len(df) > 0, f"Empty dataframe in {pq_path.name}"
         assert "plot_id" in df.columns
+        assert "OSAVI" in df.columns
+        assert "ExcessGreen" in df.columns
+
+        expected_osavi = 1.16 * (df["band5"] - df["band3"]) / (
+            df["band5"] + df["band3"] + 0.16
+        )
+        expected_excess_green = 2 * df["band2"] - df["band3"] - df["band1"]
+        np.testing.assert_allclose(df["OSAVI"], expected_osavi)
+        np.testing.assert_allclose(df["ExcessGreen"], expected_excess_green)
 
         plot_ids = df["plot_id"].unique().to_list()
         assert len(plot_ids) == 1, f"Multiple plot_ids in single file: {plot_ids}"

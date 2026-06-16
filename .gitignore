@@ -141,3 +141,14 @@ output/
 # Analysis outputs / paper results (keep out of public repository)
 outputs/
 polygon_filtering_rect*.png
+
+# Local agent state and large geospatial/Metashape artifacts
+.code/
+*.psx
+*.psz
+*.files/
+*.tif
+*.tiff
+*.las
+*.laz
+*.ply
