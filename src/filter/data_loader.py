@@ -1,7 +1,7 @@
 import logging
+from collections.abc import Sequence
 from itertools import islice
 from pathlib import Path
-from collections.abc import Sequence
 from typing import Optional
 
 import polars as pl

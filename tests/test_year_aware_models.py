@@ -7,7 +7,10 @@ import pytest
 import run_year_analysis
 from src.models import compare_feature_sets
 from src.models.early_warning_prediction import build_temporal_dataset
-from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+from src.models.feature_selection import (
+    assert_reflectance_only,
+    reflectance_feature_columns,
+)
 from src.models.future_severity_prediction import TARGET_COL, build_future_targets
 
 
@@ -116,9 +119,7 @@ def test_compare_feature_sets_fails_when_requested_year_has_no_results(monkeypat
         compare_feature_sets.main("2025")
 
 
-def test_run_year_uses_year_specific_outputs_instead_of_stale_global_results(
-    tmp_path, monkeypatch
-):
+def test_run_year_uses_year_specific_outputs_instead_of_stale_global_results(tmp_path, monkeypatch):
     stale_global = tmp_path / "outputs" / "results"
     stale_global.mkdir(parents=True)
     (stale_global / "model_comparison_summary.csv").write_text("stale\n")

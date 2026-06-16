@@ -11,7 +11,6 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-
 FORBIDDEN_PREDICTOR_COLUMNS = {
     "plot_id",
     "ifz_id",
@@ -73,7 +72,9 @@ def assert_reflectance_only(feature_cols: Iterable[str], context: str = "model")
     """Fail loudly if a predictor list contains metadata, labels, or geometry."""
     feature_cols = list(feature_cols)
     forbidden = sorted(set(feature_cols) & FORBIDDEN_PREDICTOR_COLUMNS)
-    non_reflectance = sorted(column for column in feature_cols if not is_reflectance_feature(column))
+    non_reflectance = sorted(
+        column for column in feature_cols if not is_reflectance_feature(column)
+    )
     if forbidden or non_reflectance:
         details = []
         if forbidden:

@@ -21,12 +21,20 @@ import numpy as np
 import polars as pl
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import average_precision_score, balanced_accuracy_score, recall_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from src.models.feature_selection import assert_reflectance_only, reflectance_feature_columns
+from src.models.feature_selection import (
+    assert_reflectance_only,
+    reflectance_feature_columns,
+)
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -224,7 +232,9 @@ def build_pipeline():
             ("scaler", StandardScaler()),
             (
                 "lr",
-                LogisticRegression(C=1.0, class_weight="balanced", max_iter=2000, random_state=SEED),
+                LogisticRegression(
+                    C=1.0, class_weight="balanced", max_iter=2000, random_state=SEED
+                ),
             ),
         ]
     )
@@ -521,7 +531,9 @@ def plot_summary(summary_df):
     return out_path
 
 
-def write_report(summary_df, delta_df, cultivar_df, permutation_df, feature_audit_df, outputs, total_time):
+def write_report(
+    summary_df, delta_df, cultivar_df, permutation_df, feature_audit_df, outputs, total_time
+):
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / "future_severity_prediction_summary.md"
 
@@ -625,9 +637,13 @@ def write_report(summary_df, delta_df, cultivar_df, permutation_df, feature_audi
             .sort(["predictor_week", "feature_set"])
         )
         for row in audit_summary.iter_rows(named=True):
-            lines.append(f"| {row['predictor_week']} | {row['feature_set']} | {row['n_predictors']} |")
+            lines.append(
+                f"| {row['predictor_week']} | {row['feature_set']} | {row['n_predictors']} |"
+            )
 
-    best_deltas = delta_df.filter(pl.col("baseline") == "M2") if not delta_df.is_empty() else pl.DataFrame()
+    best_deltas = (
+        delta_df.filter(pl.col("baseline") == "M2") if not delta_df.is_empty() else pl.DataFrame()
+    )
     interpretation = "No paired multiangular-vs-nadir-index deltas were available."
     if not best_deltas.is_empty():
         best = best_deltas.sort("delta_AUROC_mean", descending=True).row(0, named=True)
@@ -680,7 +696,9 @@ def run_analysis():
     aligned_by_week = {}
     for week in EARLY_WEEKS:
         t_week = time.time()
-        logging.info(f"\n=== Predictor week {week} -> week {TARGET_WEEK} observed disease label ===")
+        logging.info(
+            f"\n=== Predictor week {week} -> week {TARGET_WEEK} observed disease label ==="
+        )
         aligned, common_plots = prepare_week_data(data, targets, week)
         if not aligned:
             logging.warning(f"  wk{week}: no aligned data")

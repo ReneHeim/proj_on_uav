@@ -151,9 +151,7 @@ def test_filter_pipeline(tmp_path: Path):
         assert "OSAVI" in df.columns
         assert "ExcessGreen" in df.columns
 
-        expected_osavi = 1.16 * (df["band5"] - df["band3"]) / (
-            df["band5"] + df["band3"] + 0.16
-        )
+        expected_osavi = 1.16 * (df["band5"] - df["band3"]) / (df["band5"] + df["band3"] + 0.16)
         expected_excess_green = 2 * df["band2"] - df["band3"] - df["band1"]
         np.testing.assert_allclose(df["OSAVI"], expected_osavi)
         np.testing.assert_allclose(df["ExcessGreen"], expected_excess_green)

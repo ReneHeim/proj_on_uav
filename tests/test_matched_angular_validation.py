@@ -3,17 +3,24 @@ import polars as pl
 import pytest
 
 import src.models.angular_support_sensitivity as sensitivity
-from src.stats.fair_multiangular_significance import imputed_compact_arrays, permuted_targets
-from src.stats.all_feature_angular_test import angular_contrasts
 from src.models.angular_support_sensitivity import (
+    build_threshold_features,
     evaluate,
     evaluate_nested_support,
-    build_threshold_features,
     fold_contrast_arrays,
     paired_multiangular_effects,
     retained_cells,
 )
-from src.models.matched_angular_validation import common_cells, evaluate_week, zone_for_vza
+from src.models.matched_angular_validation import (
+    common_cells,
+    evaluate_week,
+    zone_for_vza,
+)
+from src.stats.all_feature_angular_test import angular_contrasts
+from src.stats.fair_multiangular_significance import (
+    imputed_compact_arrays,
+    permuted_targets,
+)
 
 
 def test_common_cells_requires_presence_in_every_plot():
@@ -112,7 +119,16 @@ def test_off_nadir_only_support_skips_nadir_and_contrast_models():
         }
     )
     columns = {
-        "geometry": ["n_pixels", "n_images", "vza_mean", "vza_std", "vza_min", "vza_max", "raa_mean", "raa_std"],
+        "geometry": [
+            "n_pixels",
+            "n_images",
+            "vza_mean",
+            "vza_std",
+            "vza_min",
+            "vza_max",
+            "raa_mean",
+            "raa_std",
+        ],
         "presence": ["present_v24_r000"],
         "nadir": [],
         "absolute": ["band5_v24_r000"],
@@ -152,14 +168,25 @@ def test_nested_support_selection_uses_training_plots_only(monkeypatch):
     )
     observed_support_rosters = []
 
-    def fake_build(week, cells, geometry, targets, threshold, support_plot_ids=None, class_balanced=True):
+    def fake_build(
+        week, cells, geometry, targets, threshold, support_plot_ids=None, class_balanced=True
+    ):
         observed_support_rosters.append(set(support_plot_ids))
         features = targets.join(geometry, on="plot_id").with_columns(
             pl.arange(0, targets.height, eager=True).cast(pl.Float64).alias("band5_v00_r000"),
             pl.lit(1.0).alias("present_v00_r000"),
         )
         columns = {
-            "geometry": ["n_pixels", "n_images", "vza_mean", "vza_std", "vza_min", "vza_max", "raa_mean", "raa_std"],
+            "geometry": [
+                "n_pixels",
+                "n_images",
+                "vza_mean",
+                "vza_std",
+                "vza_min",
+                "vza_max",
+                "raa_mean",
+                "raa_std",
+            ],
             "presence": ["present_v00_r000"],
             "nadir": ["band5_v00_r000"],
             "absolute": ["band5_v00_r000"],
@@ -260,8 +287,15 @@ def test_permuted_targets_preserve_plot_roster_and_class_counts():
 
 
 def test_compact_multiangular_adds_only_five_contrasts_to_nadir():
-    data = {f"band{band}_nadir": [float(band), float(band + 1), float(band + 2)] for band in range(1, 6)}
-    data.update({f"band{band}_off": [float(band + 2), float(band + 3), float(band + 4)] for band in range(1, 6)})
+    data = {
+        f"band{band}_nadir": [float(band), float(band + 1), float(band + 2)] for band in range(1, 6)
+    }
+    data.update(
+        {
+            f"band{band}_off": [float(band + 2), float(band + 3), float(band + 4)]
+            for band in range(1, 6)
+        }
+    )
     features = pl.DataFrame(data)
 
     train_nadir, test_nadir, train_multi, test_multi = imputed_compact_arrays(features, [0, 1], [2])

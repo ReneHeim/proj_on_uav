@@ -20,8 +20,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
-from sklearn.metrics import average_precision_score, balanced_accuracy_score, roc_auc_score
 from sklearn.impute import SimpleImputer
+from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
+    roc_auc_score,
+)
 
 from src.models.matched_angular_validation import (
     ANGLE_ZONES,
@@ -42,7 +46,6 @@ from src.models.matched_angular_validation import (
     load_targets,
     residualize,
 )
-
 
 SUPPORT_THRESHOLDS = [0.70, 0.80, 0.90, 1.00]
 TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -148,15 +151,19 @@ def build_threshold_features(
         absolute_cols.extend(c for c in wide.columns if c != "plot_id")
         feature_table = feature_table.join(wide, on="plot_id", how="left")
 
-    presence = matched.select(["plot_id", "vza_cell", "raa_cell"]).with_columns(
-        pl.struct(["vza_cell", "raa_cell"])
-        .map_elements(
-            lambda value: f"present_{cell_name(value['vza_cell'], value['raa_cell'])}",
-            return_dtype=pl.Utf8,
+    presence = (
+        matched.select(["plot_id", "vza_cell", "raa_cell"])
+        .with_columns(
+            pl.struct(["vza_cell", "raa_cell"])
+            .map_elements(
+                lambda value: f"present_{cell_name(value['vza_cell'], value['raa_cell'])}",
+                return_dtype=pl.Utf8,
+            )
+            .alias("feature"),
+            pl.lit(1.0).alias("present"),
         )
-        .alias("feature"),
-        pl.lit(1.0).alias("present"),
-    ).pivot(on="feature", index="plot_id", values="present")
+        .pivot(on="feature", index="plot_id", values="present")
+    )
     presence_cols = [c for c in presence.columns if c != "plot_id"]
     feature_table = feature_table.join(presence, on="plot_id", how="left").with_columns(
         [pl.col(c).fill_null(0.0) for c in presence_cols]
@@ -164,10 +171,7 @@ def build_threshold_features(
 
     candidate_nadir_cols = [f"{band}_nadir_reference" for band in BANDS]
     nadir_table = (
-        cells.filter(
-            pl.col("plot_id").is_in(plot_ids)
-            & (pl.col("vza_cell") + VZA_STEP / 2 < 15)
-        )
+        cells.filter(pl.col("plot_id").is_in(plot_ids) & (pl.col("vza_cell") + VZA_STEP / 2 < 15))
         .group_by("plot_id")
         .agg(*[pl.col(band).mean().alias(f"{band}_nadir_reference") for band in BANDS])
     )
@@ -193,7 +197,14 @@ def build_threshold_features(
             contrast_sources[contrast_col] = {"off_nadir": col, "nadir": band_nadir}
 
     geometry_cols = [
-        "n_pixels", "n_images", "vza_mean", "vza_std", "vza_min", "vza_max", "raa_mean", "raa_std"
+        "n_pixels",
+        "n_images",
+        "vza_mean",
+        "vza_std",
+        "vza_min",
+        "vza_max",
+        "raa_mean",
+        "raa_std",
     ]
     missing_fraction = float(
         feature_table.select(absolute_cols).null_count().to_numpy().sum()
@@ -208,15 +219,25 @@ def build_threshold_features(
         len(absolute_cols),
         missing_fraction,
     )
-    logging.info("[PHASE] week %d threshold %.0f%% features: %.1fs", week, threshold * 100, time.time() - started)
-    return feature_table, {
-        "geometry": geometry_cols,
-        "presence": presence_cols,
-        "nadir": nadir_cols,
-        "absolute": absolute_cols,
-        "contrast": contrast_cols,
-        "contrast_sources": contrast_sources,
-    }, support.height, missing_fraction
+    logging.info(
+        "[PHASE] week %d threshold %.0f%% features: %.1fs",
+        week,
+        threshold * 100,
+        time.time() - started,
+    )
+    return (
+        feature_table,
+        {
+            "geometry": geometry_cols,
+            "presence": presence_cols,
+            "nadir": nadir_cols,
+            "absolute": absolute_cols,
+            "contrast": contrast_cols,
+            "contrast_sources": contrast_sources,
+        },
+        support.height,
+        missing_fraction,
+    )
 
 
 def feature_sets(columns):
@@ -316,9 +337,7 @@ def evaluate_split(
                 )
                 continue
         if use_residuals:
-            x_train, x_test = residualize(
-                x_train, x_test, geometry[train_idx], geometry[test_idx]
-            )
+            x_train, x_test = residualize(x_train, x_test, geometry[train_idx], geometry[test_idx])
         model = classifier()
         fit_started = time.time()
         model.fit(x_train, y[train_idx])
@@ -336,7 +355,9 @@ def evaluate_split(
                 "n_plots": features.height,
                 "n_cells": n_cells,
                 "n_features": len(feature_cols),
-                "missing_fraction": missing_fraction if name not in {"G_geometry", "P_presence"} else 0.0,
+                "missing_fraction": (
+                    missing_fraction if name not in {"G_geometry", "P_presence"} else 0.0
+                ),
                 "AUROC": roc_auc_score(y[test_idx], probability),
                 "AUPRC": average_precision_score(y[test_idx], probability),
                 "balanced_accuracy": balanced_accuracy_score(y[test_idx], predicted),
@@ -462,15 +483,16 @@ def paired_multiangular_effects(folds):
             baseline_rows,
             on=["week", "support_threshold", "fold"],
             how="inner",
-        ).with_columns(
-            (pl.col("comparator_AUROC") - pl.col("baseline_AUROC")).alias("delta_AUROC")
-        )
+        ).with_columns((pl.col("comparator_AUROC") - pl.col("baseline_AUROC")).alias("delta_AUROC"))
         for key, group in paired.group_by(["week", "support_threshold"], maintain_order=True):
             week, threshold = key
             deltas = group["delta_AUROC"].to_numpy()
             observed = float(np.mean(deltas))
             null_means = np.array(
-                [np.mean(deltas * np.asarray(signs)) for signs in product([-1.0, 1.0], repeat=len(deltas))]
+                [
+                    np.mean(deltas * np.asarray(signs))
+                    for signs in product([-1.0, 1.0], repeat=len(deltas))
+                ]
             )
             p_value = float(np.sum(null_means >= observed - 1e-12) / len(null_means))
             rows.append(
@@ -483,7 +505,9 @@ def paired_multiangular_effects(folds):
                     "baseline_AUROC_mean": float(group["baseline_AUROC"].mean()),
                     "comparator_AUROC_mean": float(group["comparator_AUROC"].mean()),
                     "delta_AUROC_mean": observed,
-                    "delta_AUROC_std": float(group["delta_AUROC"].std()) if group.height > 1 else None,
+                    "delta_AUROC_std": (
+                        float(group["delta_AUROC"].std()) if group.height > 1 else None
+                    ),
                     "folds_improved": int((group["delta_AUROC"] > 0).sum()),
                     "one_sided_sign_flip_p": p_value,
                 }
@@ -570,7 +594,9 @@ def write_report(summary, paired, skipped, total_time):
     if skipped:
         lines.extend(["", "### Skipped combinations", ""])
         for item in skipped:
-            lines.append(f"- Week {item['week']}, support {item['threshold']:.0%}: {item['reason']}")
+            lines.append(
+                f"- Week {item['week']}, support {item['threshold']:.0%}: {item['reason']}"
+            )
     if not paired.is_empty():
         lines.extend(
             [
@@ -629,8 +655,14 @@ def write_report(summary, paired, skipped, total_time):
 def plot_summary(summary):
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     models = [
-        "G_geometry", "P_presence", "N_fine_nadir", "N_geometry_residual",
-        "A_fine_absolute", "C_fine_contrast", "A_geometry_residual", "C_geometry_residual",
+        "G_geometry",
+        "P_presence",
+        "N_fine_nadir",
+        "N_geometry_residual",
+        "A_fine_absolute",
+        "C_fine_contrast",
+        "A_geometry_residual",
+        "C_geometry_residual",
     ]
     weeks = sorted(summary["week"].unique().to_list())
     fig, axes = plt.subplots(1, len(weeks), figsize=(6 * len(weeks), 5), squeeze=False)
@@ -640,7 +672,12 @@ def plot_summary(summary):
             sub = week_df.filter(pl.col("feature_set") == model).sort("support_threshold")
             if sub.is_empty():
                 continue
-            axis.plot(sub["support_threshold"].to_numpy() * 100, sub["AUROC_mean"].to_numpy(), marker="o", label=model)
+            axis.plot(
+                sub["support_threshold"].to_numpy() * 100,
+                sub["AUROC_mean"].to_numpy(),
+                marker="o",
+                label=model,
+            )
         axis.axhline(0.5, color="black", linestyle="--", linewidth=1)
         axis.set_title(f"Week {week}")
         axis.set_xlabel("Required support (%)")

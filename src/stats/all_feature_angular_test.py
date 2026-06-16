@@ -16,7 +16,10 @@ from sklearn.model_selection import GridSearchCV, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
-from src.models.angular_support_sensitivity import retained_cells_overall, wide_band_table
+from src.models.angular_support_sensitivity import (
+    retained_cells_overall,
+    wide_band_table,
+)
 from src.models.matched_angular_validation import (
     BANDS,
     LOGS_DIR,
@@ -29,7 +32,6 @@ from src.models.matched_angular_validation import (
     load_or_build_week_cells,
     load_targets,
 )
-
 
 PREDICTOR_WEEK = 5
 TARGET_WEEK = 8
@@ -69,10 +71,7 @@ def build_outer_features(cells, targets, training_plot_ids):
 
     base = targets.select(["plot_id", TARGET_COL]).sort("plot_id")
     nadir = (
-        cells.filter(
-            pl.col("plot_id").is_in(plot_ids)
-            & (pl.col("vza_cell") + VZA_STEP / 2 < 15)
-        )
+        cells.filter(pl.col("plot_id").is_in(plot_ids) & (pl.col("vza_cell") + VZA_STEP / 2 < 15))
         .group_by("plot_id")
         .agg(*[pl.col(band).mean().alias(f"{band}_nadir") for band in BANDS])
     )
@@ -216,7 +215,9 @@ def run_analysis(n_repeats=30, n_permutations=200, seed=SEED):
     observed_folds, observed = evaluate_effect(cells, targets, seed)
     logging.info(
         "Observed: nadir=%.3f multiangular=%.3f delta=%+.3f",
-        observed["nadir"], observed["multiangular"], observed["delta"],
+        observed["nadir"],
+        observed["multiangular"],
+        observed["delta"],
     )
     logging.info("[PHASE] observed fit and predict: %.1fs", time.time() - observed_started)
 
@@ -240,27 +241,30 @@ def run_analysis(n_repeats=30, n_permutations=200, seed=SEED):
     repeat_deltas = repeat_df["delta"].to_numpy()
     null_deltas = permutation_df["delta"].to_numpy()
     summary = pl.DataFrame(
-        [{
-            "predictor_week": PREDICTOR_WEEK,
-            "target_week": TARGET_WEEK,
-            "n_plots": targets.height,
-            "observed_nadir_AUROC": observed["nadir"],
-            "observed_multiangular_AUROC": observed["multiangular"],
-            "observed_delta_AUROC": observed["delta"],
-            "n_repeats": n_repeats,
-            "repeated_delta_mean": float(np.mean(repeat_deltas)),
-            "repeated_delta_sd": float(np.std(repeat_deltas, ddof=1)),
-            "repeated_delta_p2_5": float(np.percentile(repeat_deltas, 2.5)),
-            "repeated_delta_p97_5": float(np.percentile(repeat_deltas, 97.5)),
-            "repeat_fraction_positive": float(np.mean(repeat_deltas > 0)),
-            "n_permutations": n_permutations,
-            "permutation_p_multi_superiority": float(
-                (1 + np.sum(null_deltas >= observed["delta"])) / (1 + n_permutations)
-            ),
-            "permutation_p_two_sided": float(
-                (1 + np.sum(np.abs(null_deltas) >= abs(observed["delta"]))) / (1 + n_permutations)
-            ),
-        }]
+        [
+            {
+                "predictor_week": PREDICTOR_WEEK,
+                "target_week": TARGET_WEEK,
+                "n_plots": targets.height,
+                "observed_nadir_AUROC": observed["nadir"],
+                "observed_multiangular_AUROC": observed["multiangular"],
+                "observed_delta_AUROC": observed["delta"],
+                "n_repeats": n_repeats,
+                "repeated_delta_mean": float(np.mean(repeat_deltas)),
+                "repeated_delta_sd": float(np.std(repeat_deltas, ddof=1)),
+                "repeated_delta_p2_5": float(np.percentile(repeat_deltas, 2.5)),
+                "repeated_delta_p97_5": float(np.percentile(repeat_deltas, 97.5)),
+                "repeat_fraction_positive": float(np.mean(repeat_deltas > 0)),
+                "n_permutations": n_permutations,
+                "permutation_p_multi_superiority": float(
+                    (1 + np.sum(null_deltas >= observed["delta"])) / (1 + n_permutations)
+                ),
+                "permutation_p_two_sided": float(
+                    (1 + np.sum(np.abs(null_deltas) >= abs(observed["delta"])))
+                    / (1 + n_permutations)
+                ),
+            }
+        ]
     )
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)

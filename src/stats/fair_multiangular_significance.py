@@ -27,11 +27,17 @@ from src.models.matched_angular_validation import (
     residualize,
 )
 
-
 PREDICTOR_WEEK = 5
 SUPPORT_THRESHOLD = 0.70
 GEOMETRY_COLS = [
-    "n_pixels", "n_images", "vza_mean", "vza_std", "vza_min", "vza_max", "raa_mean", "raa_std"
+    "n_pixels",
+    "n_images",
+    "vza_mean",
+    "vza_std",
+    "vza_min",
+    "vza_max",
+    "raa_mean",
+    "raa_std",
 ]
 
 
@@ -57,10 +63,7 @@ def compact_features(cells, geometry, targets, training_plot_ids):
         raise RuntimeError("No training-supported off-nadir cells")
     plot_ids = targets["plot_id"].to_list()
     nadir = (
-        cells.filter(
-            pl.col("plot_id").is_in(plot_ids)
-            & (pl.col("vza_cell") + VZA_STEP / 2 < 15)
-        )
+        cells.filter(pl.col("plot_id").is_in(plot_ids) & (pl.col("vza_cell") + VZA_STEP / 2 < 15))
         .group_by("plot_id")
         .agg(*[pl.col(band).mean().alias(f"{band}_nadir") for band in BANDS])
     )
@@ -81,7 +84,7 @@ def compact_features(cells, geometry, targets, training_plot_ids):
 def imputed_compact_arrays(features, train_idx, test_idx):
     source_cols = [f"{band}_{view}" for view in ("nadir", "off") for band in BANDS]
     values = features.select(source_cols).to_numpy()
-    if not np.isfinite(values[np.asarray(train_idx), :len(BANDS)].astype(float)).any():
+    if not np.isfinite(values[np.asarray(train_idx), : len(BANDS)].astype(float)).any():
         raise RuntimeError("no observed nadir reflectance in training fold")
     imputer = SimpleImputer(strategy="median", keep_empty_features=True)
     train = imputer.fit_transform(values[train_idx])
@@ -172,7 +175,9 @@ def run_analysis(n_repeats=50, n_permutations=200, seed=SEED):
         observed["comparator_AUROC_mean"],
         observed_delta,
     )
-    logging.info("[PHASE] observed model fitting and prediction: %.1fs", time.time() - observed_started)
+    logging.info(
+        "[PHASE] observed model fitting and prediction: %.1fs", time.time() - observed_started
+    )
 
     repeat_started = time.time()
     repeat_rows = []
@@ -196,7 +201,10 @@ def run_analysis(n_repeats=50, n_permutations=200, seed=SEED):
     repeat_timing = duration_summary(repeat_durations)
     logging.info(
         "Repeated CV times: min=%.2fs median=%.2fs mean=%.2fs max=%.2fs",
-        repeat_timing["min"], repeat_timing["median"], repeat_timing["mean"], repeat_timing["max"],
+        repeat_timing["min"],
+        repeat_timing["median"],
+        repeat_timing["mean"],
+        repeat_timing["max"],
     )
     logging.info("[PHASE] repeated CV: %.1fs", time.time() - repeat_started)
 
@@ -213,7 +221,9 @@ def run_analysis(n_repeats=50, n_permutations=200, seed=SEED):
             failures += 1
             logging.warning("Permutation %d skipped: %s", permutation, exc)
             continue
-        permutation_rows.append({"permutation": permutation, "delta_AUROC": effect["delta_AUROC_mean"]})
+        permutation_rows.append(
+            {"permutation": permutation, "delta_AUROC": effect["delta_AUROC_mean"]}
+        )
         permutation_durations.append(time.time() - iteration_started)
     if not permutation_rows:
         raise RuntimeError("No valid label permutations completed")
@@ -221,41 +231,51 @@ def run_analysis(n_repeats=50, n_permutations=200, seed=SEED):
     permutation_timing = duration_summary(permutation_durations)
     logging.info(
         "Permutation times: min=%.2fs median=%.2fs mean=%.2fs max=%.2fs",
-        permutation_timing["min"], permutation_timing["median"],
-        permutation_timing["mean"], permutation_timing["max"],
+        permutation_timing["min"],
+        permutation_timing["median"],
+        permutation_timing["mean"],
+        permutation_timing["max"],
     )
-    logging.info("[PHASE] permutation fitting and prediction: %.1fs", time.time() - permutation_started)
+    logging.info(
+        "[PHASE] permutation fitting and prediction: %.1fs", time.time() - permutation_started
+    )
 
     null_deltas = permutation_df["delta_AUROC"].to_numpy()
-    permutation_p_multi = float((1 + np.sum(null_deltas >= observed_delta)) / (1 + len(null_deltas)))
-    permutation_p_nadir = float((1 + np.sum(null_deltas <= observed_delta)) / (1 + len(null_deltas)))
+    permutation_p_multi = float(
+        (1 + np.sum(null_deltas >= observed_delta)) / (1 + len(null_deltas))
+    )
+    permutation_p_nadir = float(
+        (1 + np.sum(null_deltas <= observed_delta)) / (1 + len(null_deltas))
+    )
     permutation_p_two_sided = float(
         (1 + np.sum(np.abs(null_deltas) >= abs(observed_delta))) / (1 + len(null_deltas))
     )
     repeat_deltas = repeat_df["delta_AUROC"].to_numpy()
     summary = pl.DataFrame(
-        [{
-            "predictor_week": PREDICTOR_WEEK,
-            "target_week": 8,
-            "support_threshold": SUPPORT_THRESHOLD,
-            "n_plots": targets.height,
-            "n_positive": int(targets[TARGET_COL].sum()),
-            "n_negative": int(targets.height - targets[TARGET_COL].sum()),
-            "observed_nadir_AUROC": observed["baseline_AUROC_mean"],
-            "observed_multiangular_AUROC": observed["comparator_AUROC_mean"],
-            "observed_delta_AUROC": observed_delta,
-            "n_repeats": n_repeats,
-            "repeated_delta_mean": float(np.mean(repeat_deltas)),
-            "repeated_delta_sd": float(np.std(repeat_deltas, ddof=1)),
-            "repeated_delta_p2_5": float(np.percentile(repeat_deltas, 2.5)),
-            "repeated_delta_p97_5": float(np.percentile(repeat_deltas, 97.5)),
-            "repeat_fraction_positive": float(np.mean(repeat_deltas > 0)),
-            "n_valid_permutations": len(null_deltas),
-            "n_failed_permutations": failures,
-            "permutation_p_multi_superiority": permutation_p_multi,
-            "permutation_p_nadir_superiority": permutation_p_nadir,
-            "permutation_p_two_sided": permutation_p_two_sided,
-        }]
+        [
+            {
+                "predictor_week": PREDICTOR_WEEK,
+                "target_week": 8,
+                "support_threshold": SUPPORT_THRESHOLD,
+                "n_plots": targets.height,
+                "n_positive": int(targets[TARGET_COL].sum()),
+                "n_negative": int(targets.height - targets[TARGET_COL].sum()),
+                "observed_nadir_AUROC": observed["baseline_AUROC_mean"],
+                "observed_multiangular_AUROC": observed["comparator_AUROC_mean"],
+                "observed_delta_AUROC": observed_delta,
+                "n_repeats": n_repeats,
+                "repeated_delta_mean": float(np.mean(repeat_deltas)),
+                "repeated_delta_sd": float(np.std(repeat_deltas, ddof=1)),
+                "repeated_delta_p2_5": float(np.percentile(repeat_deltas, 2.5)),
+                "repeated_delta_p97_5": float(np.percentile(repeat_deltas, 97.5)),
+                "repeat_fraction_positive": float(np.mean(repeat_deltas > 0)),
+                "n_valid_permutations": len(null_deltas),
+                "n_failed_permutations": failures,
+                "permutation_p_multi_superiority": permutation_p_multi,
+                "permutation_p_nadir_superiority": permutation_p_nadir,
+                "permutation_p_two_sided": permutation_p_two_sided,
+            }
+        ]
     )
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -266,8 +286,13 @@ def run_analysis(n_repeats=50, n_permutations=200, seed=SEED):
     permutation_df.write_csv(permutation_path)
     summary.write_csv(summary_path)
     report_path = write_report(
-        summary.row(0, named=True), repeat_path, permutation_path, summary_path,
-        log_path, time.time() - total_started, seed,
+        summary.row(0, named=True),
+        repeat_path,
+        permutation_path,
+        summary_path,
+        log_path,
+        time.time() - total_started,
+        seed,
     )
     logging.info("[PHASE] total: %.1fs", time.time() - total_started)
     logging.info("Report: %s", report_path)

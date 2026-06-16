@@ -22,11 +22,14 @@ import numpy as np
 import polars as pl
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.metrics import average_precision_score, balanced_accuracy_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    balanced_accuracy_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-
 
 PROJ = Path(__file__).resolve().parent.parent.parent
 FEATURE_DIR = PROJ / "outputs" / "features"
@@ -37,9 +40,15 @@ LOGS_DIR = PROJ / "outputs" / "logs"
 CACHE_DIR = PROJ / "outputs" / "cache" / "matched_angular"
 
 WEEK_DIRS = {
-    0: Path("/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"),
-    3: Path("/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"),
-    5: Path("/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"),
+    0: Path(
+        "/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"
+    ),
+    3: Path(
+        "/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"
+    ),
+    5: Path(
+        "/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"
+    ),
 }
 BANDS = [f"band{i}" for i in range(1, 6)]
 VZA_STEP = 2
@@ -84,7 +93,9 @@ def load_targets():
         .drop("disease_label")
     )
     if target.is_empty() or target[TARGET_COL].n_unique() < 2:
-        raise RuntimeError("Observed week-8 disease labels are missing or contain fewer than two classes")
+        raise RuntimeError(
+            "Observed week-8 disease labels are missing or contain fewer than two classes"
+        )
     logging.info(
         "Observed targets: %d plots, positive_rate=%.3f",
         target.height,
@@ -95,7 +106,9 @@ def load_targets():
 
 
 def _raa_expr():
-    return (((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360) - 180).abs()
+    return (
+        ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360) - 180
+    ).abs()
 
 
 def aggregate_plot(path):
@@ -223,9 +236,7 @@ def build_matched_features(week, cells, geometry, targets):
         common, on=["vza_cell", "raa_cell"], how="inner"
     )
     matched = matched.with_columns(
-        pl.col("vza_cell")
-        .map_elements(zone_for_vza, return_dtype=pl.Utf8)
-        .alias("angle_zone")
+        pl.col("vza_cell").map_elements(zone_for_vza, return_dtype=pl.Utf8).alias("angle_zone")
     ).drop_nulls("angle_zone")
 
     profiles = matched.group_by(["plot_id", "angle_zone"]).agg(
@@ -252,14 +263,15 @@ def build_matched_features(week, cells, geometry, targets):
                     row[f"{band}_contrast_{zone}"] = zone_values[zone][band] - nadir[band]
         rows.append(row)
 
-    features = pl.DataFrame(rows).join(geometry, on="plot_id", how="inner").join(
-        targets, on="plot_id", how="inner"
+    features = (
+        pl.DataFrame(rows)
+        .join(geometry, on="plot_id", how="inner")
+        .join(targets, on="plot_id", how="inner")
     )
     for lo, hi in ANGLE_ZONES:
         counts = (
             matched.filter(
-                (pl.col("vza_cell") + VZA_STEP / 2 >= lo)
-                & (pl.col("vza_cell") + VZA_STEP / 2 < hi)
+                (pl.col("vza_cell") + VZA_STEP / 2 >= lo) & (pl.col("vza_cell") + VZA_STEP / 2 < hi)
             )
             .group_by("plot_id")
             .agg(pl.col("n_pixels").sum().alias(f"pixels_vza_{lo}_{hi}"))
@@ -296,7 +308,12 @@ def classifier():
         [
             ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
             ("scaler", StandardScaler()),
-            ("lr", LogisticRegression(C=0.1, class_weight="balanced", max_iter=2000, random_state=SEED)),
+            (
+                "lr",
+                LogisticRegression(
+                    C=0.1, class_weight="balanced", max_iter=2000, random_state=SEED
+                ),
+            ),
         ]
     )
 
@@ -323,10 +340,19 @@ def residualize(train_x, test_x, train_g, test_g):
 
 def evaluate_week(features):
     geometry_cols = [
-        "n_pixels", "n_images", "vza_mean", "vza_std", "vza_min", "vza_max", "raa_mean", "raa_std",
+        "n_pixels",
+        "n_images",
+        "vza_mean",
+        "vza_std",
+        "vza_min",
+        "vza_max",
+        "raa_mean",
+        "raa_std",
         *[f"pixels_vza_{lo}_{hi}" for lo, hi in ANGLE_ZONES],
     ]
-    nadir_cols = [f"{band}_matched_0_15" for band in BANDS if f"{band}_matched_0_15" in features.columns]
+    nadir_cols = [
+        f"{band}_matched_0_15" for band in BANDS if f"{band}_matched_0_15" in features.columns
+    ]
     angular_cols = [c for c in features.columns if "_matched_" in c]
     contrast_cols = [c for c in features.columns if "_contrast_" in c]
     feature_sets = {"G_geometry": (geometry_cols, False)}
@@ -348,9 +374,7 @@ def evaluate_week(features):
         for fold, (train_idx, test_idx) in enumerate(splits):
             y_train, y_test = y[train_idx], y[test_idx]
             if use_residuals:
-                x_train, x_test = residualize(
-                    x[train_idx], x[test_idx], g[train_idx], g[test_idx]
-                )
+                x_train, x_test = residualize(x[train_idx], x[test_idx], g[train_idx], g[test_idx])
             else:
                 x_train, x_test = x[train_idx], x[test_idx]
             model = classifier()

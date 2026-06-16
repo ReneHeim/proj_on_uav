@@ -196,8 +196,7 @@ def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None):
                 matches["Y"].to_list(),
             )
             distances = [
-                (x - center_x) ** 2 + (y - center_y) ** 2
-                for x, y in zip(camera_x, camera_y)
+                (x - center_x) ** 2 + (y - center_y) ** 2 for x, y in zip(camera_x, camera_y)
             ]
             selected_index = int(np.argmin(distances))
             logging.info(
