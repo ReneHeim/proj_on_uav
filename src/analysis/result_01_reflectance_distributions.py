@@ -45,28 +45,21 @@ WEEK_COLORS = {
     8: "#253494",
 }
 CULTIVAR_STYLES = {"aluco": ("#0072B2", "-"), "capone": ("#D55E00", "--")}
+TREATMENT_STYLES = {"no_trt": ("#4D4D4D", "-"), "trt": ("#009E73", "--")}
 SEED = 42
-MAX_PLOT_SAMPLE = 500_000
+MAX_PLOT_SAMPLE = 2_000_000
 FINE_VZA_MIN = 10
 FINE_VZA_MAX = 55
 YEAR_PLOT_DIRS = {
     2024: {
-        0: Path(
-            "/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"
-        ),
-        2: Path("/run/media/davidem/Heim/2024/recovered_weeks/week2/output/plots"),
-        3: Path(
-            "/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"
-        ),
-        4: Path("/run/media/davidem/Heim/2024/recovered_weeks/week4/output/plots"),
-        5: Path(
-            "/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"
-        ),
-        6: Path("/run/media/davidem/Heim/2024/recovered_weeks/week6/output/plots"),
-        7: Path("/run/media/davidem/Heim/2024/recovered_weeks/week7/output/plots"),
-        8: Path(
-            "/run/media/davidem/Heim/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df"
-        ),
+    0: Path("/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"),
+    2: Path("/run/media/davidem/Heim/2024/recovered_weeks/week2/output/plots"),
+    3: Path("/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"),
+    4: Path("/run/media/davidem/Heim/2024/recovered_weeks/week4/output/plots"),
+    5: Path("/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"),
+    6: Path("/run/media/davidem/Heim/2024/recovered_weeks/week6/output/plots"),
+    7: Path("/run/media/davidem/Heim/2024/recovered_weeks/week7/output/plots"),
+    8: Path("/run/media/davidem/Heim/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df"),
     },
     2025: {
         0: Path("/run/media/davidem/Heim/2025/recovered_weeks/week0/output/plots"),
@@ -133,10 +126,40 @@ def season_output_dir(base_output_dir: Path, year: int, ground_filter: bool = Fa
     return base_output_dir / str(year) / filter_name
 
 
+def load_polygon_meta(year: int) -> dict[str, dict[str, object]]:
+    import geopandas as gpd
+
+    if year == 2024:
+        gdf = gpd.read_file(POLYGON_PATHS[year])
+        gdf = gdf.reset_index(drop=True)
+        gdf["disease_label"] = gdf["ino"].astype(int)
+        # Extraction assigns plot IDs by GeoPackage row order when no explicit id field exists.
+        gdf["plot_id"] = "plot_" + gdf.index.astype(str)
+        columns = ["plot_id", "cult", "trt", "disease_label"]
+    else:
+        gdf = gpd.read_file(POLYGON_PATHS[year], layer="20250331_plots")
+        gdf = gdf.reset_index(drop=True)
+        gdf["plot_id"] = "plot_" + gdf.index.astype(str)
+        gdf["cult"] = gdf["cultivar"]
+        gdf["disease_label"] = None
+        columns = ["plot_id", "cult", "trt", "disease_label"]
+    return {row["plot_id"]: row for row in gdf[columns].to_dict("records")}
+
+
+def corrected_plot_metadata_frame(year: int) -> pl.DataFrame:
+    return pl.DataFrame(list(load_polygon_meta(year).values())).select("plot_id", "cult", "trt")
+
+
 def load_long(input_path: Path, year: int) -> pl.DataFrame:
     started = time.perf_counter()
     read_started = time.perf_counter()
     wide = pl.read_parquet(input_path).filter(pl.col("year") == year)
+    metadata = corrected_plot_metadata_frame(year)
+    wide = wide.drop([column for column in ["cult", "trt"] if column in wide.columns]).join(
+        metadata, on="plot_id", how="left"
+    )
+    if wide.filter(pl.col("cult").is_null() | pl.col("trt").is_null()).height:
+        raise RuntimeError(f"Missing corrected polygon metadata for some {year} cached feature rows.")
     read_seconds = time.perf_counter() - read_started
     logging.info(
         "[IO] parquet reads: n=1 min=%.3fs median=%.3fs max=%.3fs mean=%.3fs",
@@ -145,9 +168,7 @@ def load_long(input_path: Path, year: int) -> pl.DataFrame:
         read_seconds,
         read_seconds,
     )
-    value_columns = [
-        column for column in wide.columns if re.fullmatch(r"band[1-5]_vza\d+_\d+", column)
-    ]
+    value_columns = [column for column in wide.columns if re.fullmatch(r"band[1-5]_vza\d+_\d+", column)]
     long = (
         wide.unpivot(
             index=["plot_id", "week", "cult", "trt", "year"],
@@ -168,33 +189,12 @@ def load_long(input_path: Path, year: int) -> pl.DataFrame:
         .filter(pl.col("reflectance").is_finite())
         .with_columns(
             pl.col("band").replace_strict(BANDS).alias("band_name"),
-            pl.col("vza_class")
-            .replace_strict(ANGLE_MIDPOINTS)
-            .cast(pl.Float64)
-            .alias("vza_midpoint"),
+            pl.col("vza_class").replace_strict(ANGLE_MIDPOINTS).cast(pl.Float64).alias("vza_midpoint"),
         )
     )
     logging.info("Loaded %d finite angle observations", long.height)
     log_phase("load_and_reshape", started)
     return long
-
-
-def load_polygon_meta(year: int) -> dict[str, dict[str, object]]:
-    import geopandas as gpd
-
-    if year == 2024:
-        gdf = gpd.read_file(POLYGON_PATHS[year])
-        gdf["disease_label"] = gdf["ino"].astype(int)
-        gdf["plot_id"] = "plot_" + (gdf["ifz_id"] - 90001).astype(str)
-        columns = ["plot_id", "cult", "trt", "disease_label"]
-    else:
-        gdf = gpd.read_file(POLYGON_PATHS[year], layer="20250331_plots")
-        gdf = gdf.reset_index(drop=True)
-        gdf["plot_id"] = "plot_" + gdf.index.astype(str)
-        gdf["cult"] = gdf["cultivar"]
-        gdf["disease_label"] = None
-        columns = ["plot_id", "cult", "trt", "disease_label"]
-    return {row["plot_id"]: row for row in gdf[columns].to_dict("records")}
 
 
 def assign_fine_vza_bins(frame: pl.DataFrame) -> pl.DataFrame:
@@ -203,15 +203,30 @@ def assign_fine_vza_bins(frame: pl.DataFrame) -> pl.DataFrame:
         frame.filter((pl.col("vza") >= FINE_VZA_MIN) & (pl.col("vza") < FINE_VZA_MAX))
         .with_columns(vza_low.alias("vza_low"))
         .with_columns(
-            (
-                pl.col("vza_low").cast(pl.Utf8)
-                + pl.lit("-")
-                + (pl.col("vza_low") + 5).cast(pl.Utf8)
-            ).alias("vza_class"),
+            (pl.col("vza_low").cast(pl.Utf8) + pl.lit("-") + (pl.col("vza_low") + 5).cast(pl.Utf8)).alias(
+                "vza_class"
+            ),
             (pl.col("vza_low") + 2.5).cast(pl.Float64).alias("vza_midpoint"),
         )
         .drop("vza_low")
     )
+
+
+def sample_equal_vza_bins(frame: pl.DataFrame, max_rows: int = MAX_PLOT_SAMPLE) -> pl.DataFrame:
+    """Cap each plot parquet with balanced support across VZA bins."""
+    if frame.is_empty() or frame.height <= max_rows:
+        return frame
+    bins = frame["vza_class"].unique().to_list()
+    if not bins:
+        return frame
+    per_bin_cap = max(1, max_rows // len(bins))
+    parts = []
+    for vza_class in bins:
+        subset = frame.filter(pl.col("vza_class") == vza_class)
+        if subset.height > per_bin_cap:
+            subset = subset.sample(n=per_bin_cap, seed=SEED)
+        parts.append(subset)
+    return pl.concat(parts, how="vertical")
 
 
 def ground_filter_expressions(
@@ -220,11 +235,7 @@ def ground_filter_expressions(
 ) -> pl.Expr:
     mask = pl.col("OSAVI").is_finite() & (pl.col("OSAVI") > osavi_threshold)
     if excess_green_threshold is not None:
-        mask = (
-            mask
-            & pl.col("ExcessGreen").is_finite()
-            & (pl.col("ExcessGreen") > excess_green_threshold)
-        )
+        mask = mask & pl.col("ExcessGreen").is_finite() & (pl.col("ExcessGreen") > excess_green_threshold)
     return mask
 
 
@@ -235,16 +246,12 @@ def ensure_indices(frame: pl.DataFrame) -> pl.DataFrame:
     expressions = []
     if "OSAVI" in missing:
         expressions.append(
-            (
-                1.16
-                * (pl.col("band5") - pl.col("band3"))
-                / (pl.col("band5") + pl.col("band3") + 0.16)
-            ).alias("OSAVI")
+            (1.16 * (pl.col("band5") - pl.col("band3")) / (pl.col("band5") + pl.col("band3") + 0.16)).alias(
+                "OSAVI"
+            )
         )
     if "ExcessGreen" in missing:
-        expressions.append(
-            (2 * pl.col("band2") - pl.col("band3") - pl.col("band1")).alias("ExcessGreen")
-        )
+        expressions.append((2 * pl.col("band2") - pl.col("band3") - pl.col("band1")).alias("ExcessGreen"))
     return frame.with_columns(expressions)
 
 
@@ -252,7 +259,7 @@ def load_fine_vza_from_plot_parquets(
     year: int,
     week_plot_dirs: dict[int, Path],
     ground_filter: bool = False,
-    osavi_threshold: float = 0.1,
+    osavi_threshold: float = 0.2,
     excess_green_threshold: float | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     started = time.perf_counter()
@@ -271,14 +278,8 @@ def load_fine_vza_from_plot_parquets(
             read_started = time.perf_counter()
             frame = pl.read_parquet(path)
             read_seconds.append(time.perf_counter() - read_started)
-            if frame.height > MAX_PLOT_SAMPLE:
-                frame = frame.sample(n=MAX_PLOT_SAMPLE, seed=SEED)
-            sampled_rows = frame.height
-            mask = (
-                pl.col("vza").is_not_nan()
-                & (pl.col("vza") >= FINE_VZA_MIN)
-                & (pl.col("vza") < FINE_VZA_MAX)
-            )
+            original_rows = frame.height
+            mask = pl.col("vza").is_not_nan() & (pl.col("vza") >= FINE_VZA_MIN) & (pl.col("vza") < FINE_VZA_MAX)
             for band in band_columns:
                 mask = mask & pl.col(band).is_not_nan() & (pl.col(band) > 0)
             frame = frame.filter(mask)
@@ -287,26 +288,29 @@ def load_fine_vza_from_plot_parquets(
                 frame = ensure_indices(frame).filter(
                     ground_filter_expressions(osavi_threshold, excess_green_threshold)
                 )
+            ground_filtered_rows = frame.height
+            frame = assign_fine_vza_bins(frame)
+            frame = sample_equal_vza_bins(frame, max_rows=MAX_PLOT_SAMPLE)
+            balanced_rows = frame.height
             filter_rows.append(
                 {
                     "year": year,
                     "week": week,
                     "plot_id": plot_id,
-                    "sampled_rows": sampled_rows,
+                    "original_rows": original_rows,
                     "rows_after_basic_quality": basic_rows,
-                    "rows_after_ground_filter": frame.height,
-                    "rows_removed_by_ground_filter": basic_rows - frame.height,
+                    "rows_after_ground_filter": ground_filtered_rows,
+                    "rows_after_equal_vza_sampling": balanced_rows,
+                    "rows_removed_by_ground_filter": basic_rows - ground_filtered_rows,
+                    "rows_removed_by_equal_vza_sampling": ground_filtered_rows - balanced_rows,
                     "ground_filter_enabled": ground_filter,
                     "osavi_threshold": osavi_threshold if ground_filter else None,
                     "excess_green_threshold": excess_green_threshold if ground_filter else None,
                 }
             )
-            frame = assign_fine_vza_bins(frame)
             if frame.is_empty():
                 continue
-            summary = frame.group_by("vza_class", "vza_midpoint").agg(
-                [pl.col(band).mean().alias(band) for band in band_columns]
-            )
+            summary = frame.group_by("vza_class", "vza_midpoint").agg([pl.col(band).mean().alias(band) for band in band_columns])
             for record in summary.to_dicts():
                 for band in band_columns:
                     rows.append(
@@ -348,11 +352,7 @@ def load_fine_vza_from_plot_parquets(
         logging.info(
             "[FILTER] ground filter OSAVI > %.3f%s: %d -> %d rows (removed %.2f%%)",
             osavi_threshold,
-            (
-                ""
-                if excess_green_threshold is None
-                else f", ExcessGreen > {excess_green_threshold:.3f}"
-            ),
+            "" if excess_green_threshold is None else f", ExcessGreen > {excess_green_threshold:.3f}",
             total_basic,
             total_after,
             ((total_basic - total_after) / total_basic * 100) if total_basic else 0,
@@ -383,21 +383,17 @@ def build_summaries(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.
     started = time.perf_counter()
     reference_class = long.sort("vza_midpoint")["vza_class"][0]
     logging.info("Using %s as the matched angular reference class", reference_class)
-    summary = (
-        long.group_by("week", "band", "band_name", "vza_class", "vza_midpoint")
-        .agg(
-            pl.len().alias("observations"),
-            pl.col("plot_id").n_unique().alias("plots"),
-            pl.col("reflectance").mean().alias("mean_reflectance"),
-            pl.col("reflectance").median().alias("median_reflectance"),
-            pl.col("reflectance").std().alias("sd_reflectance"),
-            pl.col("reflectance").quantile(0.05).alias("q05"),
-            pl.col("reflectance").quantile(0.25).alias("q25"),
-            pl.col("reflectance").quantile(0.75).alias("q75"),
-            pl.col("reflectance").quantile(0.95).alias("q95"),
-        )
-        .sort("band", "week", "vza_midpoint")
-    )
+    summary = long.group_by("week", "band", "band_name", "vza_class", "vza_midpoint").agg(
+        pl.len().alias("observations"),
+        pl.col("plot_id").n_unique().alias("plots"),
+        pl.col("reflectance").mean().alias("mean_reflectance"),
+        pl.col("reflectance").median().alias("median_reflectance"),
+        pl.col("reflectance").std().alias("sd_reflectance"),
+        pl.col("reflectance").quantile(0.05).alias("q05"),
+        pl.col("reflectance").quantile(0.25).alias("q25"),
+        pl.col("reflectance").quantile(0.75).alias("q75"),
+        pl.col("reflectance").quantile(0.95).alias("q95"),
+    ).sort("band", "week", "vza_midpoint")
 
     nadir = long.filter(pl.col("vza_class") == reference_class).select(
         "plot_id", "week", "band", pl.col("reflectance").alias("nadir_reflectance")
@@ -407,9 +403,9 @@ def build_summaries(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.
         .filter(pl.col("vza_class") != reference_class)
         .with_columns(
             (pl.col("reflectance") - pl.col("nadir_reflectance")).alias("absolute_contrast"),
-            (
-                (pl.col("reflectance") - pl.col("nadir_reflectance")) / pl.col("nadir_reflectance")
-            ).alias("relative_contrast"),
+            ((pl.col("reflectance") - pl.col("nadir_reflectance")) / pl.col("nadir_reflectance")).alias(
+                "relative_contrast"
+            ),
         )
     )
 
@@ -428,9 +424,7 @@ def build_summaries(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.
                 "matched_plots": group["plot_id"].n_unique(),
                 "mean_absolute_contrast": float(np.mean(values)),
                 "median_absolute_contrast": float(np.median(values)),
-                "sd_absolute_contrast": (
-                    float(np.std(values, ddof=1)) if values.size > 1 else np.nan
-                ),
+                "sd_absolute_contrast": float(np.std(values, ddof=1)) if values.size > 1 else np.nan,
                 "cohens_dz": paired_cohens_d(values),
                 "ci_low": ci_low,
                 "ci_high": ci_high,
@@ -470,9 +464,7 @@ def build_temporal_changes(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
             joined.with_columns(
                 pl.lit(earlier).alias("week_start"),
                 pl.lit(later).alias("week_end"),
-                (pl.col("later_reflectance") - pl.col("earlier_reflectance")).alias(
-                    "temporal_change"
-                ),
+                (pl.col("later_reflectance") - pl.col("earlier_reflectance")).alias("temporal_change"),
                 (
                     (pl.col("later_reflectance") - pl.col("earlier_reflectance"))
                     / pl.col("earlier_reflectance")
@@ -484,22 +476,18 @@ def build_temporal_changes(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
         log_phase("temporal_changes", started)
         return empty, empty
     temporal = pl.concat(rows).filter(pl.col("temporal_change").is_finite())
-    temporal_summary = (
-        temporal.group_by(
-            "week_start", "week_end", "band", "band_name", "vza_class", "vza_midpoint"
-        )
-        .agg(
-            pl.len().alias("matched_plot_angle_observations"),
-            pl.col("plot_id").n_unique().alias("matched_plots"),
-            pl.col("temporal_change").mean().alias("mean_temporal_change"),
-            pl.col("temporal_change").median().alias("median_temporal_change"),
-            pl.col("temporal_change").std().alias("sd_temporal_change"),
-            pl.col("temporal_change").quantile(0.25).alias("q25_temporal_change"),
-            pl.col("temporal_change").quantile(0.75).alias("q75_temporal_change"),
-            pl.col("relative_temporal_change").median().alias("median_relative_temporal_change"),
-        )
-        .sort("band", "week_start", "vza_midpoint")
-    )
+    temporal_summary = temporal.group_by(
+        "week_start", "week_end", "band", "band_name", "vza_class", "vza_midpoint"
+    ).agg(
+        pl.len().alias("matched_plot_angle_observations"),
+        pl.col("plot_id").n_unique().alias("matched_plots"),
+        pl.col("temporal_change").mean().alias("mean_temporal_change"),
+        pl.col("temporal_change").median().alias("median_temporal_change"),
+        pl.col("temporal_change").std().alias("sd_temporal_change"),
+        pl.col("temporal_change").quantile(0.25).alias("q25_temporal_change"),
+        pl.col("temporal_change").quantile(0.75).alias("q75_temporal_change"),
+        pl.col("relative_temporal_change").median().alias("median_relative_temporal_change"),
+    ).sort("band", "week_start", "vza_midpoint")
     log_phase("temporal_changes", started)
     return temporal, temporal_summary
 
@@ -547,31 +535,25 @@ def build_angular_contrast_changes(matched: pl.DataFrame) -> tuple[pl.DataFrame,
         log_phase("angular_contrast_changes", started)
         return empty, empty
     changes = pl.concat(rows).filter(pl.col("angular_contrast_change").is_finite())
-    summary = (
-        changes.group_by("week_start", "week_end", "band", "band_name", "vza_class", "vza_midpoint")
-        .agg(
-            pl.len().alias("matched_plot_angle_observations"),
-            pl.col("plot_id").n_unique().alias("matched_plots"),
-            pl.col("angular_contrast_change").mean().alias("mean_angular_contrast_change"),
-            pl.col("angular_contrast_change").median().alias("median_angular_contrast_change"),
-            pl.col("angular_contrast_change").std().alias("sd_angular_contrast_change"),
-            pl.col("angular_contrast_change").quantile(0.25).alias("q25_angular_contrast_change"),
-            pl.col("angular_contrast_change").quantile(0.75).alias("q75_angular_contrast_change"),
-            pl.col("relative_angular_contrast_change")
-            .median()
-            .alias("median_relative_angular_contrast_change"),
-        )
-        .sort("band", "week_start", "vza_midpoint")
-    )
+    summary = changes.group_by(
+        "week_start", "week_end", "band", "band_name", "vza_class", "vza_midpoint"
+    ).agg(
+        pl.len().alias("matched_plot_angle_observations"),
+        pl.col("plot_id").n_unique().alias("matched_plots"),
+        pl.col("angular_contrast_change").mean().alias("mean_angular_contrast_change"),
+        pl.col("angular_contrast_change").median().alias("median_angular_contrast_change"),
+        pl.col("angular_contrast_change").std().alias("sd_angular_contrast_change"),
+        pl.col("angular_contrast_change").quantile(0.25).alias("q25_angular_contrast_change"),
+        pl.col("angular_contrast_change").quantile(0.75).alias("q75_angular_contrast_change"),
+        pl.col("relative_angular_contrast_change").median().alias("median_relative_angular_contrast_change"),
+    ).sort("band", "week_start", "vza_midpoint")
     log_phase("angular_contrast_changes", started)
     return changes, summary
 
 
 def build_cultivar_angular_comparison(long: pl.DataFrame, matched: pl.DataFrame) -> pl.DataFrame:
     started = time.perf_counter()
-    reflectance = long.group_by(
-        "week", "band", "band_name", "vza_class", "vza_midpoint", "cult"
-    ).agg(
+    reflectance = long.group_by("week", "band", "band_name", "vza_class", "vza_midpoint", "cult").agg(
         pl.len().alias("observations"),
         pl.col("plot_id").n_unique().alias("plots"),
         pl.col("reflectance").mean().alias("mean_reflectance"),
@@ -601,12 +583,11 @@ def build_cultivar_angular_comparison(long: pl.DataFrame, matched: pl.DataFrame)
         )
         first, second = cultivars
         pivot = pivot.with_columns(
-            (pl.col(f"median_reflectance_{second}") - pl.col(f"median_reflectance_{first}")).alias(
-                f"median_reflectance_difference_{second}_minus_{first}"
-            ),
             (
-                pl.col(f"median_angular_contrast_{second}")
-                - pl.col(f"median_angular_contrast_{first}")
+                pl.col(f"median_reflectance_{second}") - pl.col(f"median_reflectance_{first}")
+            ).alias(f"median_reflectance_difference_{second}_minus_{first}"),
+            (
+                pl.col(f"median_angular_contrast_{second}") - pl.col(f"median_angular_contrast_{first}")
             ).alias(f"median_angular_contrast_difference_{second}_minus_{first}"),
         )
         joined = joined.join(
@@ -626,17 +607,11 @@ def build_cultivar_angular_comparison(long: pl.DataFrame, matched: pl.DataFrame)
 
 def build_missingness_diagnostics(long: pl.DataFrame, year: int) -> pl.DataFrame:
     started = time.perf_counter()
-    plot_meta = pl.DataFrame(list(load_polygon_meta(year).values())).select(
-        "plot_id", "cult", "trt"
-    )
+    plot_meta = pl.DataFrame(list(load_polygon_meta(year).values())).select("plot_id", "cult", "trt")
     weeks = pl.DataFrame({"week": sorted(long["week"].unique().to_list())})
     angle_classes = long.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")
     expected = weeks.join(plot_meta, how="cross").join(angle_classes, how="cross")
-    present = (
-        long.select("week", "plot_id", "vza_class")
-        .unique()
-        .with_columns(pl.lit(1).alias("present"))
-    )
+    present = long.select("week", "plot_id", "vza_class").unique().with_columns(pl.lit(1).alias("present"))
     diagnostic = (
         expected.join(present, on=["week", "plot_id", "vza_class"], how="left")
         .with_columns(pl.col("present").fill_null(0).cast(pl.Int8))
@@ -646,9 +621,7 @@ def build_missingness_diagnostics(long: pl.DataFrame, year: int) -> pl.DataFrame
             pl.col("present").sum().alias("present_plots"),
             (pl.len() - pl.col("present").sum()).alias("missing_plots"),
         )
-        .with_columns(
-            (pl.col("missing_plots") / pl.col("expected_plots")).alias("missing_fraction")
-        )
+        .with_columns((pl.col("missing_plots") / pl.col("expected_plots")).alias("missing_fraction"))
         .sort("week", "vza_midpoint", "cult", "trt")
     )
     log_phase("missingness_diagnostics", started)
@@ -666,15 +639,11 @@ def fit_models(long: pl.DataFrame) -> pl.DataFrame:
             .sort("vza_midpoint")["vza_class"]
             .to_list()
         )
-        frame["vza_class"] = pd.Categorical(
-            frame["vza_class"], categories=angle_order, ordered=True
-        )
+        frame["vza_class"] = pd.Categorical(frame["vza_class"], categories=angle_order, ordered=True)
         fit_started = time.perf_counter()
         formula = "reflectance ~ C(vza_class) * C(week) + C(cult) + C(trt)"
         try:
-            model = smf.ols(formula, frame).fit(
-                cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
-            )
+            model = smf.ols(formula, frame).fit(cov_type="cluster", cov_kwds={"groups": frame["plot_id"]})
             conf = model.conf_int()
             for term, estimate in model.params.items():
                 rows.append(
@@ -709,9 +678,7 @@ def fit_models(long: pl.DataFrame) -> pl.DataFrame:
                     "error": str(exc),
                 }
             )
-        logging.info(
-            "[ML] fit %s clustered OLS: %.3fs", band_name, time.perf_counter() - fit_started
-        )
+        logging.info("[ML] fit %s clustered OLS: %.3fs", band_name, time.perf_counter() - fit_started)
     log_phase("clustered_models", started)
     return pl.DataFrame(rows)
 
@@ -720,10 +687,7 @@ def fit_cultivar_angle_models(long: pl.DataFrame) -> pl.DataFrame:
     started = time.perf_counter()
     rows = []
     angle_order = (
-        long.select("vza_class", "vza_midpoint")
-        .unique()
-        .sort("vza_midpoint")["vza_class"]
-        .to_list()
+        long.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
     )
     formulas = [
         ("full_cultivar_angle_week", "reflectance ~ C(cult) * C(vza_class) * C(week) + C(trt)"),
@@ -734,16 +698,12 @@ def fit_cultivar_angle_models(long: pl.DataFrame) -> pl.DataFrame:
     ]
     for band, band_name in BANDS.items():
         frame = long.filter(pl.col("band") == band).to_pandas()
-        frame["vza_class"] = pd.Categorical(
-            frame["vza_class"], categories=angle_order, ordered=True
-        )
+        frame["vza_class"] = pd.Categorical(frame["vza_class"], categories=angle_order, ordered=True)
         fitted = False
         for model_type, formula in formulas:
             fit_started = time.perf_counter()
             try:
-                model = smf.ols(formula, frame).fit(
-                    cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
-                )
+                model = smf.ols(formula, frame).fit(cov_type="cluster", cov_kwds={"groups": frame["plot_id"]})
                 conf = model.conf_int()
                 for term, estimate in model.params.items():
                     rows.append(
@@ -832,28 +792,17 @@ def angle_color_map(angle_order: list[str]) -> dict[str, str]:
 def plot_reflectance_distributions_by_vza(long: pl.DataFrame, output_dir: Path) -> None:
     started = time.perf_counter()
     angle_order = (
-        long.select("vza_class", "vza_midpoint")
-        .unique()
-        .sort("vza_midpoint")["vza_class"]
-        .to_list()
+        long.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
     )
     colors = angle_color_map(angle_order)
-    figure, axes = plt.subplots(
-        1, len(BANDS), figsize=(16, 4.8), sharex=True, constrained_layout=True
-    )
+    figure, axes = plt.subplots(1, len(BANDS), figsize=(16, 4.8), sharex=True, constrained_layout=True)
     for index, (axis, (band, band_name)) in enumerate(zip(axes, BANDS.items())):
         data = long.filter(pl.col("band") == band)
         values = [
             data.filter(pl.col("vza_class") == angle)["reflectance"].to_numpy()
             for angle in angle_order
         ]
-        box = axis.boxplot(
-            values,
-            positions=np.arange(len(angle_order)),
-            widths=0.58,
-            patch_artist=True,
-            showfliers=False,
-        )
+        box = axis.boxplot(values, positions=np.arange(len(angle_order)), widths=0.58, patch_artist=True, showfliers=False)
         for patch, angle in zip(box["boxes"], angle_order):
             patch.set(facecolor=colors[angle], edgecolor="#34495E", linewidth=0.8, alpha=0.72)
         for item in box["medians"]:
@@ -874,14 +823,7 @@ def plot_reflectance_distributions_by_vza(long: pl.DataFrame, output_dir: Path) 
         axis.set_title(band_name, loc="left", fontsize=10, fontweight="bold")
         axis.set_xticks(np.arange(len(angle_order)), angle_order, rotation=45, ha="right")
         axis.set_ylabel("Plot-level reflectance", fontsize=9)
-        axis.text(
-            -0.16,
-            1.04,
-            f"({chr(97 + index)})",
-            transform=axis.transAxes,
-            fontweight="bold",
-            fontsize=9,
-        )
+        axis.text(-0.16, 1.04, f"({chr(97 + index)})", transform=axis.transAxes, fontweight="bold", fontsize=9)
         style_axis(axis)
     figure.supxlabel("View zenith angle class (degrees)", fontsize=10)
     save_figure(figure, output_dir / "figures/main/reflectance_distributions_by_vza")
@@ -892,10 +834,7 @@ def plot_seasonal_distribution_atlas(long: pl.DataFrame, output_dir: Path, year:
     started = time.perf_counter()
     weeks = sorted(long["week"].unique().to_list())
     angle_order = (
-        long.select("vza_class", "vza_midpoint")
-        .unique()
-        .sort("vza_midpoint")["vza_class"]
-        .to_list()
+        long.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
     )
     colors = angle_color_map(angle_order)
     figure, axes = plt.subplots(
@@ -934,9 +873,7 @@ def plot_seasonal_distribution_atlas(long: pl.DataFrame, output_dir: Path, year:
             if col_index == 0:
                 axis.set_ylabel(f"{band_name}\nreflectance", fontsize=8.5)
             if row_index == len(BANDS) - 1:
-                axis.set_xticks(
-                    np.arange(len(angle_order)), angle_order, rotation=45, ha="right", fontsize=7
-                )
+                axis.set_xticks(np.arange(len(angle_order)), angle_order, rotation=45, ha="right", fontsize=7)
             else:
                 axis.set_xticks(np.arange(len(angle_order)), [])
             style_axis(axis)
@@ -950,9 +887,7 @@ def plot_angular_fingerprints(summary: pl.DataFrame, output_dir: Path, year: int
     for index, (band, band_name) in enumerate(BANDS.items()):
         axis = axes.flat[index]
         for week in sorted(summary["week"].unique().to_list()):
-            data = summary.filter((pl.col("band") == band) & (pl.col("week") == week)).sort(
-                "vza_midpoint"
-            )
+            data = summary.filter((pl.col("band") == band) & (pl.col("week") == week)).sort("vza_midpoint")
             x = data["vza_midpoint"].to_numpy()
             color = week_color(week)
             axis.plot(
@@ -964,20 +899,11 @@ def plot_angular_fingerprints(summary: pl.DataFrame, output_dir: Path, year: int
                 color=color,
                 label=f"Week {week}",
             )
-            axis.fill_between(
-                x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=color, alpha=0.13
-            )
+            axis.fill_between(x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=color, alpha=0.13)
         axis.set_title(band_name, loc="left", fontsize=10, fontweight="bold")
         axis.set_xlabel("View zenith angle (degrees)", fontsize=9)
         axis.set_ylabel("Reflectance", fontsize=9)
-        axis.text(
-            -0.12,
-            1.04,
-            f"({chr(97 + index)})",
-            transform=axis.transAxes,
-            fontweight="bold",
-            fontsize=9,
-        )
+        axis.text(-0.12, 1.04, f"({chr(97 + index)})", transform=axis.transAxes, fontweight="bold", fontsize=9)
         style_axis(axis)
     axes.flat[5].axis("off")
     handles, labels = axes.flat[0].get_legend_handles_labels()
@@ -996,12 +922,7 @@ def plot_angular_fingerprints(summary: pl.DataFrame, output_dir: Path, year: int
 def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path, reference_class: str) -> None:
     started = time.perf_counter()
     weeks = sorted(contrasts["week"].unique().to_list())
-    angle_order = (
-        contrasts.select("vza_class", "vza_midpoint")
-        .unique()
-        .sort("vza_midpoint")["vza_class"]
-        .to_list()
-    )
+    angle_order = contrasts.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
     height = max(8.4, len(BANDS) * len(angle_order) * 0.32)
     figure, axes = plt.subplots(
         1,
@@ -1028,9 +949,7 @@ def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path, reference_
         for band in BANDS:
             for angle in angle_order:
                 row = contrasts.filter(
-                    (pl.col("week") == week)
-                    & (pl.col("band") == band)
-                    & (pl.col("vza_class") == angle)
+                    (pl.col("week") == week) & (pl.col("band") == band) & (pl.col("vza_class") == angle)
                 )
                 values.append(row["median_absolute_contrast"][0] if row.height else np.nan)
                 lows.append(row["ci_low"][0] if row.height else np.nan)
@@ -1058,16 +977,7 @@ def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path, reference_
     axes[0].set_yticks(y, labels, fontsize=8)
     transform = blended_transform_factory(axes[0].transAxes, axes[0].transData)
     for center, band_name in zip(band_centers, BANDS.values()):
-        axes[0].text(
-            -0.23,
-            center,
-            band_name,
-            transform=transform,
-            ha="right",
-            va="center",
-            fontsize=9.5,
-            fontweight="bold",
-        )
+        axes[0].text(-0.23, center, band_name, transform=transform, ha="right", va="center", fontsize=9.5, fontweight="bold")
     axes[0].invert_yaxis()
     figure.suptitle("Matched angular reflectance effect by week", fontsize=13, fontweight="bold")
     figure.supxlabel(f"Reflectance difference vs {reference_class} degree VZA", fontsize=11)
@@ -1082,9 +992,7 @@ def plot_matched_contrasts(contrasts: pl.DataFrame, output_dir: Path, reference_
 def plot_seasonal_angular_contrast_change(contrast_summary: pl.DataFrame, output_dir: Path) -> None:
     started = time.perf_counter()
     if contrast_summary.is_empty():
-        logging.warning(
-            "Skipping seasonal contrast change figure because no contrast changes were built"
-        )
+        logging.warning("Skipping seasonal contrast change figure because no contrast changes were built")
         return
     angle_order = (
         contrast_summary.select("vza_class", "vza_midpoint")
@@ -1105,22 +1013,13 @@ def plot_seasonal_angular_contrast_change(contrast_summary: pl.DataFrame, output
             y = angle_data["median_angular_contrast_change"].to_numpy()
             q25 = angle_data["q25_angular_contrast_change"].to_numpy()
             q75 = angle_data["q75_angular_contrast_change"].to_numpy()
-            axis.plot(
-                x, y, marker="o", markersize=3.5, linewidth=1.45, color=colors[angle], label=angle
-            )
+            axis.plot(x, y, marker="o", markersize=3.5, linewidth=1.45, color=colors[angle], label=angle)
             axis.fill_between(x, q25, q75, color=colors[angle], alpha=0.12)
         axis.axhline(0, color="#222222", linewidth=0.9)
         axis.set_title(band_name, loc="left", fontsize=10, fontweight="bold")
         axis.set_xlabel("Later week in consecutive pair", fontsize=9)
         axis.set_ylabel("Change in off-nadir contrast", fontsize=9)
-        axis.text(
-            -0.12,
-            1.04,
-            f"({chr(97 + index)})",
-            transform=axis.transAxes,
-            fontweight="bold",
-            fontsize=9,
-        )
+        axis.text(-0.12, 1.04, f"({chr(97 + index)})", transform=axis.transAxes, fontweight="bold", fontsize=9)
         style_axis(axis)
     axes.flat[5].axis("off")
     handles, labels = axes.flat[0].get_legend_handles_labels()
@@ -1146,23 +1045,20 @@ def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path, year: int) -> Non
             for cultivar in sorted(long["cult"].unique().to_list()):
                 data = (
                     long.filter(
-                        (pl.col("band") == band)
-                        & (pl.col("week") == week)
-                        & (pl.col("cult") == cultivar)
+                        (pl.col("band") == band) & (pl.col("week") == week) & (pl.col("cult") == cultivar)
                     )
                     .group_by("vza_class", "vza_midpoint")
                     .agg(
                         pl.col("reflectance").mean().alias("mean"),
-                        pl.col("reflectance").std().alias("sd"),
+                        pl.col("reflectance").quantile(0.25).alias("q25"),
+                        pl.col("reflectance").quantile(0.75).alias("q75"),
                         pl.len().alias("n"),
                     )
-                    .with_columns((pl.col("sd") / pl.col("n").sqrt()).alias("se"))
                     .sort("vza_midpoint")
                 )
                 color, linestyle = CULTIVAR_STYLES[cultivar]
                 x = data["vza_midpoint"].to_numpy()
                 mean = data["mean"].to_numpy()
-                se = data["se"].to_numpy()
                 axis.plot(
                     x,
                     mean,
@@ -1173,7 +1069,7 @@ def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path, year: int) -> Non
                     linewidth=1.5,
                     label=cultivar.capitalize(),
                 )
-                axis.fill_between(x, mean - 1.96 * se, mean + 1.96 * se, color=color, alpha=0.1)
+                axis.fill_between(x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=color, alpha=0.12)
             if row_index == 0:
                 axis.set_title(f"Week {week}", fontsize=10, fontweight="bold")
             if column_index == 0:
@@ -1182,9 +1078,7 @@ def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path, year: int) -> Non
                 axis.set_xlabel("VZA (degrees)", fontsize=9)
             style_axis(axis)
     handles, labels = axes[0, -1].get_legend_handles_labels()
-    figure.legend(
-        handles, labels, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.03)
-    )
+    figure.legend(handles, labels, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.03))
     save_figure(
         figure,
         output_dir / f"figures/main/angular_reflectance_curves_by_cultivar_{year}",
@@ -1194,6 +1088,124 @@ def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path, year: int) -> Non
         ],
     )
     log_phase("cultivar_figure", started)
+
+
+def _plot_grouped_angular_curves(
+    long: pl.DataFrame,
+    output_dir: Path,
+    year: int,
+    group_columns: list[str],
+    style_lookup: dict[str, tuple[str, str]],
+    output_stem: str,
+    legend_title: str,
+    phase_name: str,
+) -> None:
+    started = time.perf_counter()
+    selected_bands = list(BANDS)
+    weeks = sorted(long["week"].unique().to_list())
+    groups = (
+        long.select(group_columns)
+        .unique()
+        .sort(group_columns)
+        .with_columns(pl.concat_str(group_columns, separator=" | ").alias("group_label"))
+    )
+    group_labels = groups["group_label"].to_list()
+    figure, axes = plt.subplots(
+        len(selected_bands),
+        len(weeks),
+        figsize=(3.15 * len(weeks), 13.5),
+        sharex=True,
+        constrained_layout=True,
+    )
+    for row_index, band in enumerate(selected_bands):
+        for column_index, week in enumerate(weeks):
+            axis = axes[row_index, column_index]
+            for group in groups.iter_rows(named=True):
+                group_label = group["group_label"]
+                filters = (pl.col("band") == band) & (pl.col("week") == week)
+                for column in group_columns:
+                    filters = filters & (pl.col(column) == group[column])
+                data = (
+                    long.filter(filters)
+                    .group_by("vza_class", "vza_midpoint")
+                    .agg(
+                        pl.col("reflectance").mean().alias("mean"),
+                        pl.col("reflectance").quantile(0.25).alias("q25"),
+                        pl.col("reflectance").quantile(0.75).alias("q75"),
+                        pl.len().alias("n"),
+                    )
+                    .sort("vza_midpoint")
+                )
+                if data.is_empty():
+                    continue
+                color, linestyle = style_lookup[group_label]
+                x = data["vza_midpoint"].to_numpy()
+                axis.plot(
+                    x,
+                    data["mean"].to_numpy(),
+                    color=color,
+                    linestyle=linestyle,
+                    marker="o",
+                    markersize=2.8,
+                    linewidth=1.35,
+                    label=group_label,
+                )
+                axis.fill_between(x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=color, alpha=0.10)
+            if row_index == 0:
+                axis.set_title(f"Week {week}", fontsize=10, fontweight="bold")
+            if column_index == 0:
+                axis.set_ylabel(f"{BANDS[band]}\nreflectance", fontsize=9)
+            if row_index == len(selected_bands) - 1:
+                axis.set_xlabel("VZA (degrees)", fontsize=9)
+            style_axis(axis)
+    handles, labels = axes[0, -1].get_legend_handles_labels()
+    order = [labels.index(group) for group in group_labels if group in labels]
+    handles = [handles[index] for index in order]
+    labels = [labels[index] for index in order]
+    figure.legend(
+        handles,
+        labels,
+        loc="upper center",
+        ncol=min(4, max(1, len(labels))),
+        frameon=False,
+        title=legend_title,
+        bbox_to_anchor=(0.5, 1.035),
+    )
+    save_figure(figure, output_dir / f"figures/main/{output_stem}_{year}")
+    log_phase(phase_name, started)
+
+
+def plot_treatment_curves(long: pl.DataFrame, output_dir: Path, year: int) -> None:
+    style_lookup = {treatment: TREATMENT_STYLES.get(treatment, ("#4D4D4D", "-")) for treatment in long["trt"].unique()}
+    _plot_grouped_angular_curves(
+        long=long,
+        output_dir=output_dir,
+        year=year,
+        group_columns=["trt"],
+        style_lookup=style_lookup,
+        output_stem="angular_reflectance_curves_by_treatment",
+        legend_title="Treatment",
+        phase_name="treatment_figure",
+    )
+
+
+def plot_cultivar_treatment_curves(long: pl.DataFrame, output_dir: Path, year: int) -> None:
+    style_lookup = {}
+    for cultivar in sorted(long["cult"].unique().to_list()):
+        color, _ = CULTIVAR_STYLES.get(cultivar, ("#4D4D4D", "-"))
+        for treatment in sorted(long["trt"].unique().to_list()):
+            _, linestyle = TREATMENT_STYLES.get(treatment, ("#4D4D4D", "-"))
+            style_lookup[f"{cultivar} | {treatment}"] = (color, linestyle)
+    _plot_grouped_angular_curves(
+        long=long,
+        output_dir=output_dir,
+        year=year,
+        group_columns=["cult", "trt"],
+        style_lookup=style_lookup,
+        output_stem="angular_reflectance_curves_by_cultivar_treatment",
+        legend_title="Cultivar | Treatment",
+        phase_name="cultivar_treatment_figure",
+    )
 
 
 def write_report(
@@ -1227,9 +1239,7 @@ def write_report(
         .sort("magnitude", descending=True)
         .head(10)
     )
-    sparse = contrasts.filter(pl.col("matched_plots") < 10).sort(
-        "matched_plots", "week", "vza_midpoint"
-    )
+    sparse = contrasts.filter(pl.col("matched_plots") < 10).sort("matched_plots", "week", "vza_midpoint")
     significant = models.filter(pl.col("p_value").is_not_null() & (pl.col("p_value") < 0.05)).height
     cultivar_significant = cultivar_models.filter(
         pl.col("p_value").is_not_null() & (pl.col("p_value") < 0.05)
@@ -1357,6 +1367,8 @@ def write_report(
             f"- Cultivar angle model: `{output_dir / f'results/cultivar_angle_model_{year}.csv'}`",
             f"- Missingness diagnostics: `{output_dir / f'results/missing_plot_support_by_week_angle_cultivar_{year}.csv'}`",
             f"- Main figures: `{output_dir / 'figures/main'}`",
+            f"- Treatment angular curves: `{output_dir / f'figures/main/angular_reflectance_curves_by_treatment_{year}.png'}`",
+            f"- Cultivar-by-treatment angular curves: `{output_dir / f'figures/main/angular_reflectance_curves_by_cultivar_treatment_{year}.png'}`",
             "",
             "## Reproducibility",
             "",
@@ -1381,9 +1393,7 @@ def write_report(
     with report_path.open("w", encoding="utf-8") as handle:
         handle.write("\n".join(lines))
     shutil.copyfile(report_path, output_dir / "reports/reflectance_distributions_summary.md")
-    shutil.copyfile(
-        report_path, output_dir / "reports/reflectance_distributions_preliminary_summary.md"
-    )
+    shutil.copyfile(report_path, output_dir / "reports/reflectance_distributions_preliminary_summary.md")
     log_phase("report", started)
 
 
@@ -1410,11 +1420,19 @@ def write_captions(output_dir: Path, long: pl.DataFrame, year: int) -> None:
         "",
         "## Figure 4. Cultivar angular response",
         "",
-        "Cultivar-specific angular reflectance curves by week and band. Lines show cultivar means across plot-level observations; ribbons show approximate 95% intervals from standard errors. Cultivar differences are interpreted as canopy and trial-structure diagnostics, not disease effects.",
+        "Cultivar-specific angular reflectance curves by week and band. Lines show cultivar means across plot-level observations; shaded ribbons show the interquartile range. Cultivar differences are interpreted as canopy and trial-structure diagnostics, not disease effects.",
         "",
         "## Figure 5. Seasonal change in angular contrast",
         "",
         "Changes in matched off-nadir contrast between consecutive validated weeks. Lines show median changes in angular contrast for each VZA class, with interquartile ribbons across matched plots.",
+        "",
+        "## Treatment angular response",
+        "",
+        "Treatment-specific angular reflectance curves by week and band. Lines show treatment means across plot-level observations; shaded ribbons show the interquartile range. These curves are diagnostic for trial-structure effects and should not be interpreted as disease effects.",
+        "",
+        "## Cultivar-by-treatment angular response",
+        "",
+        "Cultivar-by-treatment angular reflectance curves by week and band. Color identifies cultivar and line style identifies treatment; shaded ribbons show the interquartile range. These curves show whether cultivar patterns are consistent within treated and untreated plots.",
         "",
     ]
     path = output_dir / f"reports/figure_captions_{year}.md"
@@ -1443,9 +1461,7 @@ def main() -> None:
         )
     else:
         if args.ground_filter:
-            raise ValueError(
-                "--ground-filter requires --fine-vza-bins so filtering is applied before aggregation."
-            )
+            raise ValueError("--ground-filter requires --fine-vza-bins so filtering is applied before aggregation.")
         long = load_long(args.input, args.year)
         filter_stats = pl.DataFrame()
     reference_class = long.sort("vza_midpoint")["vza_class"][0]
@@ -1459,15 +1475,12 @@ def main() -> None:
 
     results_dir = output_dir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
-    long.write_parquet(
-        results_dir / f"plot_week_angle_features_{args.year}.parquet", compression="zstd"
-    )
-    matched.write_parquet(
-        results_dir / f"matched_plot_contrasts_{args.year}.parquet", compression="zstd"
-    )
-    temporal.write_parquet(
-        results_dir / f"matched_temporal_changes_{args.year}.parquet", compression="zstd"
-    )
+    retention_path = results_dir / f"ground_filter_retention_{args.year}.csv"
+    if not args.ground_filter and retention_path.exists():
+        retention_path.unlink()
+    long.write_parquet(results_dir / f"plot_week_angle_features_{args.year}.parquet", compression="zstd")
+    matched.write_parquet(results_dir / f"matched_plot_contrasts_{args.year}.parquet", compression="zstd")
+    temporal.write_parquet(results_dir / f"matched_temporal_changes_{args.year}.parquet", compression="zstd")
     contrast_changes.write_parquet(
         results_dir / f"matched_angular_contrast_changes_{args.year}.parquet", compression="zstd"
     )
@@ -1478,11 +1491,9 @@ def main() -> None:
     cultivar_comparison.write_csv(results_dir / f"cultivar_angular_comparison_{args.year}.csv")
     models.write_csv(results_dir / "angle_week_cultivar_models_preliminary.csv")
     cultivar_models.write_csv(results_dir / f"cultivar_angle_model_{args.year}.csv")
-    missingness.write_csv(
-        results_dir / f"missing_plot_support_by_week_angle_cultivar_{args.year}.csv"
-    )
-    if filter_stats.height:
-        filter_stats.write_csv(results_dir / f"ground_filter_retention_{args.year}.csv")
+    missingness.write_csv(results_dir / f"missing_plot_support_by_week_angle_cultivar_{args.year}.csv")
+    if args.ground_filter and filter_stats.height:
+        filter_stats.write_csv(retention_path)
     shutil.copyfile(
         results_dir / f"plot_week_angle_features_{args.year}.parquet",
         results_dir / "plot_week_angle_features_preliminary.parquet",
@@ -1491,14 +1502,8 @@ def main() -> None:
         results_dir / f"matched_plot_contrasts_{args.year}.parquet",
         results_dir / "matched_plot_contrasts_preliminary.parquet",
     )
-    shutil.copyfile(
-        results_dir / "reflectance_by_vza_summary.csv",
-        results_dir / "reflectance_by_vza_summary_preliminary.csv",
-    )
-    shutil.copyfile(
-        results_dir / "matched_angular_contrasts.csv",
-        results_dir / "matched_angular_contrasts_preliminary.csv",
-    )
+    shutil.copyfile(results_dir / "reflectance_by_vza_summary.csv", results_dir / "reflectance_by_vza_summary_preliminary.csv")
+    shutil.copyfile(results_dir / "matched_angular_contrasts.csv", results_dir / "matched_angular_contrasts_preliminary.csv")
 
     plot_reflectance_distributions_by_vza(long, output_dir)
     plot_seasonal_distribution_atlas(long, output_dir, args.year)
@@ -1506,6 +1511,8 @@ def main() -> None:
     plot_matched_contrasts(contrasts, output_dir, reference_class)
     plot_seasonal_angular_contrast_change(contrast_change_summary, output_dir)
     plot_cultivar_curves(long, output_dir, args.year)
+    plot_treatment_curves(long, output_dir, args.year)
+    plot_cultivar_treatment_curves(long, output_dir, args.year)
     write_report(
         output_dir,
         args.input,

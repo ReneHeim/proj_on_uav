@@ -5,6 +5,8 @@ import polars as pl
 import pytest
 
 import run_year_analysis
+from src.analysis import result_01_raa_sun_geometry as raa_geometry
+from src.analysis import result_01_reflectance_distributions as result_01
 from src.models import compare_feature_sets
 from src.models.early_warning_prediction import build_temporal_dataset
 from src.models.feature_selection import (
@@ -108,6 +110,81 @@ def test_temporal_dataset_joins_on_year_when_available():
     assert merged.height == 2
     assert merged["year"].to_list() == [2024, 2025]
     assert merged["target_label"].to_list() == [1, 0]
+
+
+def test_result_01_cached_loader_overrides_stale_treatment_metadata(tmp_path, monkeypatch):
+    cached = pl.DataFrame(
+        {
+            "plot_id": ["plot_0"],
+            "week": [8],
+            "year": [2024],
+            "cult": ["wrong_cultivar"],
+            "trt": ["no_trt"],
+            "band5_vza0_15": [0.42],
+        }
+    )
+    path = tmp_path / "cached.parquet"
+    cached.write_parquet(path)
+    corrected = pl.DataFrame({"plot_id": ["plot_0"], "cult": ["aluco"], "trt": ["trt"]})
+    monkeypatch.setattr(result_01, "corrected_plot_metadata_frame", lambda year: corrected)
+
+    loaded = result_01.load_long(path, 2024)
+
+    assert loaded.select("plot_id", "cult", "trt").unique().to_dicts() == [
+        {"plot_id": "plot_0", "cult": "aluco", "trt": "trt"}
+    ]
+
+
+def test_raa_wraparound_uses_shortest_sun_view_angle():
+    frame = pl.DataFrame(
+        {
+            "saa": [350.0, 10.0, 180.0],
+            "vaa": [10.0, 350.0, 0.0],
+        }
+    ).with_columns(
+        raa_geometry.raa_signed_expr().alias("raa_signed"),
+        raa_geometry.raa_abs_expr().alias("raa_abs"),
+    )
+
+    assert frame["raa_signed"].round(6).to_list() == [-20.0, 20.0, -180.0]
+    assert frame["raa_abs"].round(6).to_list() == [20.0, 20.0, 180.0]
+
+
+def test_phase_angle_is_finite_and_bounded():
+    frame = pl.DataFrame(
+        {
+            "sunelev": [90.0, 45.0, 30.0],
+            "vza": [0.0, 30.0, 50.0],
+            "raa_abs": [0.0, 90.0, 180.0],
+        }
+    ).with_columns(raa_geometry.phase_angle_expr().alias("phase_angle"))
+
+    assert frame["phase_angle"].is_between(0, 180).all()
+    assert frame["phase_angle"].is_finite().all()
+
+
+def test_geometry_bins_handle_raa_and_phase_edges():
+    frame = pl.DataFrame(
+        {
+            "vza": [10.0, 54.9],
+            "raa_abs": [0.0, 180.0],
+            "phase_angle": [0.0, 180.0],
+        }
+    )
+
+    binned = raa_geometry.assign_geometry_bins(frame)
+
+    assert binned["vza_class"].to_list() == ["10-15", "50-55"]
+    assert binned["raa_class"].to_list() == ["0-45", "135-180"]
+    assert binned["phase_class"].to_list() == ["0-10", "170-180"]
+
+
+def test_raa_model_term_parser_labels_interactions():
+    term = "C(vza_class)[T.45-50]:C(raa_class)[T.90-135]"
+
+    assert raa_geometry.classify_model_term(term) == "vza_raa_interaction"
+    assert raa_geometry.model_term_level(term, "vza_class") == "45-50"
+    assert raa_geometry.model_term_level(term, "raa_class") == "90-135"
 
 
 def test_compare_feature_sets_fails_when_requested_year_has_no_results(monkeypatch):
