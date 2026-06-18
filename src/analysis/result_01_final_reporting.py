@@ -15,7 +15,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
 
-from src.analysis.result_01_reflectance_distributions import BANDS, DEFAULT_OUTPUT, SEED, style_axis
+from src.analysis.result_01_reflectance_distributions import (
+    BANDS,
+    DEFAULT_OUTPUT,
+    SEED,
+    style_axis,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 VZA_OUTPUT = DEFAULT_OUTPUT
@@ -31,7 +36,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vza-output", type=Path, default=VZA_OUTPUT)
     parser.add_argument("--raa-output", type=Path, default=RAA_OUTPUT)
-    parser.add_argument("--filter-state", default="ground_filtered", choices=["ground_filtered", "unfiltered"])
+    parser.add_argument(
+        "--filter-state", default="ground_filtered", choices=["ground_filtered", "unfiltered"]
+    )
     return parser.parse_args()
 
 
@@ -80,7 +87,9 @@ def raa_results_dir(base: Path, year: int, filter_state: str) -> Path:
 def build_vza_support(vza_output: Path, filter_state: str) -> pl.DataFrame:
     rows = []
     for year in YEARS:
-        summary = read_csv(vza_results_dir(vza_output, year, filter_state) / "reflectance_by_vza_summary.csv")
+        summary = read_csv(
+            vza_results_dir(vza_output, year, filter_state) / "reflectance_by_vza_summary.csv"
+        )
         rows.append(
             summary.group_by("week", "vza_class", "vza_midpoint")
             .agg(
@@ -90,16 +99,22 @@ def build_vza_support(vza_output: Path, filter_state: str) -> pl.DataFrame:
             )
             .select("year", "week", "vza_class", "vza_midpoint", "plots", "band_observations")
         )
-    support = pl.concat(rows).with_columns((pl.col("plots") < MIN_HEADLINE_PLOTS).alias("is_sparse"))
+    support = pl.concat(rows).with_columns(
+        (pl.col("plots") < MIN_HEADLINE_PLOTS).alias("is_sparse")
+    )
     return support.sort("year", "week", "vza_midpoint")
 
 
 def build_raa_support(raa_output: Path, filter_state: str) -> pl.DataFrame:
     rows = []
     for year in YEARS:
-        support = read_csv(raa_results_dir(raa_output, year, filter_state) / f"raa_support_by_week_vza_{year}.csv")
+        support = read_csv(
+            raa_results_dir(raa_output, year, filter_state) / f"raa_support_by_week_vza_{year}.csv"
+        )
         rows.append(
-            support.group_by("year", "week", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint")
+            support.group_by(
+                "year", "week", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint"
+            )
             .agg(
                 pl.col("plots").min().alias("plots"),
                 pl.col("pixels").sum().alias("pixels"),
@@ -115,12 +130,15 @@ def plot_angular_support(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
     figure, axes = plt.subplots(2, 2, figsize=(12.8, 8.4), constrained_layout=True)
     for col, year in enumerate(YEARS):
         data = vza_support.filter(pl.col("year") == year)
-        matrix = (
-            data.pivot(on="vza_class", index="week", values="plots", aggregate_function="mean")
-            .sort("week")
+        matrix = data.pivot(
+            on="vza_class", index="week", values="plots", aggregate_function="mean"
+        ).sort("week")
+        vza_cols = sorted(
+            [c for c in matrix.columns if c != "week"], key=lambda x: int(x.split("-")[0])
         )
-        vza_cols = sorted([c for c in matrix.columns if c != "week"], key=lambda x: int(x.split("-")[0]))
-        image = axes[0, col].imshow(matrix.select(vza_cols).to_numpy(), aspect="auto", cmap="YlGnBu", vmin=0, vmax=24)
+        image = axes[0, col].imshow(
+            matrix.select(vza_cols).to_numpy(), aspect="auto", cmap="YlGnBu", vmin=0, vmax=24
+        )
         axes[0, col].set_title(f"{year}: VZA support", fontweight="bold")
         axes[0, col].set_yticks(range(matrix.height), matrix["week"].to_list())
         axes[0, col].set_xticks(range(len(vza_cols)), vza_cols, rotation=45, ha="right")
@@ -128,17 +146,25 @@ def plot_angular_support(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
         axes[0, col].set_xlabel("VZA class")
         for row_i in range(matrix.height):
             for col_i, value in enumerate(matrix.select(vza_cols).to_numpy()[row_i]):
-                axes[0, col].text(col_i, row_i, f"{int(value)}", ha="center", va="center", fontsize=7)
+                axes[0, col].text(
+                    col_i, row_i, f"{int(value)}", ha="center", va="center", fontsize=7
+                )
         raa = (
             raa_support.filter(pl.col("year") == year)
             .group_by("vza_class", "vza_midpoint", "raa_class", "raa_midpoint")
             .agg(pl.col("plots").median().alias("median_plots"))
             .sort("vza_midpoint", "raa_midpoint")
         )
-        raa_matrix = raa.pivot(on="raa_class", index="vza_class", values="median_plots", aggregate_function="mean")
+        raa_matrix = raa.pivot(
+            on="raa_class", index="vza_class", values="median_plots", aggregate_function="mean"
+        )
         raa_matrix = raa_matrix.sort("vza_class")
-        raa_cols = sorted([c for c in raa_matrix.columns if c != "vza_class"], key=lambda x: int(x.split("-")[0]))
-        axes[1, col].imshow(raa_matrix.select(raa_cols).to_numpy(), aspect="auto", cmap="YlGnBu", vmin=0, vmax=24)
+        raa_cols = sorted(
+            [c for c in raa_matrix.columns if c != "vza_class"], key=lambda x: int(x.split("-")[0])
+        )
+        axes[1, col].imshow(
+            raa_matrix.select(raa_cols).to_numpy(), aspect="auto", cmap="YlGnBu", vmin=0, vmax=24
+        )
         axes[1, col].set_title(f"{year}: median RAA support within VZA", fontweight="bold")
         axes[1, col].set_yticks(range(raa_matrix.height), raa_matrix["vza_class"].to_list())
         axes[1, col].set_xticks(range(len(raa_cols)), raa_cols, rotation=45, ha="right")
@@ -147,10 +173,15 @@ def plot_angular_support(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
         vals = raa_matrix.select(raa_cols).to_numpy()
         for row_i in range(raa_matrix.height):
             for col_i, value in enumerate(vals[row_i]):
-                axes[1, col].text(col_i, row_i, f"{value:.0f}", ha="center", va="center", fontsize=7)
+                axes[1, col].text(
+                    col_i, row_i, f"{value:.0f}", ha="center", va="center", fontsize=7
+                )
     figure.colorbar(image, ax=axes, shrink=0.70, label="Plots")
     save_figure(figure, FINAL_FIGURES / "angular_support_heatmap")
-    save_figure(figure_from_geometry(vza_support, raa_support), FINAL_FIGURES / "observation_geometry_distribution")
+    save_figure(
+        figure_from_geometry(vza_support, raa_support),
+        FINAL_FIGURES / "observation_geometry_distribution",
+    )
     log_phase("support_figures", started)
 
 
@@ -163,8 +194,19 @@ def figure_from_geometry(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
             .agg(pl.col("plots").mean().alias("mean_plots"))
             .sort("vza_midpoint")
         )
-        axes[0].plot(data["vza_midpoint"].to_numpy(), data["mean_plots"].to_numpy(), marker="o", label=str(year))
-    axes[0].axhline(MIN_HEADLINE_PLOTS, color="#8B1A1A", linestyle="--", linewidth=1.0, label="headline threshold")
+        axes[0].plot(
+            data["vza_midpoint"].to_numpy(),
+            data["mean_plots"].to_numpy(),
+            marker="o",
+            label=str(year),
+        )
+    axes[0].axhline(
+        MIN_HEADLINE_PLOTS,
+        color="#8B1A1A",
+        linestyle="--",
+        linewidth=1.0,
+        label="headline threshold",
+    )
     axes[0].set_title("VZA sampling support", loc="left", fontweight="bold")
     axes[0].set_xlabel("VZA midpoint (degrees)")
     axes[0].set_ylabel("Mean plots per week")
@@ -177,8 +219,19 @@ def figure_from_geometry(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
             .agg(pl.col("plots").mean().alias("mean_plots"))
             .sort("raa_midpoint")
         )
-        axes[1].plot(data["raa_midpoint"].to_numpy(), data["mean_plots"].to_numpy(), marker="o", label=str(year))
-    axes[1].axhline(MIN_HEADLINE_PLOTS, color="#8B1A1A", linestyle="--", linewidth=1.0, label="headline threshold")
+        axes[1].plot(
+            data["raa_midpoint"].to_numpy(),
+            data["mean_plots"].to_numpy(),
+            marker="o",
+            label=str(year),
+        )
+    axes[1].axhline(
+        MIN_HEADLINE_PLOTS,
+        color="#8B1A1A",
+        linestyle="--",
+        linewidth=1.0,
+        label="headline threshold",
+    )
     axes[1].set_title("RAA sampling support", loc="left", fontweight="bold")
     axes[1].set_xlabel("RAA midpoint (degrees)")
     axes[1].set_ylabel("Mean plots per VZA/week")
@@ -189,11 +242,15 @@ def figure_from_geometry(vza_support: pl.DataFrame, raa_support: pl.DataFrame) -
 
 def plot_vza_year_comparison(vza_output: Path, filter_state: str) -> None:
     started = time.perf_counter()
-    figure, axes = plt.subplots(len(BANDS), len(YEARS), figsize=(8.8, 10.8), constrained_layout=True, sharex=True)
+    figure, axes = plt.subplots(
+        len(BANDS), len(YEARS), figsize=(8.8, 10.8), constrained_layout=True, sharex=True
+    )
     contrasts_by_year = {}
     band_limits: dict[str, tuple[float, float]] = {}
     for col, year in enumerate(YEARS):
-        contrasts = read_csv(vza_results_dir(vza_output, year, filter_state) / "matched_angular_contrasts.csv")
+        contrasts = read_csv(
+            vza_results_dir(vza_output, year, filter_state) / "matched_angular_contrasts.csv"
+        )
         contrasts_by_year[year] = contrasts.filter(pl.col("matched_plots") >= MIN_HEADLINE_PLOTS)
     for band in BANDS:
         limits = []
@@ -223,7 +280,13 @@ def plot_vza_year_comparison(vza_output: Path, filter_state: str) -> None:
             x = data["vza_midpoint"].to_numpy()
             y = data["median_contrast"].to_numpy()
             axis.plot(x, y, marker="o", linewidth=1.5, color="#176B6B")
-            axis.fill_between(x, data["ci_low"].to_numpy(), data["ci_high"].to_numpy(), color="#76A9A9", alpha=0.22)
+            axis.fill_between(
+                x,
+                data["ci_low"].to_numpy(),
+                data["ci_high"].to_numpy(),
+                color="#76A9A9",
+                alpha=0.22,
+            )
             axis.axhline(0, color="#333333", linewidth=0.8)
             if band in band_limits:
                 axis.set_ylim(*band_limits[band])
@@ -258,7 +321,12 @@ def plot_workflow_schematic() -> None:
             ha="center",
             va="center",
             fontsize=10,
-            bbox={"boxstyle": "round,pad=0.45", "facecolor": "#F4F7F7", "edgecolor": "#176B6B", "linewidth": 1.2},
+            bbox={
+                "boxstyle": "round,pad=0.45",
+                "facecolor": "#F4F7F7",
+                "edgecolor": "#176B6B",
+                "linewidth": 1.2,
+            },
         )
     arrows = [
         ((0.19, 0.60), (0.31, 0.76)),
@@ -267,7 +335,9 @@ def plot_workflow_schematic() -> None:
         ((0.51, 0.38), (0.61, 0.38)),
     ]
     for start, end in arrows:
-        axis.annotate("", xy=end, xytext=start, arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "#333333"})
+        axis.annotate(
+            "", xy=end, xytext=start, arrowprops={"arrowstyle": "->", "lw": 1.4, "color": "#333333"}
+        )
     axis.text(
         0.50,
         0.10,
@@ -285,13 +355,17 @@ def build_evidence_table(vza_output: Path, raa_output: Path, filter_state: str) 
     rows = []
     for year in YEARS:
         vza = (
-            read_csv(vza_results_dir(vza_output, year, filter_state) / "matched_angular_contrasts.csv")
+            read_csv(
+                vza_results_dir(vza_output, year, filter_state) / "matched_angular_contrasts.csv"
+            )
             .filter(pl.col("matched_plots") >= MIN_HEADLINE_PLOTS)
             .with_columns(pl.col("median_absolute_contrast").abs().alias("magnitude"))
             .sort("magnitude", descending=True)
             .head(8)
         )
-        vza_model = read_csv(vza_results_dir(vza_output, year, filter_state) / f"vza_model_comparison_{year}.csv")
+        vza_model = read_csv(
+            vza_results_dir(vza_output, year, filter_state) / f"vza_model_comparison_{year}.csv"
+        )
         for record in vza.iter_rows(named=True):
             model = vza_model.filter(pl.col("band") == record["band"]).row(0, named=True)
             rows.append(
@@ -314,13 +388,18 @@ def build_evidence_table(vza_output: Path, raa_output: Path, filter_state: str) 
                 }
             )
         raa = (
-            read_csv(raa_results_dir(raa_output, year, filter_state) / f"matched_raa_contrasts_{year}.csv")
+            read_csv(
+                raa_results_dir(raa_output, year, filter_state)
+                / f"matched_raa_contrasts_{year}.csv"
+            )
             .filter(pl.col("matched_plots") >= MIN_HEADLINE_PLOTS)
             .with_columns(pl.col("median_absolute_contrast").abs().alias("magnitude"))
             .sort("magnitude", descending=True)
             .head(8)
         )
-        raa_model = read_csv(raa_results_dir(raa_output, year, filter_state) / f"raa_vza_model_comparison_{year}.csv")
+        raa_model = read_csv(
+            raa_results_dir(raa_output, year, filter_state) / f"raa_vza_model_comparison_{year}.csv"
+        )
         for record in raa.iter_rows(named=True):
             model = raa_model.filter(pl.col("band") == record["band"]).row(0, named=True)
             rows.append(
@@ -354,9 +433,13 @@ def build_evidence_table(vza_output: Path, raa_output: Path, filter_state: str) 
 def build_robustness(vza_output: Path, raa_output: Path, filter_state: str) -> pl.DataFrame:
     rows = []
     for year in YEARS:
-        vza_summary = read_csv(vza_results_dir(vza_output, year, filter_state) / "reflectance_by_vza_summary.csv")
+        vza_summary = read_csv(
+            vza_results_dir(vza_output, year, filter_state) / "reflectance_by_vza_summary.csv"
+        )
         mean_median = vza_summary.with_columns(
-            (pl.col("mean_reflectance") - pl.col("median_reflectance")).abs().alias("abs_mean_median_gap")
+            (pl.col("mean_reflectance") - pl.col("median_reflectance"))
+            .abs()
+            .alias("abs_mean_median_gap")
         )
         rows.append(
             {
@@ -366,10 +449,17 @@ def build_robustness(vza_output: Path, raa_output: Path, filter_state: str) -> p
                 "n_rows": mean_median.height,
                 "max_abs_difference": float(mean_median["abs_mean_median_gap"].max()),
                 "median_abs_difference": float(mean_median["abs_mean_median_gap"].median()),
-                "status": "pass" if float(mean_median["abs_mean_median_gap"].median()) < 0.01 else "review",
+                "status": (
+                    "pass"
+                    if float(mean_median["abs_mean_median_gap"].median()) < 0.01
+                    else "review"
+                ),
             }
         )
-        features = pl.read_parquet(vza_results_dir(vza_output, year, filter_state) / f"plot_week_angle_features_{year}.parquet")
+        features = pl.read_parquet(
+            vza_results_dir(vza_output, year, filter_state)
+            / f"plot_week_angle_features_{year}.parquet"
+        )
         weeks = sorted(features["week"].unique().to_list())
         common_plots = (
             features.select("plot_id", "week")
@@ -389,8 +479,12 @@ def build_robustness(vza_output: Path, raa_output: Path, filter_state: str) -> p
                 "status": "pass" if common_plots.height >= 10 else "review",
             }
         )
-        raa_support = read_csv(raa_results_dir(raa_output, year, filter_state) / f"raa_support_by_week_vza_{year}.csv")
-        sparse_fraction = float((raa_support["plots"] < MIN_HEADLINE_PLOTS).sum() / raa_support.height)
+        raa_support = read_csv(
+            raa_results_dir(raa_output, year, filter_state) / f"raa_support_by_week_vza_{year}.csv"
+        )
+        sparse_fraction = float(
+            (raa_support["plots"] < MIN_HEADLINE_PLOTS).sum() / raa_support.height
+        )
         rows.append(
             {
                 "year": year,
@@ -403,8 +497,16 @@ def build_robustness(vza_output: Path, raa_output: Path, filter_state: str) -> p
             }
         )
         for model_name, path in [
-            ("VZA", vza_results_dir(vza_output, year, filter_state) / f"vza_model_comparison_{year}.csv"),
-            ("RAA", raa_results_dir(raa_output, year, filter_state) / f"raa_vza_model_comparison_{year}.csv"),
+            (
+                "VZA",
+                vza_results_dir(vza_output, year, filter_state)
+                / f"vza_model_comparison_{year}.csv",
+            ),
+            (
+                "RAA",
+                raa_results_dir(raa_output, year, filter_state)
+                / f"raa_vza_model_comparison_{year}.csv",
+            ),
         ]:
             model = read_csv(path)
             rows.append(
@@ -423,7 +525,9 @@ def build_robustness(vza_output: Path, raa_output: Path, filter_state: str) -> p
     return diagnostics
 
 
-def write_markdown_table(path: Path, title: str, table: pl.DataFrame, max_rows: int | None = None) -> None:
+def write_markdown_table(
+    path: Path, title: str, table: pl.DataFrame, max_rows: int | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     data = table.head(max_rows) if max_rows else table
     lines = [f"# {title}", ""]
@@ -455,7 +559,11 @@ def write_reports(
 ) -> None:
     started = time.perf_counter()
     FINAL_REPORTS.mkdir(parents=True, exist_ok=True)
-    write_markdown_table(FINAL_REPORTS / "multiangular_evidence_summary.md", "Multiangular Evidence Summary", evidence)
+    write_markdown_table(
+        FINAL_REPORTS / "multiangular_evidence_summary.md",
+        "Multiangular Evidence Summary",
+        evidence,
+    )
     support_summary = pl.concat(
         [
             vza_support.select(
@@ -480,8 +588,15 @@ def write_reports(
         how="vertical",
     )
     support_summary.write_csv(FINAL_RESULTS / "angular_support_summary.csv")
-    write_markdown_table(FINAL_REPORTS / "angular_support_summary.md", "Angular Support Summary", support_summary, max_rows=80)
-    write_markdown_table(FINAL_REPORTS / "robustness_diagnostics.md", "Robustness Diagnostics", robustness)
+    write_markdown_table(
+        FINAL_REPORTS / "angular_support_summary.md",
+        "Angular Support Summary",
+        support_summary,
+        max_rows=80,
+    )
+    write_markdown_table(
+        FINAL_REPORTS / "robustness_diagnostics.md", "Robustness Diagnostics", robustness
+    )
     story = [
         "# Result 1 Final Story: Multiangular Reflectance",
         "",

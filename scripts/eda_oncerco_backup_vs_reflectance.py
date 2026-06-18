@@ -16,7 +16,10 @@ import polars as pl
 ROOT = Path(__file__).resolve().parents[1]
 BACKUP_EXPORTS = ROOT / "outputs/backup_metadata/csv"
 BACKUP_INVENTORY = ROOT / "outputs/backup_metadata/manifests/backup_metadata_inventory.csv"
-REFLECTANCE = ROOT / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+REFLECTANCE = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+)
 OUT_ROOT = ROOT / "outputs/backup_metadata/eda"
 LOG_ROOT = ROOT / "outputs/logs"
 
@@ -44,7 +47,9 @@ def configure_logging() -> Path:
 
 def resolve_export_path(backup_exports: Path, inventory: Path, week: int) -> Path:
     inv = pd.read_csv(inventory)
-    mask = inv["kind"].eq("DSDI") & inv["workbook"].str.contains(f"week{week}/", case=False, na=False)
+    mask = inv["kind"].eq("DSDI") & inv["workbook"].str.contains(
+        f"week{week}/", case=False, na=False
+    )
     row = inv.loc[mask].head(1)
     if row.empty:
         raise FileNotFoundError(f"No DSDI export found for week {week}")
@@ -92,7 +97,9 @@ def load_reflectance(reflectance: Path) -> pd.DataFrame:
     frame = (
         frame.group_by("plot_id", "week", "cult", "trt", "band", "band_name")
         .agg(pl.col("reflectance").mean().alias("mean_reflectance"))
-        .pivot(values="mean_reflectance", index=["plot_id", "week", "cult", "trt"], columns="band_name")
+        .pivot(
+            values="mean_reflectance", index=["plot_id", "week", "cult", "trt"], columns="band_name"
+        )
     )
     return frame.to_pandas()
 
@@ -100,7 +107,9 @@ def load_reflectance(reflectance: Path) -> pd.DataFrame:
 def build_join(dsdi: pd.DataFrame, reflectance: pd.DataFrame) -> pd.DataFrame:
     dsdi = dsdi.copy()
     dsdi["plot_id"] = dsdi["ifz_id"].map(ifz_to_plot_id)
-    joined = dsdi.merge(reflectance, on=["plot_id", "week", "cult", "trt"], how="left", validate="one_to_one")
+    joined = dsdi.merge(
+        reflectance, on=["plot_id", "week", "cult", "trt"], how="left", validate="one_to_one"
+    )
     return joined
 
 
@@ -113,10 +122,24 @@ def summarize(joined: pd.DataFrame) -> pd.DataFrame:
                 "week": int(week),
                 "n_plots": int(group.shape[0]),
                 "matched_rows": int(valid.shape[0]),
-                "corr_ds_plot_nir": float(valid["ds_plot"].corr(valid["NIR"])) if valid.shape[0] > 1 else math.nan,
-                "corr_ds_leaf_nir": float(valid["ds_leaf_mean"].corr(valid["NIR"])) if valid.shape[0] > 1 else math.nan,
-                "corr_di_leaf_nir": float(valid["di_leaf_mean"].corr(valid["NIR"])) if valid.shape[0] > 1 else math.nan,
-                "corr_ds_leaf_rededge": float(valid["ds_leaf_mean"].corr(valid["Red edge"])) if valid.shape[0] > 1 else math.nan,
+                "corr_ds_plot_nir": (
+                    float(valid["ds_plot"].corr(valid["NIR"])) if valid.shape[0] > 1 else math.nan
+                ),
+                "corr_ds_leaf_nir": (
+                    float(valid["ds_leaf_mean"].corr(valid["NIR"]))
+                    if valid.shape[0] > 1
+                    else math.nan
+                ),
+                "corr_di_leaf_nir": (
+                    float(valid["di_leaf_mean"].corr(valid["NIR"]))
+                    if valid.shape[0] > 1
+                    else math.nan
+                ),
+                "corr_ds_leaf_rededge": (
+                    float(valid["ds_leaf_mean"].corr(valid["Red edge"]))
+                    if valid.shape[0] > 1
+                    else math.nan
+                ),
                 "mean_ds_plot": float(valid["ds_plot"].mean()) if valid.shape[0] else math.nan,
                 "mean_ds_leaf": float(valid["ds_leaf_mean"].mean()) if valid.shape[0] else math.nan,
                 "mean_di_leaf": float(valid["di_leaf_mean"].mean()) if valid.shape[0] else math.nan,
@@ -127,7 +150,9 @@ def summarize(joined: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("week")
 
 
-def write_report(output_root: Path, joined: pd.DataFrame, summary: pd.DataFrame, log_path: Path) -> None:
+def write_report(
+    output_root: Path, joined: pd.DataFrame, summary: pd.DataFrame, log_path: Path
+) -> None:
     report = output_root / "reports/eda_backup_vs_reflectance.md"
     report.parent.mkdir(parents=True, exist_ok=True)
     lines = [

@@ -86,7 +86,9 @@ def log_phase(name: str, started: float) -> None:
 
 
 def raa_signed_expr() -> pl.Expr:
-    return ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180.0) % 360.0) - 180.0
+    return (
+        (pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180.0) % 360.0
+    ) - 180.0
 
 
 def raa_abs_expr() -> pl.Expr:
@@ -104,7 +106,9 @@ def phase_angle_expr() -> pl.Expr:
 def assign_geometry_bins(frame: pl.DataFrame) -> pl.DataFrame:
     vza_low = (((pl.col("vza") - FINE_VZA_MIN) / 5).floor() * 5 + FINE_VZA_MIN).cast(pl.Int64)
     raa_low = ((pl.col("raa_abs") / 45).floor() * 45).clip(0, 135).cast(pl.Int64)
-    phase_low = ((pl.col("phase_angle") / PHASE_STEP).floor() * PHASE_STEP).clip(0, 170).cast(pl.Int64)
+    phase_low = (
+        ((pl.col("phase_angle") / PHASE_STEP).floor() * PHASE_STEP).clip(0, 170).cast(pl.Int64)
+    )
     return (
         frame.with_columns(
             vza_low.alias("vza_low"),
@@ -112,13 +116,17 @@ def assign_geometry_bins(frame: pl.DataFrame) -> pl.DataFrame:
             phase_low.alias("phase_low"),
         )
         .with_columns(
-            (pl.col("vza_low").cast(pl.Utf8) + pl.lit("-") + (pl.col("vza_low") + 5).cast(pl.Utf8)).alias(
-                "vza_class"
-            ),
+            (
+                pl.col("vza_low").cast(pl.Utf8)
+                + pl.lit("-")
+                + (pl.col("vza_low") + 5).cast(pl.Utf8)
+            ).alias("vza_class"),
             (pl.col("vza_low") + 2.5).cast(pl.Float64).alias("vza_midpoint"),
-            (pl.col("raa_low").cast(pl.Utf8) + pl.lit("-") + (pl.col("raa_low") + 45).cast(pl.Utf8)).alias(
-                "raa_class"
-            ),
+            (
+                pl.col("raa_low").cast(pl.Utf8)
+                + pl.lit("-")
+                + (pl.col("raa_low") + 45).cast(pl.Utf8)
+            ).alias("raa_class"),
             (pl.col("raa_low") + 22.5).cast(pl.Float64).alias("raa_midpoint"),
             (
                 pl.col("phase_low").cast(pl.Utf8)
@@ -160,7 +168,9 @@ def load_geometry_summary(
             read_seconds.append(time.perf_counter() - read_started)
             missing = sorted(required_columns() - set(frame.columns))
             if missing:
-                missing_schema.append({"week": week, "path": str(path), "missing_columns": ",".join(missing)})
+                missing_schema.append(
+                    {"week": week, "path": str(path), "missing_columns": ",".join(missing)}
+                )
                 continue
             if frame.height > MAX_PLOT_SAMPLE:
                 frame = frame.sample(n=MAX_PLOT_SAMPLE, seed=SEED)
@@ -246,7 +256,9 @@ def load_geometry_summary(
                         }
                     )
     if missing_schema:
-        raise RuntimeError(f"Plot parquet files are missing required geometry columns: {missing_schema[:5]}")
+        raise RuntimeError(
+            f"Plot parquet files are missing required geometry columns: {missing_schema[:5]}"
+        )
     if not rows:
         raise RuntimeError("No RAA geometry observations were built.")
     if read_seconds:
@@ -266,7 +278,11 @@ def load_geometry_summary(
         logging.info(
             "[FILTER] ground filter OSAVI > %.3f%s: %d -> %d rows (removed %.2f%%)",
             osavi_threshold,
-            "" if excess_green_threshold is None else f", ExcessGreen > {excess_green_threshold:.3f}",
+            (
+                ""
+                if excess_green_threshold is None
+                else f", ExcessGreen > {excess_green_threshold:.3f}"
+            ),
             total_basic,
             total_after,
             ((total_basic - total_after) / total_basic * 100) if total_basic else 0,
@@ -305,27 +321,31 @@ def save_readable_figure(figure: plt.Figure, stem: Path) -> None:
 
 def build_summary_tables(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame, pl.DataFrame]:
     started = time.perf_counter()
-    summary = long.group_by(
-        "year",
-        "week",
-        "band",
-        "band_name",
-        "vza_class",
-        "vza_midpoint",
-        "raa_class",
-        "raa_midpoint",
-    ).agg(
-        pl.len().alias("observations"),
-        pl.col("plot_id").n_unique().alias("plots"),
-        pl.col("n_pixels").sum().alias("pixels"),
-        pl.col("n_images").sum().alias("images"),
-        pl.col("reflectance").mean().alias("mean_reflectance"),
-        pl.col("reflectance").median().alias("median_reflectance"),
-        pl.col("reflectance").quantile(0.25).alias("q25"),
-        pl.col("reflectance").quantile(0.75).alias("q75"),
-        pl.col("mean_sza").mean().alias("mean_sza"),
-        pl.col("mean_phase_angle").mean().alias("mean_phase_angle"),
-    ).sort("band", "week", "vza_midpoint", "raa_midpoint")
+    summary = (
+        long.group_by(
+            "year",
+            "week",
+            "band",
+            "band_name",
+            "vza_class",
+            "vza_midpoint",
+            "raa_class",
+            "raa_midpoint",
+        )
+        .agg(
+            pl.len().alias("observations"),
+            pl.col("plot_id").n_unique().alias("plots"),
+            pl.col("n_pixels").sum().alias("pixels"),
+            pl.col("n_images").sum().alias("images"),
+            pl.col("reflectance").mean().alias("mean_reflectance"),
+            pl.col("reflectance").median().alias("median_reflectance"),
+            pl.col("reflectance").quantile(0.25).alias("q25"),
+            pl.col("reflectance").quantile(0.75).alias("q75"),
+            pl.col("mean_sza").mean().alias("mean_sza"),
+            pl.col("mean_phase_angle").mean().alias("mean_phase_angle"),
+        )
+        .sort("band", "week", "vza_midpoint", "raa_midpoint")
+    )
     support = summary.select(
         "year",
         "week",
@@ -339,14 +359,18 @@ def build_summary_tables(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame
         "pixels",
         "images",
     )
-    phase = long.group_by("year", "week", "band", "band_name", "phase_class", "phase_midpoint").agg(
-        pl.len().alias("observations"),
-        pl.col("plot_id").n_unique().alias("plots"),
-        pl.col("reflectance").mean().alias("mean_reflectance"),
-        pl.col("reflectance").median().alias("median_reflectance"),
-        pl.col("reflectance").quantile(0.25).alias("q25"),
-        pl.col("reflectance").quantile(0.75).alias("q75"),
-    ).sort("band", "week", "phase_midpoint")
+    phase = (
+        long.group_by("year", "week", "band", "band_name", "phase_class", "phase_midpoint")
+        .agg(
+            pl.len().alias("observations"),
+            pl.col("plot_id").n_unique().alias("plots"),
+            pl.col("reflectance").mean().alias("mean_reflectance"),
+            pl.col("reflectance").median().alias("median_reflectance"),
+            pl.col("reflectance").quantile(0.25).alias("q25"),
+            pl.col("reflectance").quantile(0.75).alias("q75"),
+        )
+        .sort("band", "week", "phase_midpoint")
+    )
     log_phase("summary_tables", started)
     return summary, support, phase
 
@@ -355,8 +379,7 @@ def best_supported_raa_reference(support: pl.DataFrame) -> str:
     return (
         support.group_by("raa_class", "raa_midpoint")
         .agg(pl.col("plots").sum().alias("plot_support"))
-        .sort(["plot_support", "raa_midpoint"], descending=[True, False])
-        ["raa_class"][0]
+        .sort(["plot_support", "raa_midpoint"], descending=[True, False])["raa_class"][0]
     )
 
 
@@ -374,13 +397,16 @@ def build_matched_raa_contrasts(long: pl.DataFrame, reference_class: str) -> pl.
         .filter(pl.col("raa_class") != reference_class)
         .with_columns(
             (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
-            ((pl.col("reflectance") - pl.col("reference_reflectance")) / pl.col("reference_reflectance")).alias(
-                "relative_contrast"
-            ),
+            (
+                (pl.col("reflectance") - pl.col("reference_reflectance"))
+                / pl.col("reference_reflectance")
+            ).alias("relative_contrast"),
         )
     )
     rows = []
-    for key, group in matched.group_by("week", "band", "band_name", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint"):
+    for key, group in matched.group_by(
+        "week", "band", "band_name", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint"
+    ):
         week, band, band_name, vza_class, vza_midpoint, raa_class, raa_midpoint = key
         values = group["absolute_contrast"].to_numpy()
         ci_low, ci_high = bootstrap_median(values)
@@ -397,13 +423,19 @@ def build_matched_raa_contrasts(long: pl.DataFrame, reference_class: str) -> pl.
                 "matched_plots": group["plot_id"].n_unique(),
                 "median_absolute_contrast": float(np.nanmedian(values)),
                 "mean_absolute_contrast": float(np.nanmean(values)),
-                "median_relative_contrast": float(np.nanmedian(group["relative_contrast"].to_numpy())),
+                "median_relative_contrast": float(
+                    np.nanmedian(group["relative_contrast"].to_numpy())
+                ),
                 "ci_low": ci_low,
                 "ci_high": ci_high,
                 "cohens_dz": paired_cohens_d(values),
             }
         )
-    result = pl.DataFrame(rows).sort("band", "week", "vza_midpoint", "raa_midpoint") if rows else pl.DataFrame()
+    result = (
+        pl.DataFrame(rows).sort("band", "week", "vza_midpoint", "raa_midpoint")
+        if rows
+        else pl.DataFrame()
+    )
     log_phase("matched_raa_contrasts", started)
     return result
 
@@ -494,7 +526,9 @@ def build_model_comparison(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
             phase_model = safe_ols(PHASE_MODEL_FORMULA, frame, frame["plot_id"])
             raa_terms = [idx for idx in raa_model.params.index if "raa_class" in idx]
             min_raa_p = min((float(raa_model.pvalues[term]) for term in raa_terms), default=np.nan)
-            wald_stat, wald_p, wald_constraints, wald_warning = wald_test_for_raa_terms(raa_model, raa_terms)
+            wald_stat, wald_p, wald_constraints, wald_warning = wald_test_for_raa_terms(
+                raa_model, raa_terms
+            )
             term_rows.extend(extract_model_terms(raa_model, band, band_name))
             term_rows.extend(extract_model_terms(phase_model, band, band_name))
             rows.append(
@@ -510,8 +544,12 @@ def build_model_comparison(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
                     "vza_only_adj_r2": float(base_model.rsquared_adj),
                     "vza_raa_adj_r2": float(raa_model.rsquared_adj),
                     "phase_adj_r2": float(phase_model.rsquared_adj),
-                    "delta_adj_r2_raa_vs_vza": float(raa_model.rsquared_adj - base_model.rsquared_adj),
-                    "delta_adj_r2_phase_vs_vza": float(phase_model.rsquared_adj - base_model.rsquared_adj),
+                    "delta_adj_r2_raa_vs_vza": float(
+                        raa_model.rsquared_adj - base_model.rsquared_adj
+                    ),
+                    "delta_adj_r2_phase_vs_vza": float(
+                        phase_model.rsquared_adj - base_model.rsquared_adj
+                    ),
                     "vza_only_aic": float(base_model.aic),
                     "vza_raa_aic": float(raa_model.aic),
                     "phase_aic": float(phase_model.aic),
@@ -527,7 +565,9 @@ def build_model_comparison(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
                     "raa_joint_wald_p": wald_p,
                     "raa_joint_wald_constraints": wald_constraints,
                     "raa_joint_wald_warning": wald_warning,
-                    "phase_angle_estimate": float(phase_model.params.get("mean_phase_angle", np.nan)),
+                    "phase_angle_estimate": float(
+                        phase_model.params.get("mean_phase_angle", np.nan)
+                    ),
                     "phase_angle_p": float(phase_model.pvalues.get("mean_phase_angle", np.nan)),
                 }
             )
@@ -540,25 +580,34 @@ def build_model_comparison(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFra
     return result, terms
 
 
-def heatmap_matrix(data: pl.DataFrame, value_column: str) -> tuple[np.ndarray, list[str], list[str]]:
+def heatmap_matrix(
+    data: pl.DataFrame, value_column: str
+) -> tuple[np.ndarray, list[str], list[str]]:
     matrix = data.pivot(
         on="raa_class",
         index="vza_class",
         values=value_column,
         aggregate_function="mean",
     ).sort("vza_class")
-    raa_cols = sorted([col for col in matrix.columns if col != "vza_class"], key=lambda x: int(x.split("-")[0]))
+    raa_cols = sorted(
+        [col for col in matrix.columns if col != "vza_class"], key=lambda x: int(x.split("-")[0])
+    )
     return matrix.select(raa_cols).to_numpy(), matrix["vza_class"].to_list(), raa_cols
 
 
 def plot_raa_heatmap(summary: pl.DataFrame, out_dir: Path, year: int) -> None:
     started = time.perf_counter()
     weeks = sorted(summary["week"].unique().to_list())
-    figure, axes = plt.subplots(len(BANDS), len(weeks), figsize=(1.85 * len(weeks) + 1.0, 9.6), constrained_layout=True)
+    figure, axes = plt.subplots(
+        len(BANDS), len(weeks), figsize=(1.85 * len(weeks) + 1.0, 9.6), constrained_layout=True
+    )
     last_image = None
     for row_index, (band, band_name) in enumerate(BANDS.items()):
         band_data = summary.filter(pl.col("band") == band)
-        norm = Normalize(vmin=float(band_data["median_reflectance"].min()), vmax=float(band_data["median_reflectance"].max()))
+        norm = Normalize(
+            vmin=float(band_data["median_reflectance"].min()),
+            vmax=float(band_data["median_reflectance"].max()),
+        )
         for col_index, week in enumerate(weeks):
             axis = axes[row_index, col_index]
             values, vza_labels, raa_labels = heatmap_matrix(
@@ -573,7 +622,9 @@ def plot_raa_heatmap(summary: pl.DataFrame, out_dir: Path, year: int) -> None:
             else:
                 axis.set_yticks([])
             if row_index == len(BANDS) - 1:
-                axis.set_xticks(range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.5)
+                axis.set_xticks(
+                    range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.5
+                )
             else:
                 axis.set_xticks([])
             axis.tick_params(length=0)
@@ -588,21 +639,36 @@ def plot_raa_heatmap(summary: pl.DataFrame, out_dir: Path, year: int) -> None:
 def plot_raa_curves(summary: pl.DataFrame, out_dir: Path, year: int) -> None:
     started = time.perf_counter()
     weeks = sorted(summary["week"].unique().to_list())
-    vza_order = summary.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
+    vza_order = (
+        summary.select("vza_class", "vza_midpoint")
+        .unique()
+        .sort("vza_midpoint")["vza_class"]
+        .to_list()
+    )
     palette = plt.cm.viridis(np.linspace(0.15, 0.90, len(vza_order)))
     colors = {vza: palette[index] for index, vza in enumerate(vza_order)}
-    figure, axes = plt.subplots(len(BANDS), len(weeks), figsize=(2.35 * len(weeks) + 1.1, 11.2), constrained_layout=True)
+    figure, axes = plt.subplots(
+        len(BANDS), len(weeks), figsize=(2.35 * len(weeks) + 1.1, 11.2), constrained_layout=True
+    )
     for row_idx, (band, band_name) in enumerate(BANDS.items()):
         for col_idx, week in enumerate(weeks):
             axis = axes[row_idx, col_idx]
             for vza in vza_order:
-                data = summary.filter((pl.col("band") == band) & (pl.col("week") == week) & (pl.col("vza_class") == vza)).sort("raa_midpoint")
+                data = summary.filter(
+                    (pl.col("band") == band)
+                    & (pl.col("week") == week)
+                    & (pl.col("vza_class") == vza)
+                ).sort("raa_midpoint")
                 if data.is_empty():
                     continue
                 x = data["raa_midpoint"].to_numpy()
                 y = data["mean_reflectance"].to_numpy()
-                axis.plot(x, y, marker="o", markersize=2.2, linewidth=1.05, label=vza, color=colors[vza])
-                axis.fill_between(x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=colors[vza], alpha=0.08)
+                axis.plot(
+                    x, y, marker="o", markersize=2.2, linewidth=1.05, label=vza, color=colors[vza]
+                )
+                axis.fill_between(
+                    x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=colors[vza], alpha=0.08
+                )
             if row_idx == 0:
                 axis.set_title(f"Week {week}", fontsize=9, fontweight="bold")
             if col_idx == 0:
@@ -612,7 +678,14 @@ def plot_raa_curves(summary: pl.DataFrame, out_dir: Path, year: int) -> None:
             style_axis(axis)
             axis.tick_params(axis="both", labelsize=6.5)
     handles, labels = axes[0, -1].get_legend_handles_labels()
-    figure.legend(handles, labels, loc="upper center", ncol=min(5, len(labels)), frameon=False, title="VZA class")
+    figure.legend(
+        handles,
+        labels,
+        loc="upper center",
+        ncol=min(5, len(labels)),
+        frameon=False,
+        title="VZA class",
+    )
     save_readable_figure(figure, out_dir / f"figures/main/raa_curves_within_vza_{year}")
     log_phase("raa_curves", started)
 
@@ -624,7 +697,9 @@ def plot_phase_curves(phase: pl.DataFrame, out_dir: Path, year: int) -> None:
     for idx, (band, band_name) in enumerate(BANDS.items()):
         axis = axes.flat[idx]
         for week in weeks:
-            data = phase.filter((pl.col("band") == band) & (pl.col("week") == week)).sort("phase_midpoint")
+            data = phase.filter((pl.col("band") == band) & (pl.col("week") == week)).sort(
+                "phase_midpoint"
+            )
             axis.plot(
                 data["phase_midpoint"].to_numpy(),
                 data["median_reflectance"].to_numpy(),
@@ -655,7 +730,9 @@ def plot_phase_curves(phase: pl.DataFrame, out_dir: Path, year: int) -> None:
 def plot_support_heatmap(support: pl.DataFrame, out_dir: Path, year: int) -> None:
     started = time.perf_counter()
     weeks = sorted(support["week"].unique().to_list())
-    figure, axes = plt.subplots(1, len(weeks), figsize=(1.9 * len(weeks) + 1.0, 3.2), constrained_layout=True)
+    figure, axes = plt.subplots(
+        1, len(weeks), figsize=(1.9 * len(weeks) + 1.0, 3.2), constrained_layout=True
+    )
     axes = np.atleast_1d(axes)
     support_any_band = (
         support.group_by("week", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint")
@@ -665,7 +742,9 @@ def plot_support_heatmap(support: pl.DataFrame, out_dir: Path, year: int) -> Non
     for axis, week in zip(axes, weeks):
         data = support_any_band.filter(pl.col("week") == week)
         values, vza_labels, raa_cols = heatmap_matrix(data, "plots")
-        image = axis.imshow(values, aspect="auto", cmap="Greys", vmin=0, vmax=max(1, float(support["plots"].max())))
+        image = axis.imshow(
+            values, aspect="auto", cmap="Greys", vmin=0, vmax=max(1, float(support["plots"].max()))
+        )
         axis.set_title(f"Week {week}", fontsize=9, fontweight="bold")
         axis.set_xticks(range(len(raa_cols)), raa_cols, rotation=45, ha="right", fontsize=6.5)
         axis.set_yticks(range(len(vza_labels)), vza_labels, fontsize=6.5)
