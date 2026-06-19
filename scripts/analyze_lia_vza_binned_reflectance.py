@@ -23,7 +23,6 @@ import pandas as pd
 import polars as pl
 import statsmodels.formula.api as smf
 
-
 ROOT = Path(__file__).resolve().parents[1]
 FEATURE_SOURCE = (
     ROOT
@@ -33,8 +32,14 @@ CONTRAST_SOURCE = (
     ROOT
     / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
 )
-LIA_SOURCE = ROOT / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
-LAI_SOURCE = ROOT / "outputs/backup_metadata/csv/data/processed/2024/quaratiello_giuseppe/LAI_DATA2/LAI_DATA_-_Copia.csv"
+LIA_SOURCE = (
+    ROOT
+    / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
+)
+LAI_SOURCE = (
+    ROOT
+    / "outputs/backup_metadata/csv/data/processed/2024/quaratiello_giuseppe/LAI_DATA2/LAI_DATA_-_Copia.csv"
+)
 OUT_ROOT = ROOT / "outputs/backup_metadata/eda_lia_vza"
 REPORTS_ROOT = ROOT / "outputs/reports"
 LOG_ROOT = ROOT / "outputs/logs"
@@ -105,7 +110,9 @@ def style_axis(axis: plt.Axes, grid_axis: str = "y") -> None:
     axis.tick_params(labelsize=8)
 
 
-def set_local_ylim(axis: plt.Axes, values: pd.Series | np.ndarray, pad_fraction: float = 0.08) -> None:
+def set_local_ylim(
+    axis: plt.Axes, values: pd.Series | np.ndarray, pad_fraction: float = 0.08
+) -> None:
     arr = pd.Series(values).dropna().to_numpy()
     if arr.size == 0:
         return
@@ -134,7 +141,13 @@ def stratum_style(stratum_type: str, stratum: str) -> tuple[str, str]:
 def read_parquet(path: Path) -> pd.DataFrame:
     t0 = time.perf_counter()
     df = pl.read_parquet(path).to_pandas()
-    logging.info("[I/O] read parquet %s rows=%d cols=%d time=%.2fs", path, df.shape[0], df.shape[1], time.perf_counter() - t0)
+    logging.info(
+        "[I/O] read parquet %s rows=%d cols=%d time=%.2fs",
+        path,
+        df.shape[0],
+        df.shape[1],
+        time.perf_counter() - t0,
+    )
     return df
 
 
@@ -145,7 +158,13 @@ def load_lia_raw(path: Path) -> pd.DataFrame:
     df["week"] = df["date"].map(DATE_TO_WEEK)
     df["plot_id"] = (90024 - df["ifz_id"].astype(int)).map(lambda x: f"plot_{x}")
     df["lia"] = pd.to_numeric(df["lia"], errors="coerce")
-    logging.info("[I/O] read LIA csv %s rows=%d cols=%d time=%.2fs", path, df.shape[0], df.shape[1], time.perf_counter() - t0)
+    logging.info(
+        "[I/O] read LIA csv %s rows=%d cols=%d time=%.2fs",
+        path,
+        df.shape[0],
+        df.shape[1],
+        time.perf_counter() - t0,
+    )
     return df
 
 
@@ -171,7 +190,20 @@ def aggregate_lia(lia_raw: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     )
     diagnostics["lia_iqr"] = diagnostics["lia_q75"] - diagnostics["lia_q25"]
     diagnostics["lia_cv"] = diagnostics["lia_sd"] / diagnostics["lia"].abs()
-    aggregate = diagnostics[["plot_id", "week", "cult", "trt", "lia", "lia_sd", "lia_iqr", "lia_cv", "n_lia_raw", "n_lia_dates"]].copy()
+    aggregate = diagnostics[
+        [
+            "plot_id",
+            "week",
+            "cult",
+            "trt",
+            "lia",
+            "lia_sd",
+            "lia_iqr",
+            "lia_cv",
+            "n_lia_raw",
+            "n_lia_dates",
+        ]
+    ].copy()
     return aggregate, diagnostics
 
 
@@ -203,7 +235,11 @@ def observed_high_low_effects(
             continue
         row = {
             "stratum_type": stratum_type,
-            "stratum": "overall" if not strata_cols else " | ".join(str(key_map[col]) for col in strata_cols),
+            "stratum": (
+                "overall"
+                if not strata_cols
+                else " | ".join(str(key_map[col]) for col in strata_cols)
+            ),
             "band_name": band,
             "week": int(week),
             "vza_class": vza_class,
@@ -212,12 +248,18 @@ def observed_high_low_effects(
             "n_high_lia_plots": int(high["plot_id"].nunique()),
             "low_lia_median_reflectance": float(low["reflectance"].median()),
             "high_lia_median_reflectance": float(high["reflectance"].median()),
-            "observed_high_minus_low_lia": float(high["reflectance"].median() - low["reflectance"].median()),
+            "observed_high_minus_low_lia": float(
+                high["reflectance"].median() - low["reflectance"].median()
+            ),
         }
         for col in strata_cols:
             row[col] = key_map[col]
         rows.append(row)
-    return pd.DataFrame(rows).sort_values(["band_name", "week", "vza_midpoint"]) if rows else pd.DataFrame()
+    return (
+        pd.DataFrame(rows).sort_values(["band_name", "week", "vza_midpoint"])
+        if rows
+        else pd.DataFrame()
+    )
 
 
 def stratified_observed_effects(joined: pd.DataFrame) -> pd.DataFrame:
@@ -227,15 +269,21 @@ def stratified_observed_effects(joined: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
 
-def build_join(features: pd.DataFrame, lia: pd.DataFrame, lia_diagnostics: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def build_join(
+    features: pd.DataFrame, lia: pd.DataFrame, lia_diagnostics: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     features = features.copy()
     features["week"] = features["week"].astype(int)
     lia = lia.copy()
     lia["week"] = lia["week"].astype(int)
 
-    joined = features.merge(lia, on=["plot_id", "week"], how="inner", suffixes=("", "_lia"), validate="many_to_one")
+    joined = features.merge(
+        lia, on=["plot_id", "week"], how="inner", suffixes=("", "_lia"), validate="many_to_one"
+    )
     joined["lia_z"] = (joined["lia"] - joined["lia"].mean()) / joined["lia"].std(ddof=0)
-    joined["lia_tercile"] = pd.qcut(joined["lia"], q=3, labels=["low LIA", "mid LIA", "high LIA"], duplicates="drop")
+    joined["lia_tercile"] = pd.qcut(
+        joined["lia"], q=3, labels=["low LIA", "mid LIA", "high LIA"], duplicates="drop"
+    )
 
     feature_keys = features[["plot_id", "week"]].drop_duplicates()
     lia_keys = lia[["plot_id", "week"]].drop_duplicates()
@@ -250,7 +298,9 @@ def build_join(features: pd.DataFrame, lia: pd.DataFrame, lia_diagnostics: pd.Da
         on=["plot_id", "week"],
         how="left",
     ).merge(
-        lia_diagnostics[["plot_id", "week", "lia", "lia_sd", "lia_iqr", "lia_cv", "n_lia_raw", "n_lia_dates"]],
+        lia_diagnostics[
+            ["plot_id", "week", "lia", "lia_sd", "lia_iqr", "lia_cv", "n_lia_raw", "n_lia_dates"]
+        ],
         on=["plot_id", "week"],
         how="left",
     )
@@ -259,8 +309,12 @@ def build_join(features: pd.DataFrame, lia: pd.DataFrame, lia_diagnostics: pd.Da
 
 def fit_clustered(formula: str, frame: pd.DataFrame):
     t0 = time.perf_counter()
-    model = smf.ols(formula, data=frame).fit(cov_type="cluster", cov_kwds={"groups": frame["plot_id"]})
-    logging.info("[PHASE] fit formula=%s rows=%d: %.2fs", formula, frame.shape[0], time.perf_counter() - t0)
+    model = smf.ols(formula, data=frame).fit(
+        cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
+    )
+    logging.info(
+        "[PHASE] fit formula=%s rows=%d: %.2fs", formula, frame.shape[0], time.perf_counter() - t0
+    )
     return model
 
 
@@ -270,7 +324,9 @@ def model_ladder(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
     predictions: list[pd.DataFrame] = []
 
     for band, band_df in joined.groupby("band_name"):
-        clean = band_df.dropna(subset=["reflectance", "lia_z", "vza_class", "week", "cult", "trt", "plot_id"]).copy()
+        clean = band_df.dropna(
+            subset=["reflectance", "lia_z", "vza_class", "week", "cult", "trt", "plot_id"]
+        ).copy()
         if clean["plot_id"].nunique() < 4:
             logging.warning("Skipping band=%s because cluster count is too low", band)
             continue
@@ -294,7 +350,9 @@ def model_ladder(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
                 )
             except Exception as exc:  # pragma: no cover - depends on data rank.
                 logging.exception("Model failed band=%s model=%s", band, model_name)
-                comparisons.append({"band_name": band, "model": model_name, "formula": formula, "error": str(exc)})
+                comparisons.append(
+                    {"band_name": band, "model": model_name, "formula": formula, "error": str(exc)}
+                )
 
         m3 = fitted.get("M3_vza_lia_interaction")
         if m3 is None:
@@ -325,7 +383,9 @@ def model_ladder(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.D
         pred["pred_high_lia_q75"] = m3.predict(pred_high)
         pred["pred_high_minus_low_lia"] = pred["pred_high_lia_q75"] - pred["pred_low_lia_q25"]
         predictions.append(
-            pred.groupby(["band_name", "week", "vza_class", "vza_midpoint"], as_index=False).mean(numeric_only=True)
+            pred.groupby(["band_name", "week", "vza_class", "vza_midpoint"], as_index=False).mean(
+                numeric_only=True
+            )
         )
 
     pred_df = pd.concat(predictions, ignore_index=True) if predictions else pd.DataFrame()
@@ -378,7 +438,11 @@ def summarize_plot_slopes(
             continue
         row = {
             "stratum_type": stratum_type,
-            "stratum": "overall" if not strata_cols else " | ".join(str(key_map[col]) for col in strata_cols),
+            "stratum": (
+                "overall"
+                if not strata_cols
+                else " | ".join(str(key_map[col]) for col in strata_cols)
+            ),
             "week": int(key_map["week"]),
             "band_name": key_map["band_name"],
             "n_plots": int(clean["plot_id"].nunique()),
@@ -405,7 +469,9 @@ def contrast_model(contrast_source: Path, lia: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     contrasts = read_parquet(contrast_source)
     contrasts["week"] = contrasts["week"].astype(int)
-    joined = contrasts.merge(lia[["plot_id", "week", "lia"]], on=["plot_id", "week"], how="inner", validate="many_to_one")
+    joined = contrasts.merge(
+        lia[["plot_id", "week", "lia"]], on=["plot_id", "week"], how="inner", validate="many_to_one"
+    )
     joined["lia_z"] = (joined["lia"] - joined["lia"].mean()) / joined["lia"].std(ddof=0)
     rows: list[dict[str, object]] = []
     formula = "relative_contrast ~ C(week) + C(vza_class) * lia_z"
@@ -468,12 +534,20 @@ def lai_cvi_diagnostic(path: Path) -> tuple[pd.DataFrame, str]:
 def save_curve_figure(joined: pd.DataFrame, output: Path) -> None:
     plot_df = (
         joined[joined["band_name"].isin(MAIN_BANDS)]
-        .groupby(["week", "band_name", "lia_tercile", "vza_midpoint"], as_index=False, observed=True)
+        .groupby(
+            ["week", "band_name", "lia_tercile", "vza_midpoint"], as_index=False, observed=True
+        )
         .agg(reflectance=("reflectance", "median"))
     )
     weeks = sorted(plot_df["week"].unique())
     bands = [band for band in MAIN_BANDS if band in set(plot_df["band_name"])]
-    fig, axes = plt.subplots(len(bands), len(weeks), figsize=(2.8 * len(weeks), 3.3 * len(bands)), sharex=True, sharey=False)
+    fig, axes = plt.subplots(
+        len(bands),
+        len(weeks),
+        figsize=(2.8 * len(weeks), 3.3 * len(bands)),
+        sharex=True,
+        sharey=False,
+    )
     if len(bands) == 1:
         axes = np.array([axes])
     for row, band in enumerate(bands):
@@ -497,7 +571,9 @@ def save_curve_figure(joined: pd.DataFrame, output: Path) -> None:
             if row == len(bands) - 1:
                 ax.set_xlabel("VZA midpoint")
     handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.02))
+    fig.legend(
+        handles, labels, loc="lower center", ncol=3, frameon=False, bbox_to_anchor=(0.5, -0.02)
+    )
     fig.suptitle("VZA-binned reflectance curves by leaf inclination tercile", y=0.995, fontsize=13)
     fig.tight_layout(rect=[0, 0.05, 1, 0.94])
     fig.savefig(output, dpi=220, bbox_inches="tight")
@@ -511,7 +587,9 @@ def save_heatmap(observed: pd.DataFrame, output: Path) -> None:
     for idx, band in enumerate(bands):
         ax = axes[0, idx]
         subset = plot_df[plot_df["band_name"] == band]
-        matrix = subset.pivot_table(index="week", columns="vza_class", values="observed_high_minus_low_lia", aggfunc="mean")
+        matrix = subset.pivot_table(
+            index="week", columns="vza_class", values="observed_high_minus_low_lia", aggfunc="mean"
+        )
         vmax = float(np.nanmax(np.abs(matrix.values))) if matrix.size else 0.01
         image = ax.imshow(matrix.values, aspect="auto", cmap="RdBu_r", vmin=-vmax, vmax=vmax)
         ax.set_title(f"{band}: observed high-low LIA")
@@ -529,7 +607,9 @@ def save_heatmap(observed: pd.DataFrame, output: Path) -> None:
 
 
 def save_stratified_heatmaps(stratified: pd.DataFrame, stratum_type: str, output: Path) -> None:
-    plot_df = stratified[(stratified["stratum_type"] == stratum_type) & stratified["band_name"].isin(MAIN_BANDS)].copy()
+    plot_df = stratified[
+        (stratified["stratum_type"] == stratum_type) & stratified["band_name"].isin(MAIN_BANDS)
+    ].copy()
     if plot_df.empty:
         return
     strata = sorted(plot_df["stratum"].unique())
@@ -540,13 +620,22 @@ def save_stratified_heatmaps(stratified: pd.DataFrame, stratum_type: str, output
         figsize=(5.8 * len(bands), max(3.0, 2.45 * len(strata))),
         squeeze=False,
     )
-    vmax = float(np.nanmax(np.abs(plot_df["observed_high_minus_low_lia"]))) if not plot_df.empty else 0.01
+    vmax = (
+        float(np.nanmax(np.abs(plot_df["observed_high_minus_low_lia"])))
+        if not plot_df.empty
+        else 0.01
+    )
     image = None
     for row, stratum in enumerate(strata):
         for col, band in enumerate(bands):
             ax = axes[row, col]
             subset = plot_df[(plot_df["stratum"] == stratum) & (plot_df["band_name"] == band)]
-            matrix = subset.pivot_table(index="week", columns="vza_class", values="observed_high_minus_low_lia", aggfunc="mean")
+            matrix = subset.pivot_table(
+                index="week",
+                columns="vza_class",
+                values="observed_high_minus_low_lia",
+                aggfunc="mean",
+            )
             if matrix.empty:
                 ax.axis("off")
                 continue
@@ -568,13 +657,16 @@ def save_stratified_heatmaps(stratified: pd.DataFrame, stratum_type: str, output
     plt.close(fig)
 
 
-def save_stratified_curve_summary(stratified: pd.DataFrame, stratum_type: str, output: Path) -> None:
-    plot_df = stratified[(stratified["stratum_type"] == stratum_type) & stratified["band_name"].isin(MAIN_BANDS)].copy()
+def save_stratified_curve_summary(
+    stratified: pd.DataFrame, stratum_type: str, output: Path
+) -> None:
+    plot_df = stratified[
+        (stratified["stratum_type"] == stratum_type) & stratified["band_name"].isin(MAIN_BANDS)
+    ].copy()
     if plot_df.empty:
         return
-    summary = (
-        plot_df.groupby(["stratum", "band_name", "vza_midpoint"], as_index=False)
-        .agg(observed_high_minus_low_lia=("observed_high_minus_low_lia", "median"))
+    summary = plot_df.groupby(["stratum", "band_name", "vza_midpoint"], as_index=False).agg(
+        observed_high_minus_low_lia=("observed_high_minus_low_lia", "median")
     )
     strata = sorted(summary["stratum"].unique())
     bands = [band for band in MAIN_BANDS if band in set(summary["band_name"])]
@@ -606,7 +698,9 @@ def save_stratified_curve_summary(stratified: pd.DataFrame, stratum_type: str, o
     plt.close(fig)
 
 
-def save_story_strength_by_week(observed: pd.DataFrame, output: Path, weeks: list[int] | None = None) -> None:
+def save_story_strength_by_week(
+    observed: pd.DataFrame, output: Path, weeks: list[int] | None = None
+) -> None:
     weeks = weeks or EARLY_STORY_WEEKS
     plot_df = observed[observed["band_name"].isin(MAIN_BANDS) & observed["week"].isin(weeks)].copy()
     if plot_df.empty:
@@ -621,7 +715,9 @@ def save_story_strength_by_week(observed: pd.DataFrame, output: Path, weeks: lis
         .sort_values(["band_name", "week"])
     )
     bands = [band for band in MAIN_BANDS if band in set(summary["band_name"])]
-    fig, axes = plt.subplots(1, len(bands), figsize=(5.8 * len(bands), 4.5), sharey=False, squeeze=False)
+    fig, axes = plt.subplots(
+        1, len(bands), figsize=(5.8 * len(bands), 4.5), sharey=False, squeeze=False
+    )
     for col, band in enumerate(bands):
         ax = axes[0, col]
         subset = summary[summary["band_name"] == band]
@@ -658,7 +754,9 @@ def save_story_strength_by_week(observed: pd.DataFrame, output: Path, weeks: lis
                 fontsize=9,
             )
     axes[0, -1].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False)
-    fig.suptitle("Early-season leaf-angle effect, excluding late dead-canopy week 8", fontsize=15, y=1.02)
+    fig.suptitle(
+        "Early-season leaf-angle effect, excluding late dead-canopy week 8", fontsize=15, y=1.02
+    )
     fig.tight_layout()
     fig.savefig(output, dpi=240, bbox_inches="tight")
     plt.close(fig)
@@ -678,7 +776,13 @@ def save_story_angular_profile(
     if plot_df.empty:
         return
     bands = [band for band in MAIN_BANDS if band in set(plot_df["band_name"])]
-    fig, axes = plt.subplots(len(bands), len(weeks), figsize=(3.3 * len(weeks), 3.5 * len(bands)), sharex=True, squeeze=False)
+    fig, axes = plt.subplots(
+        len(bands),
+        len(weeks),
+        figsize=(3.3 * len(weeks), 3.5 * len(bands)),
+        sharex=True,
+        squeeze=False,
+    )
     for row, band in enumerate(bands):
         for col, week in enumerate(weeks):
             ax = axes[row, col]
@@ -704,7 +808,12 @@ def save_story_angular_profile(
                 ax.set_ylabel("High-LIA minus low-LIA reflectance")
             else:
                 ax.set_ylabel("")
-    axes[0, -1].legend(loc="center left", bbox_to_anchor=(1.02, 0.5), frameon=False, title=stratum_type.replace("_", " "))
+    axes[0, -1].legend(
+        loc="center left",
+        bbox_to_anchor=(1.02, 0.5),
+        frameon=False,
+        title=stratum_type.replace("_", " "),
+    )
     fig.suptitle(
         f"Progression of the leaf-angle angular effect across early weeks ({stratum_type.replace('_', ' ')})",
         fontsize=15,
@@ -730,13 +839,18 @@ def save_story_reflectance_curves(joined: pd.DataFrame, output: Path, week: int 
     if not labelled:
         return
     plot_df = pd.concat(labelled, ignore_index=True)
-    summary = (
-        plot_df.groupby(["stratum", "band_name", "lia_group", "vza_midpoint"], as_index=False)
-        .agg(reflectance=("reflectance", "median"), n_plots=("plot_id", "nunique"))
-    )
+    summary = plot_df.groupby(
+        ["stratum", "band_name", "lia_group", "vza_midpoint"], as_index=False
+    ).agg(reflectance=("reflectance", "median"), n_plots=("plot_id", "nunique"))
     strata = sorted(summary["stratum"].unique())
     bands = [band for band in MAIN_BANDS if band in set(summary["band_name"])]
-    fig, axes = plt.subplots(len(strata), len(bands), figsize=(5.0 * len(bands), 2.7 * len(strata)), sharex=True, squeeze=False)
+    fig, axes = plt.subplots(
+        len(strata),
+        len(bands),
+        figsize=(5.0 * len(bands), 2.7 * len(strata)),
+        sharex=True,
+        squeeze=False,
+    )
     for row, stratum in enumerate(strata):
         for col, band in enumerate(bands):
             ax = axes[row, col]
@@ -756,19 +870,27 @@ def save_story_reflectance_curves(joined: pd.DataFrame, output: Path, week: int 
                 )
             n_low = subset.loc[subset["lia_group"] == "low LIA", "n_plots"].max()
             n_high = subset.loc[subset["lia_group"] == "high LIA", "n_plots"].max()
-            ax.set_title(f"{stratum} | {band} (n={int(n_low)} low, {int(n_high)} high)", fontsize=10)
+            ax.set_title(
+                f"{stratum} | {band} (n={int(n_low)} low, {int(n_high)} high)", fontsize=10
+            )
             ax.set_xlabel("VZA midpoint")
             ax.set_ylabel("Median reflectance")
             style_axis(ax)
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=2, frameon=False)
-    fig.suptitle(f"Raw early evidence in week {week}: high-LIA plots have different angular reflectance curves", fontsize=15, y=0.995)
+    fig.suptitle(
+        f"Raw early evidence in week {week}: high-LIA plots have different angular reflectance curves",
+        fontsize=15,
+        y=0.995,
+    )
     fig.tight_layout(rect=[0, 0.04, 1, 0.96])
     fig.savefig(output, dpi=240, bbox_inches="tight")
     plt.close(fig)
 
 
-def build_raw_lia_curve_summary(joined: pd.DataFrame, weeks: list[int] | None = None) -> pd.DataFrame:
+def build_raw_lia_curve_summary(
+    joined: pd.DataFrame, weeks: list[int] | None = None
+) -> pd.DataFrame:
     weeks = weeks or EARLY_STORY_WEEKS
     data = joined[joined["week"].isin(weeks) & joined["band_name"].isin(MAIN_BANDS)].copy()
     if data.empty:
@@ -787,13 +909,17 @@ def build_raw_lia_curve_summary(joined: pd.DataFrame, weeks: list[int] | None = 
         return pd.DataFrame()
     plot_df = pd.concat(labelled, ignore_index=True)
     return (
-        plot_df.groupby(["cult", "trt", "week", "band_name", "lia_group", "vza_midpoint"], as_index=False)
+        plot_df.groupby(
+            ["cult", "trt", "week", "band_name", "lia_group", "vza_midpoint"], as_index=False
+        )
         .agg(reflectance=("reflectance", "median"), n_plots=("plot_id", "nunique"))
         .sort_values(["cult", "band_name", "week", "trt", "vza_midpoint", "lia_group"])
     )
 
 
-def save_raw_lia_curve_progression_by_cultivar_band(summary: pd.DataFrame, output_dir: Path) -> list[Path]:
+def save_raw_lia_curve_progression_by_cultivar_band(
+    summary: pd.DataFrame, output_dir: Path
+) -> list[Path]:
     if summary.empty:
         return []
     outputs = []
@@ -852,21 +978,33 @@ def save_raw_lia_curve_progression_by_cultivar_band(summary: pd.DataFrame, outpu
                         )
                     style_axis(axis)
             handles, labels = axes[0, 0].get_legend_handles_labels()
-            figure.legend(handles, labels, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.01))
+            figure.legend(
+                handles,
+                labels,
+                loc="upper center",
+                ncol=2,
+                frameon=False,
+                bbox_to_anchor=(0.5, 1.01),
+            )
             figure.suptitle(
                 f"{cultivar.capitalize()} {band}: raw low/high LIA angular curves across early weeks",
                 fontsize=13,
                 y=1.035,
             )
             figure.tight_layout(rect=[0, 0, 1, 0.98])
-            output = output_dir / f"03_raw_lia_curves_progression_{cultivar}_{band.lower().replace(' ', '_')}_2024.png"
+            output = (
+                output_dir
+                / f"03_raw_lia_curves_progression_{cultivar}_{band.lower().replace(' ', '_')}_2024.png"
+            )
             figure.savefig(output, dpi=240, bbox_inches="tight")
             plt.close(figure)
             outputs.append(output)
     return outputs
 
 
-def build_plot_level_lia_curve_summary(joined: pd.DataFrame, weeks: list[int] | None = None) -> pd.DataFrame:
+def build_plot_level_lia_curve_summary(
+    joined: pd.DataFrame, weeks: list[int] | None = None
+) -> pd.DataFrame:
     weeks = weeks or EARLY_STORY_WEEKS
     data = joined[joined["week"].isin(weeks) & joined["band_name"].isin(MAIN_BANDS)].copy()
     if data.empty:
@@ -887,7 +1025,10 @@ def build_plot_level_lia_curve_summary(joined: pd.DataFrame, weeks: list[int] | 
         return pd.DataFrame()
     plot_df = pd.concat(labelled, ignore_index=True)
     return (
-        plot_df.groupby(["plot_id", "cult", "trt", "week", "band_name", "lia", "lia_group", "vza_midpoint"], as_index=False)
+        plot_df.groupby(
+            ["plot_id", "cult", "trt", "week", "band_name", "lia", "lia_group", "vza_midpoint"],
+            as_index=False,
+        )
         .agg(reflectance=("reflectance", "median"))
         .sort_values(["cult", "band_name", "week", "trt", "plot_id", "vza_midpoint"])
     )
@@ -940,7 +1081,12 @@ def save_plot_level_lia_curve_progression(summary: pd.DataFrame, output_dir: Pat
                         axis.set_ylabel(f"Week {week}\nreflectance")
                     if row == len(weeks) - 1:
                         axis.set_xlabel("VZA midpoint")
-                    counts = panel[["plot_id", "lia_group"]].drop_duplicates()["lia_group"].value_counts().to_dict()
+                    counts = (
+                        panel[["plot_id", "lia_group"]]
+                        .drop_duplicates()["lia_group"]
+                        .value_counts()
+                        .to_dict()
+                    )
                     axis.text(
                         0.98,
                         0.92,
@@ -958,14 +1104,24 @@ def save_plot_level_lia_curve_progression(summary: pd.DataFrame, output_dir: Pat
             for handle, label in zip(handles, labels, strict=False):
                 unique.setdefault(label, handle)
             ordered = [label for label in ["low LIA", "mid LIA", "high LIA"] if label in unique]
-            figure.legend([unique[label] for label in ordered], ordered, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.5, 1.01))
+            figure.legend(
+                [unique[label] for label in ordered],
+                ordered,
+                loc="upper center",
+                ncol=3,
+                frameon=False,
+                bbox_to_anchor=(0.5, 1.01),
+            )
             figure.suptitle(
                 f"{cultivar.capitalize()} {band}: individual plot angular curves across early weeks",
                 fontsize=13,
                 y=1.035,
             )
             figure.tight_layout(rect=[0, 0, 1, 0.98])
-            output = output_dir / f"03_plot_level_lia_curves_progression_{cultivar}_{band.lower().replace(' ', '_')}_2024.png"
+            output = (
+                output_dir
+                / f"03_plot_level_lia_curves_progression_{cultivar}_{band.lower().replace(' ', '_')}_2024.png"
+            )
             figure.savefig(output, dpi=240, bbox_inches="tight")
             plt.close(figure)
             outputs.append(output)
@@ -1007,7 +1163,13 @@ def save_plot_pair_lia_curve_progression(summary: pd.DataFrame, output_dir: Path
                         .drop_duplicates()
                         .sort_values(["lia", "plot_id"])
                     )
-                    pairs = list(zip(low_plots["plot_id"].to_list(), high_plots["plot_id"].to_list(), strict=False))
+                    pairs = list(
+                        zip(
+                            low_plots["plot_id"].to_list(),
+                            high_plots["plot_id"].to_list(),
+                            strict=False,
+                        )
+                    )
                     pairs_by_week[week] = pairs
                     max_pairs = max(max_pairs, len(pairs))
                 if max_pairs == 0:
@@ -1032,7 +1194,9 @@ def save_plot_pair_lia_curve_progression(summary: pd.DataFrame, output_dir: Path
                         low_plot, high_plot = pairs[col]
                         pair_values = []
                         for lia_group, plot_id in [("low LIA", low_plot), ("high LIA", high_plot)]:
-                            curve = panel[(panel["lia_group"] == lia_group) & (panel["plot_id"] == plot_id)].sort_values("vza_midpoint")
+                            curve = panel[
+                                (panel["lia_group"] == lia_group) & (panel["plot_id"] == plot_id)
+                            ].sort_values("vza_midpoint")
                             if curve.empty:
                                 continue
                             color, linestyle = style_lookup[lia_group]
@@ -1095,10 +1259,19 @@ def save_plot_pair_lia_curve_progression(summary: pd.DataFrame, output_dir: Path
 
 
 def save_coeff_figure(terms: pd.DataFrame, output: Path) -> None:
-    subset = terms[terms["band_name"].isin(MAIN_BANDS) & terms["term"].str.contains("C\\(vza_class\\).*:lia_z", regex=True)].copy()
+    subset = terms[
+        terms["band_name"].isin(MAIN_BANDS)
+        & terms["term"].str.contains("C\\(vza_class\\).*:lia_z", regex=True)
+    ].copy()
     if subset.empty:
         return
-    subset["label"] = subset["band_name"] + " | " + subset["term"].str.replace("C(vza_class)[T.", "", regex=False).str.replace("]:lia_z", "", regex=False)
+    subset["label"] = (
+        subset["band_name"]
+        + " | "
+        + subset["term"]
+        .str.replace("C(vza_class)[T.", "", regex=False)
+        .str.replace("]:lia_z", "", regex=False)
+    )
     subset = subset.sort_values(["band_name", "coef"])
     fig, ax = plt.subplots(figsize=(8, max(4, 0.28 * subset.shape[0])))
     y = np.arange(subset.shape[0])
@@ -1161,14 +1334,25 @@ def write_report(
     lai_note: str,
     log_path: Path,
 ) -> None:
-    m2_m3 = comparisons.pivot_table(index="band_name", columns="model", values=["adj_r2", "aic", "bic"], aggfunc="first")
+    m2_m3 = comparisons.pivot_table(
+        index="band_name", columns="model", values=["adj_r2", "aic", "bic"], aggfunc="first"
+    )
     delta_rows = []
     for band in sorted(comparisons["band_name"].dropna().unique()):
         row = {"band_name": band}
         try:
-            row["delta_adj_r2_M3_minus_M2"] = float(m2_m3.loc[band, ("adj_r2", "M3_vza_lia_interaction")] - m2_m3.loc[band, ("adj_r2", "M2_vza_lia")])
-            row["delta_aic_M3_minus_M2"] = float(m2_m3.loc[band, ("aic", "M3_vza_lia_interaction")] - m2_m3.loc[band, ("aic", "M2_vza_lia")])
-            row["delta_bic_M3_minus_M2"] = float(m2_m3.loc[band, ("bic", "M3_vza_lia_interaction")] - m2_m3.loc[band, ("bic", "M2_vza_lia")])
+            row["delta_adj_r2_M3_minus_M2"] = float(
+                m2_m3.loc[band, ("adj_r2", "M3_vza_lia_interaction")]
+                - m2_m3.loc[band, ("adj_r2", "M2_vza_lia")]
+            )
+            row["delta_aic_M3_minus_M2"] = float(
+                m2_m3.loc[band, ("aic", "M3_vza_lia_interaction")]
+                - m2_m3.loc[band, ("aic", "M2_vza_lia")]
+            )
+            row["delta_bic_M3_minus_M2"] = float(
+                m2_m3.loc[band, ("bic", "M3_vza_lia_interaction")]
+                - m2_m3.loc[band, ("bic", "M2_vza_lia")]
+            )
         except Exception:
             continue
         delta_rows.append(row)
@@ -1176,20 +1360,32 @@ def write_report(
 
     best_observed = observed_effects[observed_effects["band_name"].isin(MAIN_BANDS)].copy()
     if not best_observed.empty:
-        best_observed = best_observed.loc[best_observed["observed_high_minus_low_lia"].abs().sort_values(ascending=False).index]
+        best_observed = best_observed.loc[
+            best_observed["observed_high_minus_low_lia"].abs().sort_values(ascending=False).index
+        ]
 
     missing = coverage[~coverage["has_lia"]]
     high_var = lia_diagnostics.sort_values("lia_iqr", ascending=False).head(10)
     stratified_top = stratified_effects[stratified_effects["band_name"].isin(MAIN_BANDS)].copy()
     if not stratified_top.empty:
-        stratified_top = stratified_top.loc[stratified_top["observed_high_minus_low_lia"].abs().sort_values(ascending=False).index]
+        stratified_top = stratified_top.loc[
+            stratified_top["observed_high_minus_low_lia"].abs().sort_values(ascending=False).index
+        ]
 
     lines = [
         "# LIA x VZA-Binned Reflectance",
         "",
         "## Results table",
         "",
-        markdown_table(deltas, ["band_name", "delta_adj_r2_M3_minus_M2", "delta_aic_M3_minus_M2", "delta_bic_M3_minus_M2"]),
+        markdown_table(
+            deltas,
+            [
+                "band_name",
+                "delta_adj_r2_M3_minus_M2",
+                "delta_aic_M3_minus_M2",
+                "delta_bic_M3_minus_M2",
+            ],
+        ),
         "",
         "## Interpretation",
         "",
@@ -1197,13 +1393,37 @@ def write_report(
         "",
         "## Strongest observed high-LIA minus low-LIA effects",
         "",
-        markdown_table(best_observed, ["band_name", "week", "vza_class", "vza_midpoint", "n_low_lia_plots", "n_high_lia_plots", "observed_high_minus_low_lia"], max_rows=20),
+        markdown_table(
+            best_observed,
+            [
+                "band_name",
+                "week",
+                "vza_class",
+                "vza_midpoint",
+                "n_low_lia_plots",
+                "n_high_lia_plots",
+                "observed_high_minus_low_lia",
+            ],
+            max_rows=20,
+        ),
         "",
         "## Plot-specific behavior check",
         "",
         "Per-plot angular slopes were computed before any plot-level averaging across plots. These rows show whether LIA is associated with the slope or range of each plot's own VZA curve.",
         "",
-        markdown_table(slopes_summary[slopes_summary["band_name"].isin(MAIN_BANDS)], ["week", "band_name", "n_plots", "corr_lia_angular_slope", "corr_lia_reflectance_range", "median_angular_slope", "median_reflectance_range"], max_rows=30),
+        markdown_table(
+            slopes_summary[slopes_summary["band_name"].isin(MAIN_BANDS)],
+            [
+                "week",
+                "band_name",
+                "n_plots",
+                "corr_lia_angular_slope",
+                "corr_lia_reflectance_range",
+                "median_angular_slope",
+                "median_reflectance_range",
+            ],
+            max_rows=30,
+        ),
         "",
         "## Stratified cultivar/treatment checks",
         "",
@@ -1211,11 +1431,36 @@ def write_report(
         "",
         "Largest subgroup high-LIA minus low-LIA effects:",
         "",
-        markdown_table(stratified_top, ["stratum_type", "stratum", "band_name", "week", "vza_class", "n_low_lia_plots", "n_high_lia_plots", "observed_high_minus_low_lia"], max_rows=24),
+        markdown_table(
+            stratified_top,
+            [
+                "stratum_type",
+                "stratum",
+                "band_name",
+                "week",
+                "vza_class",
+                "n_low_lia_plots",
+                "n_high_lia_plots",
+                "observed_high_minus_low_lia",
+            ],
+            max_rows=24,
+        ),
         "",
         "Subgroup plot-slope correlations:",
         "",
-        markdown_table(stratified_slopes_summary[stratified_slopes_summary["band_name"].isin(MAIN_BANDS)], ["stratum_type", "stratum", "week", "band_name", "n_plots", "corr_lia_angular_slope", "corr_lia_reflectance_range"], max_rows=24),
+        markdown_table(
+            stratified_slopes_summary[stratified_slopes_summary["band_name"].isin(MAIN_BANDS)],
+            [
+                "stratum_type",
+                "stratum",
+                "week",
+                "band_name",
+                "n_plots",
+                "corr_lia_angular_slope",
+                "corr_lia_reflectance_range",
+            ],
+            max_rows=24,
+        ),
         "",
         "## Join and aggregation diagnostics",
         "",
@@ -1226,17 +1471,40 @@ def write_report(
         "",
         "Highest within plot-week LIA IQR values:",
         "",
-        markdown_table(high_var, ["plot_id", "week", "cult", "trt", "lia", "lia_sd", "lia_iqr", "lia_cv", "n_lia_raw", "n_lia_dates"], max_rows=10),
+        markdown_table(
+            high_var,
+            [
+                "plot_id",
+                "week",
+                "cult",
+                "trt",
+                "lia",
+                "lia_sd",
+                "lia_iqr",
+                "lia_cv",
+                "n_lia_raw",
+                "n_lia_dates",
+            ],
+            max_rows=10,
+        ),
         "",
         "## LAI CVI diagnostic",
         "",
         lai_note,
         "",
-        markdown_table(lai_summary, ["DATE", "n_rows", "n_arr_plot", "lai_mean", "lai_sd", "lai_cv", "lai_min", "lai_max"], max_rows=20),
+        markdown_table(
+            lai_summary,
+            ["DATE", "n_rows", "n_arr_plot", "lai_mean", "lai_sd", "lai_cv", "lai_min", "lai_max"],
+            max_rows=20,
+        ),
         "",
         "## Secondary contrast model",
         "",
-        markdown_table(contrast_summary, ["band_name", "n_rows", "n_plots", "adj_r2", "aic", "bic", "min_lia_vza_interaction_p"], max_rows=10),
+        markdown_table(
+            contrast_summary,
+            ["band_name", "n_rows", "n_plots", "adj_r2", "aic", "bic", "min_lia_vza_interaction_p"],
+            max_rows=10,
+        ),
         "",
         "## Outputs",
         "",
@@ -1337,24 +1605,50 @@ def main() -> None:
     t0 = time.perf_counter()
     joined.to_csv(args.output_root / "joined/lia_vza_reflectance_join_2024.csv", index=False)
     coverage.to_csv(args.output_root / "diagnostics/lia_vza_join_coverage_2024.csv", index=False)
-    lia_diagnostics.to_csv(args.output_root / "diagnostics/lia_plot_week_raw_variability_2024.csv", index=False)
+    lia_diagnostics.to_csv(
+        args.output_root / "diagnostics/lia_plot_week_raw_variability_2024.csv", index=False
+    )
     comparisons.to_csv(args.output_root / "results/lia_vza_model_comparison_2024.csv", index=False)
     terms.to_csv(args.output_root / "results/lia_vza_interaction_terms_2024.csv", index=False)
-    pred.to_csv(args.output_root / "results/lia_vza_predicted_high_low_effect_2024.csv", index=False)
-    observed_effects.to_csv(args.output_root / "results/lia_vza_observed_high_low_effect_2024.csv", index=False)
-    stratified_effects.to_csv(args.output_root / "results/lia_vza_stratified_observed_high_low_effect_2024.csv", index=False)
-    raw_lia_curve_summary.to_csv(args.output_root / "results/lia_vza_raw_lia_curve_progression_summary_2024.csv", index=False)
-    plot_level_lia_curve_summary.to_csv(args.output_root / "results/lia_vza_plot_level_lia_curve_progression_summary_2024.csv", index=False)
+    pred.to_csv(
+        args.output_root / "results/lia_vza_predicted_high_low_effect_2024.csv", index=False
+    )
+    observed_effects.to_csv(
+        args.output_root / "results/lia_vza_observed_high_low_effect_2024.csv", index=False
+    )
+    stratified_effects.to_csv(
+        args.output_root / "results/lia_vza_stratified_observed_high_low_effect_2024.csv",
+        index=False,
+    )
+    raw_lia_curve_summary.to_csv(
+        args.output_root / "results/lia_vza_raw_lia_curve_progression_summary_2024.csv", index=False
+    )
+    plot_level_lia_curve_summary.to_csv(
+        args.output_root / "results/lia_vza_plot_level_lia_curve_progression_summary_2024.csv",
+        index=False,
+    )
     slopes.to_csv(args.output_root / "results/lia_vza_plot_specific_slopes_2024.csv", index=False)
-    slopes_summary.to_csv(args.output_root / "results/lia_vza_plot_specific_slope_summary_2024.csv", index=False)
-    stratified_slopes_summary.to_csv(args.output_root / "results/lia_vza_stratified_plot_specific_slope_summary_2024.csv", index=False)
-    contrast_summary.to_csv(args.output_root / "results/lia_vza_contrast_model_2024.csv", index=False)
+    slopes_summary.to_csv(
+        args.output_root / "results/lia_vza_plot_specific_slope_summary_2024.csv", index=False
+    )
+    stratified_slopes_summary.to_csv(
+        args.output_root / "results/lia_vza_stratified_plot_specific_slope_summary_2024.csv",
+        index=False,
+    )
+    contrast_summary.to_csv(
+        args.output_root / "results/lia_vza_contrast_model_2024.csv", index=False
+    )
     lai_summary.to_csv(args.output_root / "diagnostics/lai_cvi_diagnostic.csv", index=False)
     phase("write tables", t0)
 
     t0 = time.perf_counter()
-    save_curve_figure(joined, args.output_root / "figures/lia_tercile_vza_curves_nir_rededge_2024.png")
-    save_heatmap(observed_effects, args.output_root / "figures/lia_high_low_effect_heatmap_nir_rededge_2024.png")
+    save_curve_figure(
+        joined, args.output_root / "figures/lia_tercile_vza_curves_nir_rededge_2024.png"
+    )
+    save_heatmap(
+        observed_effects,
+        args.output_root / "figures/lia_high_low_effect_heatmap_nir_rededge_2024.png",
+    )
     save_coeff_figure(terms, args.output_root / "figures/lia_vza_interaction_coefficients_2024.png")
     for stratum_type in STRATIFICATIONS:
         save_stratified_heatmaps(
@@ -1369,23 +1663,27 @@ def main() -> None:
         )
     save_story_strength_by_week(
         observed_effects,
-        args.output_root / "figures/story/01_early_when_lia_matters_effect_strength_by_week_2024.png",
+        args.output_root
+        / "figures/story/01_early_when_lia_matters_effect_strength_by_week_2024.png",
     )
     for stratum_type in STRATIFICATIONS:
         save_story_angular_profile(
             stratified_effects,
             stratum_type,
-            args.output_root / f"figures/story/02_early_how_lia_effect_changes_with_vza_by_{stratum_type}_2024.png",
+            args.output_root
+            / f"figures/story/02_early_how_lia_effect_changes_with_vza_by_{stratum_type}_2024.png",
         )
         save_story_angular_profile(
             stratified_effects,
             stratum_type,
-            args.output_root / f"figures/story/04_late_week8_dead_canopy_lia_effect_by_{stratum_type}_2024.png",
+            args.output_root
+            / f"figures/story/04_late_week8_dead_canopy_lia_effect_by_{stratum_type}_2024.png",
             weeks=tuple(LATE_CAVEAT_WEEKS),
         )
     save_story_reflectance_curves(
         joined,
-        args.output_root / "figures/story/03_raw_week7_reflectance_curves_by_cultivar_treatment_2024.png",
+        args.output_root
+        / "figures/story/03_raw_week7_reflectance_curves_by_cultivar_treatment_2024.png",
         week=7,
     )
     save_raw_lia_curve_progression_by_cultivar_band(
@@ -1426,7 +1724,11 @@ def main() -> None:
     canonical_report.write_text(report_path.read_text(encoding="utf-8"), encoding="utf-8")
     phase("report", t0)
 
-    logging.info("Joined rows=%d plot-week pairs=%d", joined.shape[0], joined[["plot_id", "week"]].drop_duplicates().shape[0])
+    logging.info(
+        "Joined rows=%d plot-week pairs=%d",
+        joined.shape[0],
+        joined[["plot_id", "week"]].drop_duplicates().shape[0],
+    )
     logging.info("[PHASE] total: %.1fs", time.perf_counter() - total)
 
 

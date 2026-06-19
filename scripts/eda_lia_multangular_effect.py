@@ -13,8 +13,14 @@ import pandas as pd
 import polars as pl
 
 ROOT = Path(__file__).resolve().parents[1]
-LIA_SOURCE = ROOT / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
-CONTRAST_SOURCE = ROOT / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
+LIA_SOURCE = (
+    ROOT
+    / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
+)
+CONTRAST_SOURCE = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
+)
 OUT_ROOT = ROOT / "outputs/backup_metadata/eda_lia"
 LOG_ROOT = ROOT / "outputs/logs"
 
@@ -57,16 +63,17 @@ def load_lia(path: Path) -> pd.DataFrame:
     df = df.dropna(subset=["week"]).copy()
     df["week"] = df["week"].astype(int)
     df["plot_id"] = df["ifz_id"].astype(int).rsub(90024).map(lambda x: f"plot_{x}")
-    return (
-        df.groupby(["week", "plot_id", "cult", "trt"], as_index=False)
-        .agg(lia=("lia", "mean"), n_lia_dates=("date", "nunique"))
+    return df.groupby(["week", "plot_id", "cult", "trt"], as_index=False).agg(
+        lia=("lia", "mean"), n_lia_dates=("date", "nunique")
     )
 
 
 def load_contrasts(path: Path) -> pd.DataFrame:
     df = pl.read_parquet(path).to_pandas()
     df = df[df["band_name"].isin(["NIR", "Red edge"])]
-    return df[["plot_id", "week", "band_name", "vza_class", "absolute_contrast", "relative_contrast"]]
+    return df[
+        ["plot_id", "week", "band_name", "vza_class", "absolute_contrast", "relative_contrast"]
+    ]
 
 
 def build_join(lia: pd.DataFrame, contrasts: pd.DataFrame) -> pd.DataFrame:
@@ -89,15 +96,25 @@ def summarize(joined: pd.DataFrame) -> pd.DataFrame:
                 "lia_median": float(clean["lia"].median()),
                 "corr_lia_abs": float(clean["lia"].corr(clean["absolute_contrast"])),
                 "corr_lia_rel": float(clean["lia"].corr(clean["relative_contrast"])),
-                "low_lia_rel_median": float(low["relative_contrast"].median()) if not low.empty else float("nan"),
-                "high_lia_rel_median": float(high["relative_contrast"].median()) if not high.empty else float("nan"),
-                "delta_high_minus_low": float(high["relative_contrast"].median() - low["relative_contrast"].median()) if (not low.empty and not high.empty) else float("nan"),
+                "low_lia_rel_median": (
+                    float(low["relative_contrast"].median()) if not low.empty else float("nan")
+                ),
+                "high_lia_rel_median": (
+                    float(high["relative_contrast"].median()) if not high.empty else float("nan")
+                ),
+                "delta_high_minus_low": (
+                    float(high["relative_contrast"].median() - low["relative_contrast"].median())
+                    if (not low.empty and not high.empty)
+                    else float("nan")
+                ),
             }
         )
     return pd.DataFrame(rows).sort_values(["week", "band"])
 
 
-def write_report(output_root: Path, summary: pd.DataFrame, joined: pd.DataFrame, log_path: Path) -> None:
+def write_report(
+    output_root: Path, summary: pd.DataFrame, joined: pd.DataFrame, log_path: Path
+) -> None:
     report = output_root / "reports/lia_multangular_effect.md"
     report.parent.mkdir(parents=True, exist_ok=True)
     lines = [

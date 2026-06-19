@@ -13,11 +13,10 @@ import numpy as np
 
 np.mat = np.asmatrix  # Compatibility with MicaSense imageprocessing + NumPy 2.
 
+import micasense.capture as capture_mod
 import rasterio
 import skimage.measure
-import micasense.capture as capture_mod
 from micasense.capture import Capture
-
 
 ORIG_RANSAC = skimage.measure.ransac
 BAND_SUFFIXES = ("1", "2", "3", "4", "5", "6")
@@ -38,7 +37,10 @@ def capture_files_from_blue(blue_path: Path) -> list[str]:
     name = blue_path.name
     if not name.endswith("_1.tif"):
         raise ValueError(f"expected *_1.tif capture seed, got {blue_path}")
-    return [str(blue_path.with_name(name.replace("_1.tif", f"_{suffix}.tif"))) for suffix in BAND_SUFFIXES]
+    return [
+        str(blue_path.with_name(name.replace("_1.tif", f"_{suffix}.tif")))
+        for suffix in BAND_SUFFIXES
+    ]
 
 
 def iter_capture_seeds(folder: Path) -> Iterable[Path]:
@@ -59,7 +61,11 @@ def panel_irradiance(panel_folder: Path, panel_seed: str | None) -> tuple[list[f
         raise FileNotFoundError(f"no panel captures found in {panel_folder}")
     seed = seeds[0]
     if panel_seed:
-        matches = [candidate for candidate in seeds if candidate.name.startswith(panel_seed) or candidate.stem.startswith(panel_seed)]
+        matches = [
+            candidate
+            for candidate in seeds
+            if candidate.name.startswith(panel_seed) or candidate.stem.startswith(panel_seed)
+        ]
         if not matches:
             raise FileNotFoundError(f"panel seed {panel_seed!r} not found in {panel_folder}")
         seed = matches[0]
@@ -139,7 +145,13 @@ def existing_stack_is_valid(path: Path, expected_bands: int) -> bool:
         return False
 
 
-def process_capture(seed: Path, outdir: Path, warps: list[np.ndarray], irradiance: list[float], include_panchro: bool) -> dict:
+def process_capture(
+    seed: Path,
+    outdir: Path,
+    warps: list[np.ndarray],
+    irradiance: list[float],
+    include_panchro: bool,
+) -> dict:
     out_path = outdir / output_name(seed)
     expected_bands = 6 if include_panchro else 5
     if existing_stack_is_valid(out_path, expected_bands):
@@ -151,7 +163,9 @@ def process_capture(seed: Path, outdir: Path, warps: list[np.ndarray], irradianc
         }
 
     cap = load_capture(seed)
-    cap.radiometric_pan_sharpened_aligned_capture(warp_matrices=warps, irradiance_list=irradiance, img_type="reflectance")
+    cap.radiometric_pan_sharpened_aligned_capture(
+        warp_matrices=warps, irradiance_list=irradiance, img_type="reflectance"
+    )
     aligned = cap._Capture__aligned_radiometric_pan_sharpened_capture[1]
     write_stack(out_path, aligned, include_panchro=include_panchro)
     return {
@@ -168,13 +182,28 @@ def process_capture(seed: Path, outdir: Path, warps: list[np.ndarray], irradianc
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input-set", type=Path, required=True, help="Flight SET folder containing captures")
-    parser.add_argument("--panel-set", type=Path, required=True, help="Panel SET folder used for reflectance calibration")
+    parser.add_argument(
+        "--input-set", type=Path, required=True, help="Flight SET folder containing captures"
+    )
+    parser.add_argument(
+        "--panel-set",
+        type=Path,
+        required=True,
+        help="Panel SET folder used for reflectance calibration",
+    )
     parser.add_argument("--outdir", type=Path, required=True)
-    parser.add_argument("--alignment-seed", type=str, help="*_1.tif filename to use for SIFT alignment; default first capture")
-    parser.add_argument("--panel-seed", type=str, help="panel *_1.tif filename prefix; default first panel capture")
+    parser.add_argument(
+        "--alignment-seed",
+        type=str,
+        help="*_1.tif filename to use for SIFT alignment; default first capture",
+    )
+    parser.add_argument(
+        "--panel-seed", type=str, help="panel *_1.tif filename prefix; default first panel capture"
+    )
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--include-panchro", action="store_true", help="Write a 6-band stack including panchro")
+    parser.add_argument(
+        "--include-panchro", action="store_true", help="Write a 6-band stack including panchro"
+    )
     parser.add_argument("--min-matches", type=int, default=10)
     parser.add_argument("--verbose-align", type=int, default=1)
     args = parser.parse_args()
@@ -186,9 +215,15 @@ def main() -> int:
 
     alignment_seed = all_seeds[0]
     if args.alignment_seed:
-        matches = [seed for seed in all_seeds if seed.name == args.alignment_seed or seed.stem == args.alignment_seed]
+        matches = [
+            seed
+            for seed in all_seeds
+            if seed.name == args.alignment_seed or seed.stem == args.alignment_seed
+        ]
         if not matches:
-            raise FileNotFoundError(f"alignment seed {args.alignment_seed!r} not found in {args.input_set}")
+            raise FileNotFoundError(
+                f"alignment seed {args.alignment_seed!r} not found in {args.input_set}"
+            )
         alignment_seed = matches[0]
 
     irradiance, panel_meta = panel_irradiance(args.panel_set, args.panel_seed)

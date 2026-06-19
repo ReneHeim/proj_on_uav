@@ -9,7 +9,6 @@ from pathlib import Path
 
 import rasterio
 
-
 BAND_SUFFIXES = ("1", "2", "3", "4", "5")
 BAND_NAMES = ("Blue", "Green", "Red", "NIR", "Red edge")
 
@@ -18,7 +17,9 @@ def raw_band_path(raw_set: Path, stack_name: str, suffix: str) -> Path:
     raw_name = stack_name.replace("_6.tif", f"_{suffix}.tif")
     matches = list(raw_set.glob(f"**/{raw_name}"))
     if len(matches) != 1:
-        raise FileNotFoundError(f"expected one raw source for {raw_name}, found {len(matches)} in {raw_set}")
+        raise FileNotFoundError(
+            f"expected one raw source for {raw_name}, found {len(matches)} in {raw_set}"
+        )
     return matches[0]
 
 
@@ -72,8 +73,12 @@ def split_stack(stack_path: Path, raw_set: Path, out_dir: Path, overwrite: bool)
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--stack-dir", type=Path, required=True, help="Folder of calibrated IMG_*_6.tif stacks")
-    parser.add_argument("--raw-set", type=Path, required=True, help="Matching raw MicaSense SET folder")
+    parser.add_argument(
+        "--stack-dir", type=Path, required=True, help="Folder of calibrated IMG_*_6.tif stacks"
+    )
+    parser.add_argument(
+        "--raw-set", type=Path, required=True, help="Matching raw MicaSense SET folder"
+    )
     parser.add_argument("--out-dir", type=Path, required=True, help="Output ODM images directory")
     parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()

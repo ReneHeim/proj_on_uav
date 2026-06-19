@@ -23,7 +23,6 @@ from rasterio.enums import Resampling
 from rasterio.transform import array_bounds
 from rasterio.warp import calculate_default_transform, reproject
 
-
 BAND_NAMES = ("Blue", "Green", "Red", "NIR", "Red edge")
 REFLECTANCE_SCALE = 32767.0
 
@@ -289,7 +288,9 @@ def main() -> int:
             records.append(record)
             print(f"[{index}/{len(stacks)}] wrote {out_path}")
         except Exception as exc:
-            failures.append({"capture": capture, "source_stack": str(stack_path), "error": repr(exc)})
+            failures.append(
+                {"capture": capture, "source_stack": str(stack_path), "error": repr(exc)}
+            )
             print(f"[{index}/{len(stacks)}] failed {capture}: {exc}")
 
     if not args.keep_temp:
@@ -312,7 +313,9 @@ def main() -> int:
         "failures": failures,
     }
     (args.out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2))
-    print(f"processed={len(records)} failed={len(failures)} manifest={args.out_dir / 'manifest.json'}")
+    print(
+        f"processed={len(records)} failed={len(failures)} manifest={args.out_dir / 'manifest.json'}"
+    )
     return 2 if failures else 0
 
 

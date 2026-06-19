@@ -24,7 +24,6 @@ import pandas as pd
 import polars as pl
 import statsmodels.formula.api as smf
 
-
 ROOT = Path(__file__).resolve().parents[1]
 LAI_RAW_ROOT = Path("/run/media/davidem/heim_data/Backup/proj_on_cerco/data/processed/2024")
 POLYGON_PATH = Path("/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg")
@@ -113,7 +112,20 @@ def parse_lai_txt(path: Path) -> dict[str, object]:
         if key == "date" and len(parts) >= 3:
             row["measurement_datetime"] = f"{parts[1]} {parts[2]}"
             continue
-        if key in {"lai", "sel", "acf", "difn", "mta", "sem", "smp", "gpslat", "gpslong", "gpsalt", "gpshdop", "gpsnum"}:
+        if key in {
+            "lai",
+            "sel",
+            "acf",
+            "difn",
+            "mta",
+            "sem",
+            "smp",
+            "gpslat",
+            "gpslong",
+            "gpsalt",
+            "gpshdop",
+            "gpsnum",
+        }:
             values = parse_numeric_values(parts[1:])
             row[key] = values[0] if values else np.nan
             continue
@@ -150,7 +162,9 @@ def load_lai_raw(root: Path, polygon_path: Path) -> tuple[pd.DataFrame, pd.DataF
     polygons = gpd.read_file(polygon_path)[["ifz_id", "cult", "trt"]].copy()
     polygons["ifz_id"] = polygons["ifz_id"].astype(int)
     raw = raw.merge(polygons, on="ifz_id", how="left", validate="many_to_one")
-    raw["measurement_datetime"] = pd.to_datetime(raw["measurement_datetime"], format="%Y%m%d %H:%M:%S", errors="coerce")
+    raw["measurement_datetime"] = pd.to_datetime(
+        raw["measurement_datetime"], format="%Y%m%d %H:%M:%S", errors="coerce"
+    )
     phase("load_lai_raw", t0)
     return raw, polygons
 
@@ -202,7 +216,12 @@ def nearest_ring(row: pd.Series, prefix: str) -> float:
 def build_join(contrast_source: Path, lai_plot_week: pd.DataFrame) -> pd.DataFrame:
     t0 = time.perf_counter()
     contrasts = pl.read_parquet(contrast_source).to_pandas()
-    logging.info("[I/O] read contrasts rows=%d cols=%d path=%s", contrasts.shape[0], contrasts.shape[1], contrast_source)
+    logging.info(
+        "[I/O] read contrasts rows=%d cols=%d path=%s",
+        contrasts.shape[0],
+        contrasts.shape[1],
+        contrast_source,
+    )
     contrasts["week"] = contrasts["week"].astype(int)
     lai_plot_week["week"] = lai_plot_week["week"].astype(int)
     joined = contrasts.merge(
@@ -213,13 +232,17 @@ def build_join(contrast_source: Path, lai_plot_week: pd.DataFrame) -> pd.DataFra
         suffixes=("", "_lai"),
     )
     for prefix in ["gaps", "avgtrans", "cntct", "acfs"]:
-        joined[f"{prefix}_nearest_vza"] = joined.apply(lambda row: nearest_ring(row, prefix), axis=1)
+        joined[f"{prefix}_nearest_vza"] = joined.apply(
+            lambda row: nearest_ring(row, prefix), axis=1
+        )
     joined["canopy_closure"] = 1.0 - joined["difn"]
     joined["lai_z"] = (joined["lai"] - joined["lai"].mean()) / joined["lai"].std(ddof=0)
-    joined["gap_z"] = (joined["gaps_nearest_vza"] - joined["gaps_nearest_vza"].mean()) / joined["gaps_nearest_vza"].std(ddof=0)
-    joined["trans_z"] = (joined["avgtrans_nearest_vza"] - joined["avgtrans_nearest_vza"].mean()) / joined[
-        "avgtrans_nearest_vza"
+    joined["gap_z"] = (joined["gaps_nearest_vza"] - joined["gaps_nearest_vza"].mean()) / joined[
+        "gaps_nearest_vza"
     ].std(ddof=0)
+    joined["trans_z"] = (
+        joined["avgtrans_nearest_vza"] - joined["avgtrans_nearest_vza"].mean()
+    ) / joined["avgtrans_nearest_vza"].std(ddof=0)
     phase("build_join", t0)
     return joined
 
@@ -246,11 +269,23 @@ def fit_models(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
             continue
         for model_name, formula in formulas.items():
             fit_t0 = time.perf_counter()
-            model = smf.ols(formula, data=band_df).fit(cov_type="cluster", cov_kwds={"groups": band_df["plot_id"]})
-            logging.info("[ML] fit band=%s model=%s time=%.2fs", band, model_name, time.perf_counter() - fit_t0)
+            model = smf.ols(formula, data=band_df).fit(
+                cov_type="cluster", cov_kwds={"groups": band_df["plot_id"]}
+            )
+            logging.info(
+                "[ML] fit band=%s model=%s time=%.2fs",
+                band,
+                model_name,
+                time.perf_counter() - fit_t0,
+            )
             pred_t0 = time.perf_counter()
             _ = model.predict(band_df.head(10))
-            logging.info("[ML] predict band=%s model=%s time=%.4fs", band, model_name, time.perf_counter() - pred_t0)
+            logging.info(
+                "[ML] predict band=%s model=%s time=%.4fs",
+                band,
+                model_name,
+                time.perf_counter() - pred_t0,
+            )
             model_rows.append(
                 {
                     "band_name": band,
@@ -270,8 +305,16 @@ def fit_models(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
                             "term": term,
                             "coef": model.params.get(term, np.nan),
                             "p_cluster": model.pvalues.get(term, np.nan),
-                            "conf_low": model.conf_int().loc[term, 0] if term in model.params.index else np.nan,
-                            "conf_high": model.conf_int().loc[term, 1] if term in model.params.index else np.nan,
+                            "conf_low": (
+                                model.conf_int().loc[term, 0]
+                                if term in model.params.index
+                                else np.nan
+                            ),
+                            "conf_high": (
+                                model.conf_int().loc[term, 1]
+                                if term in model.params.index
+                                else np.nan
+                            ),
                         }
                     )
     phase("fit_models", t0)
@@ -281,7 +324,14 @@ def fit_models(joined: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 def correlation_summary(joined: pd.DataFrame) -> pd.DataFrame:
     t0 = time.perf_counter()
     rows = []
-    variables = ["lai", "difn", "acf", "gaps_nearest_vza", "avgtrans_nearest_vza", "cntct_nearest_vza"]
+    variables = [
+        "lai",
+        "difn",
+        "acf",
+        "gaps_nearest_vza",
+        "avgtrans_nearest_vza",
+        "cntct_nearest_vza",
+    ]
     targets = ["relative_contrast", "absolute_contrast", "reflectance"]
     for band, band_df in joined.groupby("band_name"):
         for var in variables:
@@ -309,7 +359,12 @@ def model_deltas(model_summary: pd.DataFrame) -> pd.DataFrame:
     for band, band_df in model_summary.groupby("band_name"):
         lookup = band_df.set_index("model")
         base = lookup.loc["M0_vza_controls"]
-        for model in ["M1_add_lai", "M2_add_difn_acf", "M3_add_angle_gap", "M4_gap_lai_interactions"]:
+        for model in [
+            "M1_add_lai",
+            "M2_add_difn_acf",
+            "M3_add_angle_gap",
+            "M4_gap_lai_interactions",
+        ]:
             if model not in lookup.index:
                 continue
             row = lookup.loc[model]
@@ -327,9 +382,9 @@ def model_deltas(model_summary: pd.DataFrame) -> pd.DataFrame:
 
 def summarize_gap_group_curves(joined: pd.DataFrame) -> pd.DataFrame:
     """Summarize VZA contrast curves for low- and high-gap canopies."""
-    data = joined[(joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin([5, 6]))].dropna(
-        subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"]
-    )
+    data = joined[
+        (joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin([5, 6]))
+    ].dropna(subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"])
     rows: list[dict[str, object]] = []
     for (band, vza_class), group in data.groupby(["band_name", "vza_class"]):
         low_cut = group["gaps_nearest_vza"].quantile(0.33)
@@ -357,17 +412,21 @@ def summarize_gap_group_curves(joined: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values(["band_name", "gap_group", "vza_midpoint"])
 
 
-def summarize_gap_tercile_points(joined: pd.DataFrame, weeks: tuple[int, ...] = (5, 6)) -> pd.DataFrame:
+def summarize_gap_tercile_points(
+    joined: pd.DataFrame, weeks: tuple[int, ...] = (5, 6)
+) -> pd.DataFrame:
     """Summarize closed/mid/open canopy mean contrast points per VZA bin."""
-    data = joined[(joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin(weeks))].dropna(
-        subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"]
-    )
+    data = joined[
+        (joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin(weeks))
+    ].dropna(subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"])
     rows: list[dict[str, object]] = []
     labels = ["closed canopy", "mid canopy", "open canopy"]
     for (band, vza_class), group in data.groupby(["band_name", "vza_class"]):
         try:
             group = group.copy()
-            group["gap_group"] = pd.qcut(group["gaps_nearest_vza"], q=3, labels=labels, duplicates="drop")
+            group["gap_group"] = pd.qcut(
+                group["gaps_nearest_vza"], q=3, labels=labels, duplicates="drop"
+            )
         except ValueError:
             continue
         for gap_group, subset in group.groupby("gap_group", observed=True):
@@ -397,15 +456,17 @@ def summarize_gap_tercile_points(joined: pd.DataFrame, weeks: tuple[int, ...] = 
 
 def gap_tercile_observations(joined: pd.DataFrame, weeks: tuple[int, ...]) -> pd.DataFrame:
     """Return row-level closed/open canopy observations for boxplots."""
-    data = joined[(joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin(weeks))].dropna(
-        subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"]
-    )
+    data = joined[
+        (joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin(weeks))
+    ].dropna(subset=["relative_contrast", "gaps_nearest_vza", "vza_midpoint"])
     rows = []
     labels = ["closed canopy", "mid canopy", "open canopy"]
     for (band, vza_class), group in data.groupby(["band_name", "vza_class"]):
         try:
             group = group.copy()
-            group["gap_group"] = pd.qcut(group["gaps_nearest_vza"], q=3, labels=labels, duplicates="drop")
+            group["gap_group"] = pd.qcut(
+                group["gaps_nearest_vza"], q=3, labels=labels, duplicates="drop"
+            )
         except ValueError:
             continue
         rows.append(group[group["gap_group"].astype(str).isin(["closed canopy", "open canopy"])])
@@ -421,9 +482,9 @@ def summarize_stable_canopy_vza_points(joined: pd.DataFrame) -> pd.DataFrame:
     groups at high VZA. This summary assigns canopy openness once per plot-week
     using DIFN, then pools neighboring VZA bins into broader zones.
     """
-    data = joined[(joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin([5, 6]))].dropna(
-        subset=["relative_contrast", "difn", "vza_midpoint"]
-    )
+    data = joined[
+        (joined["band_name"].isin(BANDS_FOR_PAPER)) & (joined["week"].isin([5, 6]))
+    ].dropna(subset=["relative_contrast", "difn", "vza_midpoint"])
     if data.empty:
         return pd.DataFrame()
 
@@ -431,7 +492,9 @@ def summarize_stable_canopy_vza_points(joined: pd.DataFrame) -> pd.DataFrame:
     plot_week = data[["plot_id", "week", "difn"]].drop_duplicates()
     labels = ["closed canopy", "mid canopy", "open canopy"]
     plot_week["canopy_group"] = pd.qcut(plot_week["difn"], q=3, labels=labels, duplicates="drop")
-    data = data.merge(plot_week[["plot_id", "week", "canopy_group"]], on=["plot_id", "week"], how="left")
+    data = data.merge(
+        plot_week[["plot_id", "week", "canopy_group"]], on=["plot_id", "week"], how="left"
+    )
     data["vza_zone"] = pd.cut(
         data["vza_midpoint"],
         bins=[0, 30, 45, 60],
@@ -486,10 +549,26 @@ def save_figures(joined: pd.DataFrame, model_delta: pd.DataFrame, output_root: P
     for treatment, style in [("trt", "-"), ("no_trt", "--")]:
         for cultivar, color in [("aluco", "#0072B2"), ("capone", "#D55E00")]:
             data = canopy[(canopy["trt"] == treatment) & (canopy["cult"] == cultivar)]
-            summary = data.groupby("week", as_index=False).agg(lai=("lai", "mean"), difn=("difn", "mean"))
+            summary = data.groupby("week", as_index=False).agg(
+                lai=("lai", "mean"), difn=("difn", "mean")
+            )
             label = f"{cultivar} {treatment}"
-            axes[0].plot(summary["week"], summary["lai"], linestyle=style, color=color, marker="o", label=label)
-            axes[1].plot(summary["week"], summary["difn"], linestyle=style, color=color, marker="o", label=label)
+            axes[0].plot(
+                summary["week"],
+                summary["lai"],
+                linestyle=style,
+                color=color,
+                marker="o",
+                label=label,
+            )
+            axes[1].plot(
+                summary["week"],
+                summary["difn"],
+                linestyle=style,
+                color=color,
+                marker="o",
+                label=label,
+            )
     axes[0].set_title("LAI progression")
     axes[0].set_ylabel("LAI")
     axes[1].set_title("Diffuse non-interceptance / openness")
@@ -531,8 +610,16 @@ def save_figures(joined: pd.DataFrame, model_delta: pd.DataFrame, output_root: P
     if not gap_curves.empty:
         fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.2), sharey=True)
         group_styles = {
-            "closed canopy\nlow gap": {"color": "#176B6B", "label": "closed canopy, low gap", "marker": "o"},
-            "open canopy\nhigh gap": {"color": "#D55E00", "label": "open canopy, high gap", "marker": "s"},
+            "closed canopy\nlow gap": {
+                "color": "#176B6B",
+                "label": "closed canopy, low gap",
+                "marker": "o",
+            },
+            "open canopy\nhigh gap": {
+                "color": "#D55E00",
+                "label": "open canopy, high gap",
+                "marker": "s",
+            },
         }
         for axis, band in zip(axes, BANDS_FOR_PAPER, strict=True):
             band_df = gap_curves[gap_curves["band_name"] == band]
@@ -601,7 +688,9 @@ def save_figures(joined: pd.DataFrame, model_delta: pd.DataFrame, output_root: P
                     label=band,
                 )
             axis.axhline(0, color="#4D4D4D", linewidth=1.0)
-            axis.fill_between([pivot["vza_midpoint"].min(), pivot["vza_midpoint"].max()], 0, 0.0, color="none")
+            axis.fill_between(
+                [pivot["vza_midpoint"].min(), pivot["vza_midpoint"].max()], 0, 0.0, color="none"
+            )
             axis.set_title("Effect of canopy gaps on VZA reflectance contrast, weeks 5-6")
             axis.set_xlabel("View zenith angle midpoint (deg)")
             axis.set_ylabel("Open canopy minus closed canopy\nrelative contrast vs nadir")
@@ -806,9 +895,14 @@ def save_figures(joined: pd.DataFrame, model_delta: pd.DataFrame, output_root: P
             )
             axis.spines[["top", "right"]].set_visible(False)
             axis.grid(axis="y", color="#E3E6E8")
-            axis.legend(frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3, fontsize=8)
+            axis.legend(
+                frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=3, fontsize=8
+            )
             fig.tight_layout(rect=[0, 0.08, 1, 1])
-            path = fig_dir / f"vza_relative_contrast_stable_canopy_groups_{band.lower().replace(' ', '_')}_weeks5_6_2024.png"
+            path = (
+                fig_dir
+                / f"vza_relative_contrast_stable_canopy_groups_{band.lower().replace(' ', '_')}_weeks5_6_2024.png"
+            )
             fig.savefig(path, dpi=240, bbox_inches="tight")
             plt.close(fig)
             paths.append(path)

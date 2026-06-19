@@ -110,18 +110,27 @@ def build_model_tables(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
     started = time.perf_counter()
     comparisons = []
     term_rows = []
-    angle_order = long.select("vza_class", "vza_midpoint").unique().sort("vza_midpoint")["vza_class"].to_list()
+    angle_order = (
+        long.select("vza_class", "vza_midpoint")
+        .unique()
+        .sort("vza_midpoint")["vza_class"]
+        .to_list()
+    )
     for band, band_name in BANDS.items():
         frame = long.filter(pl.col("band") == band).to_pandas()
         if frame.empty:
             continue
-        frame["vza_class"] = pd.Categorical(frame["vza_class"], categories=angle_order, ordered=True)
+        frame["vza_class"] = pd.Categorical(
+            frame["vza_class"], categories=angle_order, ordered=True
+        )
         try:
             fit_started = time.perf_counter()
             control = fit_clustered(CONTROL_FORMULA, frame)
             vza = fit_clustered(VZA_FORMULA, frame)
             vza_week = fit_clustered(VZA_WEEK_FORMULA, frame)
-            logging.info("[ML] fit %s VZA model ladder: %.3fs", band_name, time.perf_counter() - fit_started)
+            logging.info(
+                "[ML] fit %s VZA model ladder: %.3fs", band_name, time.perf_counter() - fit_started
+            )
             term_rows.extend(extract_terms(vza, band, band_name, "vza_main"))
             term_rows.extend(extract_terms(vza_week, band, band_name, "vza_week"))
             comparisons.append(
@@ -162,7 +171,9 @@ def build_model_tables(long: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
     return pl.DataFrame(comparisons), pl.DataFrame(term_rows)
 
 
-def top_table(frame: pl.DataFrame, value_column: str, min_plots: int = MIN_HEADLINE_PLOTS, n: int = 10) -> pl.DataFrame:
+def top_table(
+    frame: pl.DataFrame, value_column: str, min_plots: int = MIN_HEADLINE_PLOTS, n: int = 10
+) -> pl.DataFrame:
     if frame.is_empty():
         return frame
     return (
@@ -361,7 +372,9 @@ def write_detailed_report(
     return report_path
 
 
-def update_summary_report(summary_path: Path, year: int, models: pl.DataFrame, detailed_report: Path) -> None:
+def update_summary_report(
+    summary_path: Path, year: int, models: pl.DataFrame, detailed_report: Path
+) -> None:
     if not summary_path.exists():
         return
     marker = "## Interpretable VZA Model Evidence"
@@ -429,7 +442,9 @@ def process_one(base_dir: Path, year: int, filter_state: str) -> None:
         terms,
         log_path,
     )
-    update_summary_report(out_dir / f"reports/reflectance_distributions_summary_{year}.md", year, models, report)
+    update_summary_report(
+        out_dir / f"reports/reflectance_distributions_summary_{year}.md", year, models, report
+    )
     logging.info("Wrote detailed VZA report: %s", report)
     log_phase("total", started)
 

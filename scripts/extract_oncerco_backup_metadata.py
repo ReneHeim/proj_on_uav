@@ -78,7 +78,9 @@ def classify(rel_path: Path) -> str:
 
 def should_include(path: Path) -> bool:
     lower = str(path).lower()
-    return path.suffix.lower() in {".xlsx", ".xls"} and any(keyword in lower for keyword in INCLUDE_KEYWORDS)
+    return path.suffix.lower() in {".xlsx", ".xls"} and any(
+        keyword in lower for keyword in INCLUDE_KEYWORDS
+    )
 
 
 def read_sheet(path: Path, sheet_name: str) -> pd.DataFrame:
@@ -112,24 +114,34 @@ def summarize_measurements(kind: str, frame: pd.DataFrame) -> dict[str, float | 
             result["ds_plot_mean"] = float(pd.to_numeric(ds_plot, errors="coerce").mean())
         leaf_cols = [c for c in frame.columns if c.startswith("ds_leaf")]
         if leaf_cols:
-            result["ds_leaf_mean"] = float(pd.to_numeric(frame[leaf_cols].stack(), errors="coerce").mean())
+            result["ds_leaf_mean"] = float(
+                pd.to_numeric(frame[leaf_cols].stack(), errors="coerce").mean()
+            )
         di_cols = [c for c in frame.columns if c.startswith("di_leaf")]
         if di_cols:
-            result["di_leaf_mean"] = float(pd.to_numeric(frame[di_cols].stack(), errors="coerce").mean())
+            result["di_leaf_mean"] = float(
+                pd.to_numeric(frame[di_cols].stack(), errors="coerce").mean()
+            )
     elif kind == "LIA":
         lia_cols = [c for c in frame.columns if c.upper().startswith("LIA(")]
         if lia_cols:
-            result["lia_mean"] = float(pd.to_numeric(frame[lia_cols].stack(), errors="coerce").mean())
+            result["lia_mean"] = float(
+                pd.to_numeric(frame[lia_cols].stack(), errors="coerce").mean()
+            )
             result["lia_min"] = float(pd.to_numeric(frame[lia_cols].stack(), errors="coerce").min())
             result["lia_max"] = float(pd.to_numeric(frame[lia_cols].stack(), errors="coerce").max())
     elif kind == "LAI":
         for col in ["LAI", "LAIc"]:
             if col in frame.columns:
-                result[f"{col.lower()}_mean"] = float(pd.to_numeric(frame[col], errors="coerce").mean())
+                result[f"{col.lower()}_mean"] = float(
+                    pd.to_numeric(frame[col], errors="coerce").mean()
+                )
     elif kind == "LCC":
         for col in ["LCC", "LCC_mean"]:
             if col in frame.columns:
-                result[f"{col.lower()}_mean"] = float(pd.to_numeric(frame[col], errors="coerce").mean())
+                result[f"{col.lower()}_mean"] = float(
+                    pd.to_numeric(frame[col], errors="coerce").mean()
+                )
     return result
 
 

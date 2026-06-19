@@ -52,14 +52,22 @@ FINE_VZA_MIN = 10
 FINE_VZA_MAX = 55
 YEAR_PLOT_DIRS = {
     2024: {
-    0: Path("/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"),
-    2: Path("/run/media/davidem/Heim/2024/recovered_weeks/week2/output/plots"),
-    3: Path("/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"),
-    4: Path("/run/media/davidem/Heim/2024/recovered_weeks/week4/output/plots"),
-    5: Path("/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"),
-    6: Path("/run/media/davidem/Heim/2024/recovered_weeks/week6/output/plots"),
-    7: Path("/run/media/davidem/Heim/2024/recovered_weeks/week7/output/plots"),
-    8: Path("/run/media/davidem/Heim/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df"),
+        0: Path(
+            "/run/media/davidem/Heim/2024/20240603_week0/metashape/20241205_products_uav_data/output/extract/polygon_df"
+        ),
+        2: Path("/run/media/davidem/Heim/2024/recovered_weeks/week2/output/plots"),
+        3: Path(
+            "/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data/output/plots"
+        ),
+        4: Path("/run/media/davidem/Heim/2024/recovered_weeks/week4/output/plots"),
+        5: Path(
+            "/run/media/davidem/Heim/2024/20240715_week5/metashape/20241207_week5_products_uav_data/output/plots"
+        ),
+        6: Path("/run/media/davidem/Heim/2024/recovered_weeks/week6/output/plots"),
+        7: Path("/run/media/davidem/Heim/2024/recovered_weeks/week7/output/plots"),
+        8: Path(
+            "/run/media/davidem/Heim/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df"
+        ),
     },
     2025: {
         0: Path("/run/media/davidem/Heim/2025/recovered_weeks/week0/output/plots"),
@@ -830,13 +838,7 @@ def plot_reflectance_distributions_by_vza(long: pl.DataFrame, output_dir: Path) 
     log_phase("reflectance_distribution_vza_figure", started)
 
 
-def plot_seasonal_distribution_atlas(
-    long: pl.DataFrame,
-    output_dir: Path,
-    year: int,
-    output_suffix: str = "",
-    title_note: str | None = None,
-) -> None:
+def plot_seasonal_distribution_atlas(long: pl.DataFrame, output_dir: Path, year: int) -> None:
     started = time.perf_counter()
     weeks = sorted(long["week"].unique().to_list())
     angle_order = (
@@ -883,9 +885,7 @@ def plot_seasonal_distribution_atlas(
             else:
                 axis.set_xticks(np.arange(len(angle_order)), [])
             style_axis(axis)
-    if title_note:
-        figure.suptitle(title_note, fontsize=12, fontweight="bold", y=1.01)
-    save_figure(figure, output_dir / f"figures/main/reflectance_distributions_by_week_{year}{output_suffix}")
+    save_figure(figure, output_dir / f"figures/main/reflectance_distributions_by_week_{year}")
     log_phase("seasonal_distribution_atlas_figure", started)
 
 
@@ -1036,18 +1036,10 @@ def plot_seasonal_angular_contrast_change(contrast_summary: pl.DataFrame, output
     log_phase("seasonal_contrast_change_figure", started)
 
 
-def plot_cultivar_curves(
-    long: pl.DataFrame,
-    output_dir: Path,
-    year: int,
-    output_suffix: str = "",
-    title_note: str = "",
-    min_plot_support: int | None = None,
-) -> None:
+def plot_cultivar_curves(long: pl.DataFrame, output_dir: Path, year: int) -> None:
     started = time.perf_counter()
     selected_bands = list(BANDS)
     weeks = sorted(long["week"].unique().to_list())
-    support_rows = []
     figure, axes = plt.subplots(
         len(selected_bands),
         len(weeks),
@@ -1065,47 +1057,27 @@ def plot_cultivar_curves(
                     )
                     .group_by("vza_class", "vza_midpoint")
                     .agg(
-                        pl.col("plot_id").n_unique().alias("n_plots"),
                         pl.col("reflectance").mean().alias("mean"),
-                        pl.col("reflectance").std().alias("sd"),
+                        pl.col("reflectance").quantile(0.25).alias("q25"),
+                        pl.col("reflectance").quantile(0.75).alias("q75"),
+                        pl.len().alias("n"),
                     )
-                    .with_columns((pl.col("sd") / pl.col("n_plots").sqrt()).fill_null(0).alias("se"))
                     .sort("vza_midpoint")
                 )
-                support_rows.extend(
-                    {
-                        "year": year,
-                        "week": week,
-                        "band": band,
-                        "band_name": BANDS[band],
-                        "cult": cultivar,
-                        "vza_class": record["vza_class"],
-                        "vza_midpoint": record["vza_midpoint"],
-                        "n_plots": record["n_plots"],
-                        "plotted": min_plot_support is None or record["n_plots"] >= min_plot_support,
-                    }
-                    for record in data.to_dicts()
-                )
-                if min_plot_support is not None:
-                    data = data.filter(pl.col("n_plots") >= min_plot_support)
-                if data.is_empty():
-                    continue
                 color, linestyle = CULTIVAR_STYLES[cultivar]
                 x = data["vza_midpoint"].to_numpy()
                 mean = data["mean"].to_numpy()
-                axis.errorbar(
+                axis.plot(
                     x,
                     mean,
-                    yerr=data["se"].to_numpy(),
                     color=color,
                     linestyle=linestyle,
                     marker="o",
                     markersize=3,
                     linewidth=1.5,
-                    elinewidth=0.9,
-                    capsize=2,
                     label=cultivar.capitalize(),
                 )
+                axis.fill_between(x, data["q25"].to_numpy(), data["q75"].to_numpy(), color=color, alpha=0.12)
             if row_index == 0:
                 axis.set_title(f"Week {week}", fontsize=10, fontweight="bold")
             if column_index == 0:
@@ -1115,16 +1087,10 @@ def plot_cultivar_curves(
             style_axis(axis)
     handles, labels = axes[0, -1].get_legend_handles_labels()
     figure.legend(handles, labels, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.03))
-    if title_note:
-        figure.suptitle(title_note, fontsize=11, fontweight="bold")
-    if support_rows:
-        support_path = output_dir / f"results/angular_reflectance_by_cultivar_support_{year}{output_suffix}.csv"
-        support_path.parent.mkdir(parents=True, exist_ok=True)
-        pl.DataFrame(support_rows).write_csv(support_path)
     save_figure(
         figure,
-        output_dir / f"figures/main/angular_reflectance_curves_by_cultivar_{year}{output_suffix}",
-        aliases=[] if output_suffix else [
+        output_dir / f"figures/main/angular_reflectance_curves_by_cultivar_{year}",
+        aliases=[
             output_dir / "figures/main/angular_reflectance_by_cultivar_preliminary",
             output_dir / f"figures/supplementary/reflectance_distributions_by_cultivar_week_{year}",
         ],

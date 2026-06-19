@@ -21,9 +21,11 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from sklearn.model_selection import GroupKFold
 
-
 ROOT = Path(__file__).resolve().parents[1]
-JOINED_SOURCE = ROOT / "outputs/backup_metadata/eda_lai_canopy_vza/results/lai_canopy_vza_reflectance_join_2024.csv"
+JOINED_SOURCE = (
+    ROOT
+    / "outputs/backup_metadata/eda_lai_canopy_vza/results/lai_canopy_vza_reflectance_join_2024.csv"
+)
 OUT_ROOT = ROOT / "outputs/result_02_canopy_gap_vza"
 REPORTS_ROOT = ROOT / "outputs/reports"
 LOG_ROOT = ROOT / "outputs/logs"
@@ -212,7 +214,9 @@ def cross_validate_models(data: pd.DataFrame, analysis_set: str, n_splits: int =
             continue
         splitter = GroupKFold(n_splits=min(n_splits, unique_groups))
         for model_name, formula in formulas.items():
-            for fold, (train_idx, test_idx) in enumerate(splitter.split(band_data, groups=groups), start=1):
+            for fold, (train_idx, test_idx) in enumerate(
+                splitter.split(band_data, groups=groups), start=1
+            ):
                 train = band_data.iloc[train_idx].copy()
                 test = band_data.iloc[test_idx].copy()
                 fit_t0 = time.perf_counter()
@@ -289,11 +293,19 @@ def save_figures(model_summary: pd.DataFrame, open_closed: pd.DataFrame) -> list
     ].copy()
     fig, axis = plt.subplots(figsize=(8.5, 4.8))
     x_labels = ["M1_add_lai", "M2_add_canopy", "M3_add_angular_gap"]
-    label_map = {"M1_add_lai": "+ LAI", "M2_add_canopy": "+ DIFN/ACF", "M3_add_angular_gap": "+ angular gap"}
+    label_map = {
+        "M1_add_lai": "+ LAI",
+        "M2_add_canopy": "+ DIFN/ACF",
+        "M3_add_angular_gap": "+ angular gap",
+    }
     x = np.arange(len(x_labels))
     width = 0.35
     for idx, band in enumerate(BANDS):
-        values = primary[primary["band_name"] == band].set_index("model").reindex(x_labels)["delta_adj_r2_vs_M0"]
+        values = (
+            primary[primary["band_name"] == band]
+            .set_index("model")
+            .reindex(x_labels)["delta_adj_r2_vs_M0"]
+        )
         axis.bar(x + (idx - 0.5) * width, values, width=width, label=band)
     axis.axhline(0, color="#4D4D4D", linewidth=0.9)
     axis.set_xticks(x)
@@ -362,7 +374,11 @@ def write_report(
 
     primary_models = model_summary[
         (model_summary["analysis_set"] == "primary_all_plots_weeks5_6")
-        & (model_summary["model"].isin(["M0_vza_controls", "M1_add_lai", "M2_add_canopy", "M3_add_angular_gap"]))
+        & (
+            model_summary["model"].isin(
+                ["M0_vza_controls", "M1_add_lai", "M2_add_canopy", "M3_add_angular_gap"]
+            )
+        )
     ].copy()
     primary_models = primary_models[
         [
@@ -390,7 +406,15 @@ def write_report(
         & (model_summary["model"] == "M3_add_angular_gap")
     ].copy()
     sensitivity = sensitivity[
-        ["band_name", "n_rows", "n_plots", "adj_r2", "delta_adj_r2_vs_M0", "delta_aic_vs_M0", "delta_bic_vs_M0"]
+        [
+            "band_name",
+            "n_rows",
+            "n_plots",
+            "adj_r2",
+            "delta_adj_r2_vs_M0",
+            "delta_aic_vs_M0",
+            "delta_bic_vs_M0",
+        ]
     ]
     primary_cv = cv_summary[cv_summary["analysis_set"] == "primary_all_plots_weeks5_6"].copy()
     primary_cv = primary_cv[
@@ -523,7 +547,9 @@ def main() -> None:
     logging.info("[I/O] wrote %s", cv_summary_path)
 
     figure_paths = save_figures(model_summary, open_closed)
-    report_path = write_report(model_summary, coef_summary, cv_summary, open_closed, figure_paths, log_path)
+    report_path = write_report(
+        model_summary, coef_summary, cv_summary, open_closed, figure_paths, log_path
+    )
     logging.info("[I/O] wrote %s", report_path)
 
 
