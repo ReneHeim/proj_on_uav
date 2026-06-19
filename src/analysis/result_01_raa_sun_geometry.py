@@ -14,6 +14,8 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+import pysolar.solar
+import pytz
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -25,7 +27,6 @@ from matplotlib.colors import Normalize
 from src.analysis.result_01_reflectance_distributions import (
     BANDS,
     FINE_VZA_MAX,
-    FINE_VZA_MIN,
     MAX_PLOT_SAMPLE,
     SEED,
     WEEK_COLORS,
@@ -42,6 +43,29 @@ RAA_EDGES = [0, 45, 90, 135, 180]
 PHASE_STEP = 10
 MIN_HEADLINE_PLOTS = 10
 EXPORT_DPI = 300
+RAA_VZA_MIN = 0
+RAA_VZA_MAX = FINE_VZA_MAX
+FIELD_LAT = 51.5648
+FIELD_LON = 9.9177
+SUN_TIME_ZONE = "Europe/Berlin"
+WEEK_ACQUISITION_DATETIMES = {
+    2024: {
+        0: "2024-06-03 12:00:00",
+        2: "2024-06-22 12:00:00",
+        3: "2024-06-24 12:00:00",
+        4: "2024-07-08 12:00:00",
+        5: "2024-07-15 12:00:00",
+        6: "2024-07-23 12:00:00",
+        7: "2024-07-30 12:00:00",
+        8: "2024-08-26 12:00:00",
+    },
+    2025: {
+        0: "2025-06-03 12:00:00",
+        3: "2025-06-24 12:00:00",
+        5: "2025-07-15 12:00:00",
+        7: "2025-07-30 12:00:00",
+    },
+}
 VZA_RAA_MODEL_FORMULA = (
     "reflectance ~ C(vza_class) + C(raa_class) + C(vza_class):C(raa_class) "
     "+ C(week) + C(cult) + C(trt)"
@@ -85,8 +109,21 @@ def log_phase(name: str, started: float) -> None:
     logging.info("[PHASE] %s: %.2fs", name, time.perf_counter() - started)
 
 
+def corrected_sun_angles(year: int, week: int) -> tuple[float, float]:
+    timestamp = WEEK_ACQUISITION_DATETIMES.get(year, {}).get(week)
+    if timestamp is None:
+        raise ValueError(f"No acquisition timestamp configured for year={year}, week={week}")
+    tz = pytz.timezone(SUN_TIME_ZONE)
+    dt = tz.localize(datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S"))
+    elevation = float(pysolar.solar.get_altitude(FIELD_LAT, FIELD_LON, dt))
+    azimuth = float(pysolar.solar.get_azimuth(FIELD_LAT, FIELD_LON, dt))
+    if azimuth < 0:
+        azimuth += 360.0
+    return elevation, azimuth
+
+
 def raa_signed_expr() -> pl.Expr:
-    return ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180.0) % 360.0) - 180.0
+    return ((pl.col("view_azimuth").cast(pl.Float64) - pl.col("saa").cast(pl.Float64) + 180.0) % 360.0) - 180.0
 
 
 def raa_abs_expr() -> pl.Expr:
@@ -102,7 +139,7 @@ def phase_angle_expr() -> pl.Expr:
 
 
 def assign_geometry_bins(frame: pl.DataFrame) -> pl.DataFrame:
-    vza_low = (((pl.col("vza") - FINE_VZA_MIN) / 5).floor() * 5 + FINE_VZA_MIN).cast(pl.Int64)
+    vza_low = (((pl.col("vza") - RAA_VZA_MIN) / 5).floor() * 5 + RAA_VZA_MIN).cast(pl.Int64)
     raa_low = ((pl.col("raa_abs") / 45).floor() * 45).clip(0, 135).cast(pl.Int64)
     phase_low = ((pl.col("phase_angle") / PHASE_STEP).floor() * PHASE_STEP).clip(0, 170).cast(pl.Int64)
     return (
@@ -132,7 +169,7 @@ def assign_geometry_bins(frame: pl.DataFrame) -> pl.DataFrame:
 
 
 def required_columns() -> set[str]:
-    return set(BANDS) | {"vza", "vaa", "saa", "sunelev", "path"}
+    return set(BANDS) | {"vza", "vaa_rad", "path"}
 
 
 def load_geometry_summary(
@@ -167,11 +204,9 @@ def load_geometry_summary(
             sampled_rows = frame.height
             mask = (
                 pl.col("vza").is_finite()
-                & pl.col("vaa").is_finite()
-                & pl.col("saa").is_finite()
-                & pl.col("sunelev").is_finite()
-                & (pl.col("vza") >= FINE_VZA_MIN)
-                & (pl.col("vza") < FINE_VZA_MAX)
+                & pl.col("vaa_rad").is_finite()
+                & (pl.col("vza") >= RAA_VZA_MIN)
+                & (pl.col("vza") < RAA_VZA_MAX)
             )
             for band in BANDS:
                 mask = mask & pl.col(band).is_finite() & (pl.col(band) > 0)
@@ -197,8 +232,16 @@ def load_geometry_summary(
             )
             if frame.is_empty():
                 continue
+            corrected_sunelev, corrected_saa = corrected_sun_angles(year, week)
             frame = (
-                frame.select(list(BANDS) + ["vza", "vaa", "saa", "sunelev", "path"])
+                frame.select(list(BANDS) + ["vza", "vaa_rad", "path"])
+                .with_columns(
+                    pl.lit(corrected_sunelev, dtype=pl.Float64).alias("sunelev"),
+                    pl.lit(corrected_saa, dtype=pl.Float64).alias("saa"),
+                    (((pl.col("vaa_rad").cast(pl.Float64) * 180.0 / math.pi) + 360.0) % 360.0).alias(
+                        "view_azimuth"
+                    ),
+                )
                 .with_columns(
                     (90.0 - pl.col("sunelev").cast(pl.Float64)).alias("sza"),
                     raa_signed_expr().alias("raa_signed"),
@@ -212,7 +255,10 @@ def load_geometry_summary(
                 pl.len().alias("n_pixels"),
                 pl.col("path").n_unique().alias("n_images"),
                 pl.col("vza").mean().alias("mean_vza"),
+                pl.col("view_azimuth").mean().alias("mean_view_azimuth"),
                 pl.col("raa_abs").mean().alias("mean_raa"),
+                pl.col("sunelev").mean().alias("mean_sunelev"),
+                pl.col("saa").mean().alias("mean_saa"),
                 pl.col("sza").mean().alias("mean_sza"),
                 pl.col("phase_angle").mean().alias("mean_phase_angle"),
                 pl.col("phase_class").mode().first().alias("phase_class"),
@@ -240,7 +286,10 @@ def load_geometry_summary(
                             "n_pixels": record["n_pixels"],
                             "n_images": record["n_images"],
                             "mean_vza": record["mean_vza"],
+                            "mean_view_azimuth": record["mean_view_azimuth"],
                             "mean_raa": record["mean_raa"],
+                            "mean_sunelev": record["mean_sunelev"],
+                            "mean_saa": record["mean_saa"],
                             "mean_sza": record["mean_sza"],
                             "mean_phase_angle": record["mean_phase_angle"],
                         }
@@ -790,8 +839,9 @@ def write_report(
         f"- Plot-week records: **{long.select('plot_id', 'week').unique().height}**",
         f"- Plot-level RAA observations: **{long.height:,}**",
         f"- Sparse support cells with fewer than {MIN_HEADLINE_PLOTS} plots: **{sparse}**",
-        "- RAA formula: `abs(((saa - vaa + 180) % 360) - 180)`.",
-        "- Phase angle is derived from existing `sunelev`, `vza`, and RAA.",
+        "- Solar geometry: recomputed with `pysolar` from configured acquisition date/noon and field lon/lat.",
+        "- RAA formula: `abs(((absolute_view_azimuth - solar_azimuth + 180) % 360) - 180)`.",
+        "- Phase angle is derived from corrected `sunelev`, `vza`, and RAA.",
         "",
         "## Largest Matched RAA Contrasts",
         "",
@@ -867,7 +917,9 @@ def write_report(
             f"- Ground/background filter: {'enabled' if ground_filter else 'disabled'}.",
             f"- OSAVI threshold: {osavi_threshold if ground_filter else 'not applied'}.",
             f"- ExcessGreen threshold: {excess_green_threshold if ground_filter and excess_green_threshold is not None else 'not applied'}.",
-            f"- VZA range: `{FINE_VZA_MIN} <= vza < {FINE_VZA_MAX}`.",
+            f"- VZA range: `{RAA_VZA_MIN} <= vza < {RAA_VZA_MAX}`.",
+            f"- Solar geometry location: lat `{FIELD_LAT}`, lon `{FIELD_LON}`.",
+            f"- Solar geometry timezone: `{SUN_TIME_ZONE}`.",
             f"- RAA classes: `{', '.join(f'{lo}-{hi}' for lo, hi in zip(RAA_EDGES[:-1], RAA_EDGES[1:]))}`.",
             "- Sampling: plot parquets above `MAX_PLOT_SAMPLE` are sampled with seed 42 before filtering.",
             "",

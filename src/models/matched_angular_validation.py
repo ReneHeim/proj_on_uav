@@ -31,13 +31,15 @@ from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from src.analysis.result_01_raa_sun_geometry import corrected_sun_angles
+
 PROJ = Path(__file__).resolve().parent.parent.parent
 FEATURE_DIR = PROJ / "outputs" / "features"
 RESULTS_DIR = PROJ / "outputs" / "results"
 REPORTS_DIR = PROJ / "outputs" / "reports"
 FIGURES_DIR = PROJ / "outputs" / "figures"
 LOGS_DIR = PROJ / "outputs" / "logs"
-CACHE_DIR = PROJ / "outputs" / "cache" / "matched_angular"
+CACHE_DIR = PROJ / "outputs" / "cache" / "matched_angular_corrected_sun_v1"
 
 WEEK_DIRS = {
     0: Path(
@@ -105,24 +107,37 @@ def load_targets():
     return target
 
 
-def _raa_expr():
+def _raa_expr(corrected_saa: float):
     return (
-        ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360) - 180
+        (
+            (
+                (((pl.col("vaa_rad").cast(pl.Float64) * 180.0 / math.pi) + 360.0) % 360.0)
+                - corrected_saa
+                + 180.0
+            )
+            % 360.0
+        )
+        - 180.0
     ).abs()
 
 
-def aggregate_plot(path):
+def aggregate_plot(path, week):
     started = time.time()
+    corrected_sunelev, corrected_saa = corrected_sun_angles(TARGET_YEAR, week)
     lf = (
         pl.scan_parquet(path)
-        .select(BANDS + ["vza", "vaa", "saa", "path"])
+        .select(BANDS + ["vza", "vaa_rad", "path"])
         .filter(
             pl.col("vza").is_finite()
+            & pl.col("vaa_rad").is_finite()
             & (pl.col("vza") >= 0)
             & (pl.col("vza") < 60)
             & pl.all_horizontal([pl.col(b).is_finite() & (pl.col(b) > 0) for b in BANDS])
         )
-        .with_columns(_raa_expr().alias("raa"))
+        .with_columns(
+            _raa_expr(corrected_saa).alias("raa"),
+            pl.lit(90.0 - corrected_sunelev, dtype=pl.Float64).alias("sza"),
+        )
         .filter(pl.col("raa").is_finite() & (pl.col("raa") < 180))
         .with_columns(
             ((pl.col("vza") / VZA_STEP).floor() * VZA_STEP).cast(pl.Int16).alias("vza_cell"),
@@ -184,7 +199,7 @@ def load_or_build_week_cells(week):
     geometry_rows = []
     read_times = []
     for path in files:
-        plot_id, cells, geometry, elapsed = aggregate_plot(path)
+        plot_id, cells, geometry, elapsed = aggregate_plot(path, week)
         cell_parts.append(cells.with_columns(pl.lit(plot_id).alias("plot_id")))
         geometry_rows.append({"plot_id": plot_id, **geometry})
         read_times.append(elapsed)

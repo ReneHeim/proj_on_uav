@@ -177,11 +177,12 @@ def process_orthophoto(
         logging.info(f"Processing orthophoto {file} for iteration {iteration}")
 
         # Get camera position from the camera file
-        lon, lat, zcam = get_camera_position(
+        lon, lat, zcam, camera_lon, camera_lat = get_camera_position(
             cam_path,
             name,
             source["target_crs"],
             orthophoto_path=orthophoto,
+            return_geographic=True,
         )
 
         # Optional: Ensure DEM and orthophoto are aligned
@@ -228,7 +229,7 @@ def process_orthophoto(
                 raise ValueError("No Points are inside the polygon, skipping this image.")
 
         # Part 4: Retrieve solar angles from position and time and filter
-        sunelev, saa = extract_sun_angles(name, lon, lat, source["start date"], source["time zone"])
+        sunelev, saa = extract_sun_angles(name, camera_lon, camera_lat, source["start date"], source["time zone"])
 
         # Calculate viewing angles
         df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)

@@ -4,14 +4,22 @@
 
 This repository works with the **ONCERCO multiangular drone imagery dataset**.
 
-The data consist of multiangular drone images that have been orthorectified and are stored outside the repository in the Heim mounted folder:
+The data are stored outside the repository in two different Heim-mounted locations with different rules:
 
-```bash
-/run/media/davidem/Heim/
-```
+1. **Active Heim project/workspace**: `/run/media/davidem/Heim/`
+   * This is the normal working data location used by the current pipelines.
+   * It contains the current ONCERCO extraction inputs and outputs, including 2024 and 2025 week folders, Metashape products, orthophotos, DEMs, camera files, polygon files, extracted parquet outputs, RPV results, and stats outputs.
+   * Scripts may read from this folder and may write derived pipeline outputs there when that is the configured output location.
+
+2. **Historical backup/archive**: `/run/media/davidem/heim_data/Backup/proj_on_cerco/`
+   * This is an old project backup used for discovery, documentation, and recovering metadata such as DSDI, LAI, LCC, LIA, weather, GIS, legacy scripts, and raw historical project structure.
+   * This folder is **strictly read-only**. Agents may inspect, inventory, and copy small derived metadata from the backup when needed, but must never modify, rename, delete, move, clean, reformat, or write files inside the backup location.
 
 Do **not** add raw images or large derived image products to Git.
 
+## Mehtodologialc rules
+1) prefere polars to pandas and if you can convert pandas to polars
+2) Always do vectorized operations 
 ## Data Context
 
 The project includes multiple drone camera flights acquired over different weeks in the field.
@@ -297,3 +305,5 @@ OSAVI uses band3 (red) and band5 (NIR): `(1+0.16)*(NIR-Red)/(NIR+Red+0.16)`
 - **rho0**: ~0.03 (blue) to ~0.27 (NIR) for healthy vegetation
 - **theta**: near 0 ± 0.2 (low BRDF asymmetry captured)
 - ~25% of orthophotos overlap field plots (remaining are edge/routing images)
+
+

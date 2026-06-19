@@ -127,7 +127,7 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         raise
 
 
-def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None):
+def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None, return_geographic=False):
     """
     Extract the 3D position of a specific camera/image from a text file.
 
@@ -209,8 +209,10 @@ def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None):
                 "because no orthophoto path was provided"
             )
 
-        lon = matches["X"][selected_index]
-        lat = matches["Y"][selected_index]
+        geo_lon = float(matches["X"][selected_index])
+        geo_lat = float(matches["Y"][selected_index])
+        lon = geo_lon
+        lat = geo_lat
         zcam = matches["Z"][selected_index]
 
         if target_crs is not None:
@@ -219,6 +221,8 @@ def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None):
 
         end = timer()
         logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
+        if return_geographic:
+            return float(lon), float(lat), float(zcam), geo_lon, geo_lat
         return float(lon), float(lat), float(zcam)
     except Exception as e:
         logging.error(f"Error retrieving camera position for {name}: {e}")

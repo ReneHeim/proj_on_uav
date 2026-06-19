@@ -362,7 +362,7 @@ Show whether cultivar changes the angular reflectance pattern without creating a
 
 - Use rows for all five bands when space allows, because cultivar differences can also appear in blue and green through canopy cover, shadowing, and background exposure. If the all-band panel becomes too dense for the manuscript, keep all five bands as a supplementary figure and use red, red edge, and NIR in the main text.
 - Use columns for weeks or disease-development stages.
-- Draw one solid blue curve and one dashed orange curve for the two cultivars, with 95% confidence ribbons using low opacity.
+- Draw one solid blue curve and one dashed orange curve for the two cultivars, with interquartile-range ribbons using low opacity.
 - Add a narrow lower strip or adjacent forest plot showing the cultivar difference at each angle. This separates the observed curves from the inferential comparison.
 - Use matched y-axis scales within each band across weeks.
 - Annotate the cultivar-by-angle interaction estimate in the panel margin, not over the data.
@@ -459,6 +459,17 @@ The analysis should produce:
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/results/cultivar_angle_model_<year>.csv`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/results/missing_plot_support_by_week_angle_cultivar_<year>.csv`
 - `outputs/result_01_reflectance_distributions/<year>/ground_filtered/results/ground_filter_retention_<year>.csv`
+- `outputs/result_01_reflectance_distributions/<year>/<filter_state>/results/vza_model_comparison_<year>.csv`
+- `outputs/result_01_reflectance_distributions/<year>/<filter_state>/results/vza_model_terms_<year>.csv`
+- `outputs/result_01_reflectance_distributions/<year>/<filter_state>/results/vza_top_interactions_<year>.csv`
+- `outputs/result_01_raa_sun_geometry/<year>/<filter_state>/results/raa_vza_model_comparison_<year>.csv`
+- `outputs/result_01_raa_sun_geometry/<year>/<filter_state>/results/raa_model_terms_<year>.csv`
+- `outputs/result_01_raa_sun_geometry/<year>/<filter_state>/results/raa_top_interactions_<year>.csv`
+- `outputs/result_01_reflectance_distributions/results/multiangular_evidence_summary.csv`
+- `outputs/result_01_reflectance_distributions/results/angular_support_summary.csv`
+- `outputs/result_01_reflectance_distributions/results/robustness_diagnostics.csv`
+- `outputs/result_01_reflectance_distributions/results/vza_angular_support_summary.csv`
+- `outputs/result_01_reflectance_distributions/results/raa_angular_support_summary.csv`
 - `outputs/result_01_reflectance_distributions/results/2024_week_availability.csv`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/figures/main/reflectance_distributions_by_vza.{pdf,png,svg,tiff}`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/figures/main/reflectance_distributions_by_week_<year>.{pdf,png,svg,tiff}`
@@ -468,12 +479,23 @@ The analysis should produce:
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/figures/main/matched_off_nadir_effects.{pdf,png,svg,tiff}`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/figures/main/seasonal_change_in_angular_contrast.{pdf,png,svg,tiff}`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/figures/supplementary/reflectance_distributions_by_cultivar_week_<year>.{pdf,png,svg,tiff}`
+- `outputs/result_01_reflectance_distributions/figures/main/angular_support_heatmap.{pdf,png,svg,tiff}`
+- `outputs/result_01_reflectance_distributions/figures/main/observation_geometry_distribution.{pdf,png,svg,tiff}`
+- `outputs/result_01_reflectance_distributions/figures/main/vza_contrast_2024_2025_comparison.{pdf,png,svg,tiff}`
+- `outputs/result_01_reflectance_distributions/figures/main/multiangular_workflow_schematic.{pdf,png,svg,tiff}`
 - `/run/media/davidem/Heim/2024/recovered_weeks/<week>/output/*.parquet`, for successfully extracted weeks
 - `/run/media/davidem/Heim/2024/recovered_weeks/<week>/output/plots/*.parquet`, for successfully extracted weeks
 - `/run/media/davidem/Heim/2025/recovered_weeks/<week>/output/*.parquet`, for successfully extracted 2025 weeks
 - `/run/media/davidem/Heim/2025/recovered_weeks/<week>/output/plots/*.parquet`, for successfully extracted 2025 weeks
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/reports/reflectance_distributions_summary_<year>.md`
+- `outputs/result_01_reflectance_distributions/<year>/<filter_state>/reports/vza_detailed_results_<year>.md`
 - `outputs/result_01_reflectance_distributions/<year>/<filter_state>/reports/figure_captions_<year>.md`
+- `outputs/result_01_reflectance_distributions/reports/multiangular_evidence_summary.md`
+- `outputs/result_01_reflectance_distributions/reports/angular_support_summary.md`
+- `outputs/result_01_reflectance_distributions/reports/robustness_diagnostics.md`
+- `outputs/result_01_reflectance_distributions/reports/result_01_final_story.md`
+- `Documentation/multiangular_reporting_literature.md`
+- `outputs/result_01_reflectance_distributions/reports/paper_reporting_synthesis.md`
 - `outputs/result_01_reflectance_distributions/manifests/external_data_manifest.csv`
 - a timestamped profiling log in `outputs/result_01_reflectance_distributions/<year>/<filter_state>/logs/`
 
@@ -521,7 +543,7 @@ The Markdown results summary must include the key numerical tables, a short inte
 - [x] Check whether missing plots differ systematically by week, angle, treatment, or cultivar.
 - [x] Produce the same plot-level summaries, matched contrasts, statistics, and figures for validated 2025 weeks 0, 3, 5, and 7.
 - [x] Apply a documented ground/background filter and regenerate the Result 1 statistics and figures for comparison with the unfiltered analysis. The implemented sensitivity uses `OSAVI > 0.2` before plot-level aggregation.
-- [ ] Derive relative azimuth angle from view azimuth and sun azimuth, then summarize reflectance by RAA class within matched VZA bins.
+- [x] Derive relative azimuth angle from view azimuth and sun azimuth, then summarize reflectance by RAA class within matched VZA bins.
 
 ### Statistical Analysis
 
@@ -532,9 +554,11 @@ The Markdown results summary must include the key numerical tables, a short inte
 - [ ] Inspect residuals, influential plots, heteroscedasticity, and convergence warnings.
 - [ ] Run a sensitivity analysis with medians versus means.
 - [ ] Check whether conclusions change after restricting to plots present in all included weeks.
-- [ ] Inspect VAA or relative-azimuth effects at matched VZA.
+- [x] Inspect VAA or relative-azimuth effects at matched VZA.
 - [x] Test whether the ground-filtered analysis changes the sign, magnitude, or uncertainty of matched off-nadir contrasts.
-- [ ] Fit a supporting directional model or stratified comparison for RAA effects when sample support is sufficient.
+- [x] Fit a supporting directional model or stratified comparison for RAA effects when sample support is sufficient.
+- [x] Persist interpretable RAA model diagnostics, including R2, adjusted R2, Delta R2, Delta AIC/BIC, phase-angle coefficient, and reference-coded VZA x RAA coefficient tables.
+- [x] Persist interpretable VZA model-ladder diagnostics, including controls-only, VZA, and VZA x week comparisons with R2, adjusted R2, Delta R2, Delta AIC/BIC, and reference-coded VZA x week coefficient tables.
 
 ### Figure Production
 
@@ -544,12 +568,16 @@ The Markdown results summary must include the key numerical tables, a short inte
 - [x] Build Figure 3: matched off-nadir effect forest plot for validated weeks 0, 2, 3, 4, 5, 6, 7, and 8.
 - [x] Build Figure 4: cultivar angular response for all five bands for validated weeks 0, 2, 3, 4, 5, 6, 7, and 8.
 - [x] Build Figure 5: seasonal change in angular contrast.
-- [ ] Build treatment-specific angular reflectance curves for all five bands and validated weeks.
-- [ ] Build cultivar-by-treatment angular reflectance curves to show whether cultivar patterns differ within treated and untreated plots.
+- [x] Build treatment-specific angular reflectance curves for all five bands and validated weeks.
+- [x] Build cultivar-by-treatment angular reflectance curves to show whether cultivar patterns differ within treated and untreated plots.
 - [ ] Produce supplementary individual-plot curves. Blue/green are now included in the all-band cultivar figure.
 - [x] Produce 2025 versions of the main Result 1 figures using the same design, binning, and output naming pattern.
 - [x] Produce ground-filtered sensitivity versions of the main Result 1 figures.
-- [ ] Produce RAA/sun-position diagnostic figures showing directional reflectance effects within VZA bins.
+- [x] Produce RAA/sun-position diagnostic figures showing directional reflectance effects within VZA bins.
+- [x] Produce final 2024/2025 VZA comparison figures with shared per-band y-axis limits.
+- [x] Produce final angular support heatmaps for VZA and RAA-within-VZA support.
+- [x] Produce final observation-geometry support curves.
+- [x] Produce final workflow schematic separating nadir/orthomosaic and multiangular workflows.
 - [ ] Add sample sizes and uncertainty to every inferential panel.
 - [ ] Test figures at one-column and two-column journal widths.
 - [ ] Check grayscale and color-vision accessibility.
@@ -568,6 +596,11 @@ The Markdown results summary must include the key numerical tables, a short inte
 - [x] Record input paths, recovery provenance, configuration, filtering rules, VZA classes, and excluded weeks for the preliminary analysis.
 - [x] Record the random seed and bootstrap/model settings.
 - [x] Draft captions using the caption checklist in this plan.
+- [x] Create a literature-grounded reporting guide for multiangular reflectance, including local Rene Heim/ONCERCO context and external UAV/BRDF/disease-monitoring sources.
+- [x] Create a paper-facing reporting synthesis that maps ONCERCO VZA/RAA result tables to manuscript-ready Methods, Results, Discussion, and limitation text.
+- [x] Create a final paper-facing Result 1 evidence table combining VZA matched contrasts, RAA matched contrasts, Delta R2, Delta AIC/BIC, and plot support.
+- [x] Create final angular-support and robustness-diagnostic tables for checking sampling balance, sparse RAA cells, model-row completeness, and mean-versus-median sensitivity.
+- [x] Create `outputs/result_01_reflectance_distributions/reports/result_01_final_story.md` with main claim, evidence chain, paper figures, paper tables, methods text, results text, limitations, and reproducibility details.
 - [ ] Add the final verified result to the LaTeX manuscript without overstating causality or significance.
 
 ## Current Execution Status
@@ -634,3 +667,61 @@ The ground-filtered reports explicitly document the threshold and row-retention 
 - `outputs/result_01_reflectance_distributions/2025/ground_filtered/reports/reflectance_distributions_summary_2025.md`
 
 All main figures in the `ground_filtered/figures/` folders are filtered with `OSAVI > 0.2`. Figures outside `ground_filtered` should be interpreted as unfiltered unless their report states otherwise.
+
+After inspecting the treatment-specific curves, the 2024 metadata join was corrected. The extraction pipeline assigns 2024 `plot_id` values from the GeoPackage row order when no explicit polygon ID field is present, while the first Result 1 implementation had joined 2024 metadata using `ifz_id - 90001`. Because the 2024 GeoPackage row order is reversed relative to increasing `ifz_id`, this swapped the treated and untreated labels in the generated 2024 Result 1 tables and figures. The metadata loader now uses the same row-order plot IDs as extraction:
+
+- `plot_0` through `plot_11`: `trt`
+- `plot_12` through `plot_23`: `no_trt`
+
+The 2024 unfiltered and ground-filtered Result 1 tables, models, reports, and figures were regenerated from the existing aggregated feature parquets after this correction. A sanity check on week 8 NIR now matches the expected treatment direction:
+
+| Filter state | Week | Treatment | Mean NIR | Median NIR | Plots |
+|---|---:|---|---:|---:|---:|
+| unfiltered | 8 | `trt` | 0.392168 | 0.396810 | 12 |
+| unfiltered | 8 | `no_trt` | 0.208186 | 0.206553 | 12 |
+| ground_filtered | 8 | `trt` | 0.392168 | 0.396810 | 12 |
+| ground_filtered | 8 | `no_trt` | 0.208186 | 0.206553 | 12 |
+
+Additional hidden-issue audit, 2026-06-16:
+
+- The cached-feature loader now overwrites any cached `cult` and `trt` columns with the corrected polygon metadata, so stale cached 2024 labels cannot reintroduce the treatment swap.
+- The fine-bin helper default OSAVI threshold now matches the CLI default: `0.2`.
+- Unfiltered reruns now remove stale `ground_filter_retention_<year>.csv` files instead of leaving misleading retention tables in unfiltered output folders.
+- The 2024 and 2025 unfiltered and ground-filtered Result 1 folders were regenerated from plot parquets with `--fine-vza-bins`; ground-filtered runs used `--ground-filter --osavi-threshold 0.2`.
+- Post-regeneration validation confirmed that filtered feature tables differ from unfiltered tables:
+  - 2024: 4,587 of 8,240 plot-week-band-angle rows changed; max absolute reflectance difference 0.038231; mean absolute difference 0.001276.
+  - 2025: 2,760 of 4,115 plot-week-band-angle rows changed; max absolute reflectance difference 0.055616; mean absolute difference 0.004437.
+- Retention tables are now present only under `ground_filtered/results/` and absent from `unfiltered/results/`.
+
+RAA/sun-relative geometry support analysis, 2026-06-17:
+
+- Implemented `python -m src.analysis.result_01_raa_sun_geometry` as a separate Result 1 support analysis.
+- The analysis uses existing plot-parquet columns `vza`, `vaa`, `saa`, and `sunelev`; it does not recompute camera or sun geometry.
+- Derived variables are `sza`, signed/absolute RAA, and phase angle. RAA classes are `0-45`, `45-90`, `90-135`, and `135-180`; VZA classes remain the current fine `10-15` through `50-55` bins.
+- Generated unfiltered and `OSAVI > 0.2` ground-filtered outputs for both years under `outputs/result_01_raa_sun_geometry/<year>/<filter_state>/`.
+
+| Year | Filter state | Plot-week-VZA-RAA feature rows | RAA summary rows | Matched RAA contrast rows | Model rows | Model term rows | Retention table |
+|---:|---|---:|---:|---:|---:|---:|---|
+| 2024 | unfiltered | 29,440 | 1,420 | 1,055 | 5 | 140 | no |
+| 2024 | ground_filtered | 29,435 | 1,420 | 1,055 | 5 | 140 | yes |
+| 2025 | unfiltered | 13,700 | 705 | 490 | 5 | 140 | no |
+| 2025 | ground_filtered | 13,680 | 705 | 490 | 5 | 140 | yes |
+
+The first RAA figure version was too large and unreadable, so the output figure design was revised. The folders now keep compact combined heatmap atlases, RAA curves, phase-angle curves, support heatmaps, and top matched-contrast figures; obsolete per-band heatmaps were removed to avoid confusion.
+
+Interpretable model diagnostics were added to the RAA/sun-relative geometry output. The main model-comparison CSV now includes `vza_only_r2`, `vza_raa_r2`, `delta_r2_raa_vs_vza`, adjusted R2 values, Delta AIC/BIC, `phase_angle_estimate`, and `phase_angle_p`. The separate `raa_model_terms_<year>.csv` and `raa_top_interactions_<year>.csv` tables expose reference-coded RAA main effects and VZA x RAA interaction coefficients with standard errors, confidence intervals, and p-values. For paper interpretation, matched RAA contrasts remain the most direct effect-size table because they compare the same plot, week, band, and VZA bin against a common RAA reference.
+
+VZA detailed reporting update, 2026-06-17:
+
+- Added `python -m src.analysis.result_01_vza_interpretable_reports`.
+- Regenerated detailed VZA reports for 2024 and 2025, both unfiltered and `OSAVI > 0.2` ground-filtered.
+- Added model-ladder tables comparing `reflectance ~ week + cultivar + treatment`, `+ VZA class`, and `VZA class x week`.
+- Added `vza_model_comparison_<year>.csv`, `vza_model_terms_<year>.csv`, and `vza_top_interactions_<year>.csv` under each Result 1 year/filter-state result folder.
+- Added paper-ready reports at `outputs/result_01_reflectance_distributions/<year>/<filter_state>/reports/vza_detailed_results_<year>.md`.
+- The detailed reports use matched VZA contrasts as the main interpretable effect-size evidence and require at least 10 matched plots for headline seasonal contrast-change tables.
+
+Literature-grounded reporting update, 2026-06-17:
+
+- Created `Documentation/multiangular_reporting_literature.md` to summarize multiangular/BRDF reporting conventions and map them to ONCERCO outputs.
+- Created `outputs/result_01_reflectance_distributions/reports/paper_reporting_synthesis.md` with manuscript-ready claim language, numeric evidence, reporting tables, figure recommendations, and limitations.
+- Inspected local read-only Rene Heim/ONCERCO context documents in the Heim backup. Relevant project documents include the DFG proposal, ON UAV progress report, BRDF presentation assets, and the leaf-dynamics CLS manuscript draft. Public web search did not locate a clear peer-reviewed Rene Heim multiangular reflectance paper, so any specific Rene Heim paper should be added manually if title/DOI/PDF is supplied.

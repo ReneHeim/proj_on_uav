@@ -8,12 +8,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import logging
+import math
 import time
 from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 
 import numpy as np
 import polars as pl
+
+from src.analysis.result_01_raa_sun_geometry import corrected_sun_angles
 
 VZA_BINS = [0, 15, 25, 35, 45, 60]
 VZA_LABELS = ["0-15", "15-25", "25-35", "35-45", "45-60"]
@@ -68,15 +70,25 @@ def load_polygon_meta():
     return meta
 
 
-def load_and_preprocess(pf, idx=0, total=0):
+def load_and_preprocess(wk, pf, idx=0, total=0):
     """Load one parquet, filter, bin, then sample equally from each VZA bin."""
     t0 = time.time()
     df = pl.read_parquet(pf)
     t_read = time.time() - t0
+    season = int(wk.split("_wk")[0])
+    week_num = int(wk.split("_wk")[-1])
+    corrected_sunelev, corrected_saa = corrected_sun_angles(season, week_num)
 
     # Single filter pass for all validity checks
     bands = ["band1", "band2", "band3", "band4", "band5"]
-    mask = pl.col("vza").is_not_nan() & (pl.col("vza") >= 0) & (pl.col("vza") <= 90)
+    if "vaa_rad" not in df.columns:
+        raise RuntimeError(f"{pf} lacks vaa_rad; corrected RAA cannot be derived safely")
+    mask = (
+        pl.col("vza").is_not_nan()
+        & pl.col("vaa_rad").is_not_nan()
+        & (pl.col("vza") >= 0)
+        & (pl.col("vza") <= 90)
+    )
     for b in bands:
         mask = mask & pl.col(b).is_not_nan() & (pl.col(b) > 0)
     df = df.filter(mask)
@@ -87,10 +99,16 @@ def load_and_preprocess(pf, idx=0, total=0):
     # Compute derived columns
     df = df.with_columns(
         [
-            ((pl.col("saa").cast(pl.Float64) - pl.col("vaa").cast(pl.Float64) + 180) % 360 - 180)
-            .abs()
-            .alias("raa"),
-            (90 - pl.col("sunelev")).alias("sza"),
+            (((pl.col("vaa_rad").cast(pl.Float64) * 180.0 / math.pi) + 360.0) % 360.0).alias(
+                "view_azimuth"
+            ),
+            pl.lit(corrected_sunelev, dtype=pl.Float64).alias("sunelev"),
+            pl.lit(corrected_saa, dtype=pl.Float64).alias("saa"),
+        ]
+    ).with_columns(
+        [
+            (((pl.col("view_azimuth") - pl.col("saa") + 180.0) % 360.0) - 180.0).abs().alias("raa"),
+            (90.0 - pl.col("sunelev")).alias("sza"),
         ]
     )
     df = df.with_columns(
@@ -166,12 +184,12 @@ def main():
 
     # ---- Phase 3: Single-pass load + preprocess (parallel) ----
     t1 = time.time()
-    fn_with_idx = partial(load_and_preprocess, idx=0, total=0)
     processed = []
+    file_jobs = [(wk, pf) for wk, files in week_files.items() for pf in files]
     with ThreadPoolExecutor(max_workers=N_CORES) as ex:
         futures = []
-        for i, f in enumerate(all_files):
-            futures.append(ex.submit(load_and_preprocess, f, i, len(all_files)))
+        for i, (wk, f) in enumerate(file_jobs):
+            futures.append(ex.submit(load_and_preprocess, wk, f, i, len(file_jobs)))
         for fut in futures:
             processed.append(fut.result())
     print(f"Loaded {len(processed)} files in {time.time() - t1:.1f}s")
