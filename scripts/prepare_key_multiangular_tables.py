@@ -10,7 +10,6 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "outputs/cross_year_generalization_2024_to_2025"
 RESULTS_DIR = BASE / "results"
@@ -68,10 +67,14 @@ def markdown_table(df: pl.DataFrame, float_digits: int = 3) -> str:
 
 
 def safe_filename(value: str) -> str:
-    return "".join(char if char.isalnum() or char == "_" else "_" for char in value).strip("_").lower()
+    return (
+        "".join(char if char.isalnum() or char == "_" else "_" for char in value).strip("_").lower()
+    )
 
 
-def read_prediction_file(task: str, model_key: str, feature_set: str, covariates: str | None = None) -> pl.DataFrame:
+def read_prediction_file(
+    task: str, model_key: str, feature_set: str, covariates: str | None = None
+) -> pl.DataFrame:
     stem = f"{task}_predictions_{model_key}_{safe_filename(feature_set)}"
     if covariates is not None:
         stem += f"_{safe_filename(covariates)}"
@@ -143,11 +146,18 @@ def aligned_numeric_rows(frame: pl.DataFrame, plots: np.ndarray, columns: list[s
     return np.array([lookup[plot_id] for plot_id in plots], dtype=float)
 
 
-def metric_from_counts(tp: np.ndarray, tn: np.ndarray, fp: np.ndarray, fn: np.ndarray, metric: str) -> np.ndarray:
+def metric_from_counts(
+    tp: np.ndarray, tn: np.ndarray, fp: np.ndarray, fn: np.ndarray, metric: str
+) -> np.ndarray:
     precision = np.divide(tp, tp + fp, out=np.zeros_like(tp, dtype=float), where=(tp + fp) > 0)
     recall = np.divide(tp, tp + fn, out=np.zeros_like(tp, dtype=float), where=(tp + fn) > 0)
     specificity = np.divide(tn, tn + fp, out=np.zeros_like(tn, dtype=float), where=(tn + fp) > 0)
-    f1 = np.divide(2 * tp, (2 * tp) + fp + fn, out=np.zeros_like(tp, dtype=float), where=((2 * tp) + fp + fn) > 0)
+    f1 = np.divide(
+        2 * tp,
+        (2 * tp) + fp + fn,
+        out=np.zeros_like(tp, dtype=float),
+        where=((2 * tp) + fp + fn) > 0,
+    )
     values = {
         "f1": f1,
         "precision": precision,
@@ -163,7 +173,9 @@ def plot_severity_errors(frame: pl.DataFrame) -> pl.DataFrame:
     rows = []
     for plot_id in frame.get_column("plot_id").unique().sort().to_list():
         group = frame.filter(pl.col("plot_id") == plot_id)
-        errors = group.get_column("y_pred").to_numpy().astype(float) - group.get_column("y_true").to_numpy().astype(float)
+        errors = group.get_column("y_pred").to_numpy().astype(float) - group.get_column(
+            "y_true"
+        ).to_numpy().astype(float)
         rows.append({"plot_id": plot_id, "sse": float(np.sum(errors**2)), "n": len(group)})
     return pl.DataFrame(rows)
 
@@ -218,7 +230,9 @@ def paired_warning_delta_ci(
     candidate = common.join(candidate, on=keys, how="left")
     nadir = common.join(nadir, on=keys, how="left")
     plots = common.get_column("plot_id").unique().sort().to_numpy()
-    candidate_counts = aligned_numeric_rows(plot_warning_counts(candidate), plots, ["tp", "tn", "fp", "fn"])
+    candidate_counts = aligned_numeric_rows(
+        plot_warning_counts(candidate), plots, ["tp", "tn", "fp", "fn"]
+    )
     nadir_counts = aligned_numeric_rows(plot_warning_counts(nadir), plots, ["tp", "tn", "fp", "fn"])
     rng = np.random.default_rng(seed)
     sampled_idx = rng.integers(0, len(plots), size=(n_bootstrap, len(plots)))
@@ -243,7 +257,9 @@ def paired_warning_delta_ci(
 
 
 def rmse(frame: pl.DataFrame) -> float:
-    errors = frame.get_column("y_pred").to_numpy().astype(float) - frame.get_column("y_true").to_numpy().astype(float)
+    errors = frame.get_column("y_pred").to_numpy().astype(float) - frame.get_column(
+        "y_true"
+    ).to_numpy().astype(float)
     return float(np.sqrt(np.mean(errors**2)))
 
 
@@ -285,11 +301,20 @@ def table_early_warning_gain() -> pl.DataFrame:
 
     rows = []
     logistic_nadir = first_row(filter_rows(logistic, feature_set="nadir"))
-    for feature_set in ["nadir", "multiangular_vza_raa", "multiangular_vza_phase", "multiangular_geometry_compact"]:
+    for feature_set in [
+        "nadir",
+        "multiangular_vza_raa",
+        "multiangular_vza_phase",
+        "multiangular_geometry_compact",
+    ]:
         row = first_row(filter_rows(logistic, feature_set=feature_set))
         metrics = warning_metrics(read_prediction_file("early_warning", "logistic", feature_set))
-        ci_low, ci_high = bootstrap_f1_ci_from_predictions("logistic", feature_set, seed=100 + len(rows))
-        delta_f1_low, delta_f1_high = paired_warning_delta_ci("logistic", feature_set, "f1", seed=300 + len(rows))
+        ci_low, ci_high = bootstrap_f1_ci_from_predictions(
+            "logistic", feature_set, seed=100 + len(rows)
+        )
+        delta_f1_low, delta_f1_high = paired_warning_delta_ci(
+            "logistic", feature_set, "f1", seed=300 + len(rows)
+        )
         rows.append(
             {
                 "model": "Logistic",
@@ -303,7 +328,8 @@ def table_early_warning_gain() -> pl.DataFrame:
                 "recall": row["recall"],
                 "delta_recall_vs_nadir": row["recall"] - logistic_nadir["recall"],
                 "balanced_accuracy": row["balanced_accuracy"],
-                "delta_balanced_accuracy_vs_nadir": row["balanced_accuracy"] - logistic_nadir["balanced_accuracy"],
+                "delta_balanced_accuracy_vs_nadir": row["balanced_accuracy"]
+                - logistic_nadir["balanced_accuracy"],
                 "precision": metrics["precision"],
                 "specificity": metrics["specificity"],
                 "false_positive_rate": metrics["false_positive_rate"],
@@ -314,11 +340,20 @@ def table_early_warning_gain() -> pl.DataFrame:
         )
 
     xgb_nadir = first_row(filter_rows(xgb, feature_set="nadir"))
-    for feature_set in ["nadir", "multiangular_vza", "multiangular_vza_compact", "multiangular_vza_raa"]:
+    for feature_set in [
+        "nadir",
+        "multiangular_vza",
+        "multiangular_vza_compact",
+        "multiangular_vza_raa",
+    ]:
         row = first_row(filter_rows(xgb, feature_set=feature_set))
         metrics = warning_metrics(read_prediction_file("early_warning", "xgboost", feature_set))
-        ci_low, ci_high = bootstrap_f1_ci_from_predictions("xgboost", feature_set, seed=200 + len(rows))
-        delta_f1_low, delta_f1_high = paired_warning_delta_ci("xgboost", feature_set, "f1", seed=400 + len(rows))
+        ci_low, ci_high = bootstrap_f1_ci_from_predictions(
+            "xgboost", feature_set, seed=200 + len(rows)
+        )
+        delta_f1_low, delta_f1_high = paired_warning_delta_ci(
+            "xgboost", feature_set, "f1", seed=400 + len(rows)
+        )
         rows.append(
             {
                 "model": "XGBoost",
@@ -330,9 +365,11 @@ def table_early_warning_gain() -> pl.DataFrame:
                 "delta_f1_ci95_low": delta_f1_low,
                 "delta_f1_ci95_high": delta_f1_high,
                 "recall": row["external_recall_2025"],
-                "delta_recall_vs_nadir": row["external_recall_2025"] - xgb_nadir["external_recall_2025"],
+                "delta_recall_vs_nadir": row["external_recall_2025"]
+                - xgb_nadir["external_recall_2025"],
                 "balanced_accuracy": row["external_balanced_accuracy_2025"],
-                "delta_balanced_accuracy_vs_nadir": row["external_balanced_accuracy_2025"] - xgb_nadir["external_balanced_accuracy_2025"],
+                "delta_balanced_accuracy_vs_nadir": row["external_balanced_accuracy_2025"]
+                - xgb_nadir["external_balanced_accuracy_2025"],
                 "precision": metrics["precision"],
                 "specificity": metrics["specificity"],
                 "false_positive_rate": metrics["false_positive_rate"],
@@ -436,7 +473,9 @@ def table_severity_with_timing_gain() -> pl.DataFrame:
 def table_mechanistic_importance() -> pl.DataFrame:
     ridge_group = pl.read_csv(RESULTS_DIR / "ridge_best_severity_feature_importance_by_group.csv")
     xgb_warn_band = pl.read_csv(RESULTS_DIR / "xgboost_best_warning_feature_importance_by_band.csv")
-    log_raa_band = pl.read_csv(RESULTS_DIR / "logistic_warning_multiangular_vza_raa_feature_importance_by_band.csv")
+    log_raa_band = pl.read_csv(
+        RESULTS_DIR / "logistic_warning_multiangular_vza_raa_feature_importance_by_band.csv"
+    )
 
     def share(frame: pl.DataFrame, key_col: str, key: str, share_col: str) -> float:
         match = frame.filter(pl.col(key_col) == key).select(share_col)
@@ -446,7 +485,9 @@ def table_mechanistic_importance() -> pl.DataFrame:
         {
             "model_context": "Best severity: Ridge VZA + phase + week/horizon",
             "main_evidence": "VZA-phase reflectance accounts for most standardized coefficient mass",
-            "multiangular_share": share(ridge_group, "feature_group", "vza_phase_reflectance", "share_abs"),
+            "multiangular_share": share(
+                ridge_group, "feature_group", "vza_phase_reflectance", "share_abs"
+            ),
             "timing_share": share(ridge_group, "feature_group", "known_week_horizon", "share_abs"),
             "top_bands": "NIR 30.6%; red edge 19.9%; blue 17.4%",
         },
@@ -564,18 +605,22 @@ def pretty_band(value: str) -> str:
 
 def table_dominant_interpretable_patterns() -> pl.DataFrame:
     severity = pl.read_csv(RESULTS_DIR / "severity_external_2024_train_2025_test.csv")
-    timing_without = first_row(filter_rows(
-        severity,
-        model="raw_severity",
-        feature_set="multiangular_vza_phase",
-        covariates="spectral_only",
-    ))["rmse"]
-    timing_with = first_row(filter_rows(
-        severity,
-        model="raw_severity",
-        feature_set="multiangular_vza_phase",
-        covariates="spectral_plus_week_horizon",
-    ))["rmse"]
+    timing_without = first_row(
+        filter_rows(
+            severity,
+            model="raw_severity",
+            feature_set="multiangular_vza_phase",
+            covariates="spectral_only",
+        )
+    )["rmse"]
+    timing_with = first_row(
+        filter_rows(
+            severity,
+            model="raw_severity",
+            feature_set="multiangular_vza_phase",
+            covariates="spectral_plus_week_horizon",
+        )
+    )["rmse"]
     return pl.DataFrame(
         [
             {
@@ -717,7 +762,15 @@ def table_supplementary_feature_level_ranking() -> pl.DataFrame:
         ),
     ]
     rows = []
-    for model_context, model_role, path, importance_col, secondary_name, secondary_col, n_rows in sources:
+    for (
+        model_context,
+        model_role,
+        path,
+        importance_col,
+        secondary_name,
+        secondary_col,
+        n_rows,
+    ) in sources:
         frame = pl.read_csv(path).sort(importance_col, descending=True).head(n_rows)
         for rank, row in enumerate(frame.iter_rows(named=True), start=1):
             feature = row["feature"]
@@ -814,7 +867,9 @@ def table_supplementary_all_model_performance() -> pl.DataFrame:
     warning = pl.read_csv(RESULTS_DIR / "warning_external_2024_train_2025_test.csv")
     for row in warning.iter_rows(named=True):
         try:
-            specificity = warning_metrics(read_prediction_file("early_warning", "logistic", row["feature_set"]))["specificity"]
+            specificity = warning_metrics(
+                read_prediction_file("early_warning", "logistic", row["feature_set"])
+            )["specificity"]
         except FileNotFoundError:
             specificity = np.nan
         rows.append(
@@ -839,7 +894,9 @@ def table_supplementary_all_model_performance() -> pl.DataFrame:
     xgb_warning = pl.read_csv(RESULTS_DIR / "xgboost_warning_train_eval_2024_test_2025.csv")
     for row in xgb_warning.iter_rows(named=True):
         try:
-            specificity = warning_metrics(read_prediction_file("early_warning", "xgboost", row["feature_set"]))["specificity"]
+            specificity = warning_metrics(
+                read_prediction_file("early_warning", "xgboost", row["feature_set"])
+            )["specificity"]
         except FileNotFoundError:
             specificity = np.nan
         rows.append(
@@ -941,10 +998,14 @@ def main() -> None:
         "table_1_early_warning_gain": TABLE_DIR / "table_1_early_warning_gain_over_nadir.csv",
         "table_2_severity_no_week": TABLE_DIR / "table_2_reflectance_only_severity_no_week.csv",
         "table_3_severity_with_timing": TABLE_DIR / "table_3_severity_with_week_horizon.csv",
-        "table_4_dominant_patterns": TABLE_DIR / "table_4_dominant_angular_spectral_attribution_patterns.csv",
-        "supplementary_grouped_attribution": TABLE_DIR / "supplementary_grouped_feature_attribution_summary.csv",
-        "supplementary_feature_level_ranking": TABLE_DIR / "supplementary_feature_level_ranking.csv",
-        "supplementary_all_model_performance": TABLE_DIR / "supplementary_all_model_performance.csv",
+        "table_4_dominant_patterns": TABLE_DIR
+        / "table_4_dominant_angular_spectral_attribution_patterns.csv",
+        "supplementary_grouped_attribution": TABLE_DIR
+        / "supplementary_grouped_feature_attribution_summary.csv",
+        "supplementary_feature_level_ranking": TABLE_DIR
+        / "supplementary_feature_level_ranking.csv",
+        "supplementary_all_model_performance": TABLE_DIR
+        / "supplementary_all_model_performance.csv",
         "report": REPORTS_DIR / "paper_key_multiangular_tables.md",
     }
     tables["early_warning"].write_csv(outputs["table_1_early_warning_gain"])
@@ -952,8 +1013,12 @@ def main() -> None:
     tables["severity_with_timing"].write_csv(outputs["table_3_severity_with_timing"])
     tables["dominant_patterns"].write_csv(outputs["table_4_dominant_patterns"])
     tables["grouped_attribution"].write_csv(outputs["supplementary_grouped_attribution"])
-    tables["supplementary_feature_ranking"].write_csv(outputs["supplementary_feature_level_ranking"])
-    tables["supplementary_all_model_performance"].write_csv(outputs["supplementary_all_model_performance"])
+    tables["supplementary_feature_ranking"].write_csv(
+        outputs["supplementary_feature_level_ranking"]
+    )
+    tables["supplementary_all_model_performance"].write_csv(
+        outputs["supplementary_all_model_performance"]
+    )
     write_report(tables, outputs, log_path)
     log_phase("total", start)
 

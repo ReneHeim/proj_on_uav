@@ -127,7 +127,9 @@ def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
         raise
 
 
-def get_camera_position(cam_path, name, target_crs=None, orthophoto_path=None, return_geographic=False):
+def get_camera_position(
+    cam_path, name, target_crs=None, orthophoto_path=None, return_geographic=False
+):
     """
     Extract the 3D position of a specific camera/image from a text file.
 

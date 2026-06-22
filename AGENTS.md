@@ -19,7 +19,7 @@ Do **not** add raw images or large derived image products to Git.
 
 ## Mehtodologialc rules
 1) prefere polars to pandas and if you can convert pandas to polars
-2) Always do vectorized operations 
+2) Always do vectorized operations
 ## Data Context
 
 The project includes multiple drone camera flights acquired over different weeks in the field.
@@ -305,5 +305,3 @@ OSAVI uses band3 (red) and band5 (NIR): `(1+0.16)*(NIR-Red)/(NIR+Red+0.16)`
 - **rho0**: ~0.03 (blue) to ~0.27 (NIR) for healthy vegetation
 - **theta**: near 0 ± 0.2 (low BRDF asymmetry captured)
 - ~25% of orthophotos overlap field plots (remaining are edge/routing images)
-
-

@@ -10,16 +10,16 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import polars as pl
-import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from scipy.stats import spearmanr
-from sklearn.impute import SimpleImputer
 from sklearn.base import clone
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegressionCV, RidgeCV
 from sklearn.metrics import (
     average_precision_score,
@@ -57,13 +57,24 @@ from scripts.analyze_early_warning_severity_2024 import (
     read_polygons,
 )
 
-
 DISEASE_2025_ROOT = ROOT / "outputs/backup_metadata/csv/data/raw/2025"
 POLYGON_2025_PATH = Path("/run/media/davidem/Heim/2025_oncerco_plot_polygons.gpkg")
-VZA_2025 = ROOT / "outputs/result_01_reflectance_distributions/2025/ground_filtered/results/plot_week_angle_features_2025.parquet"
-RAA_2025 = ROOT / "outputs/result_01_raa_sun_geometry/2025/ground_filtered/results/plot_week_vza_raa_features_2025.parquet"
-VZA_2024 = ROOT / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
-RAA_2024 = ROOT / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+VZA_2025 = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/2025/ground_filtered/results/plot_week_angle_features_2025.parquet"
+)
+RAA_2025 = (
+    ROOT
+    / "outputs/result_01_raa_sun_geometry/2025/ground_filtered/results/plot_week_vza_raa_features_2025.parquet"
+)
+VZA_2024 = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+)
+RAA_2024 = (
+    ROOT
+    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+)
 
 OUTPUT_ROOT = ROOT / "outputs/cross_year_generalization_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -126,7 +137,9 @@ def safe_spearman(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(value) if value is not None else math.nan
 
 
-def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, prob: np.ndarray | None = None) -> dict[str, float]:
+def binary_metrics(
+    y_true: np.ndarray, y_pred: np.ndarray, prob: np.ndarray | None = None
+) -> dict[str, float]:
     y_true = np.asarray(y_true, dtype=int)
     y_pred = np.asarray(y_pred, dtype=int)
     positives = y_true == 1
@@ -142,7 +155,11 @@ def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, prob: np.ndarray | No
     has_two_classes = len(np.unique(y_true)) > 1
     return {
         "auroc": roc_auc_score(y_true, prob) if prob is not None and has_two_classes else math.nan,
-        "auprc": average_precision_score(y_true, prob) if prob is not None and has_two_classes else math.nan,
+        "auprc": (
+            average_precision_score(y_true, prob)
+            if prob is not None and has_two_classes
+            else math.nan
+        ),
         "f1": (2 * tp / f1_den) if f1_den else 0.0,
         "precision": precision,
         "recall": recall,
@@ -157,7 +174,9 @@ def binary_metrics(y_true: np.ndarray, y_pred: np.ndarray, prob: np.ndarray | No
 
 
 def choose_threshold(y_true: np.ndarray, prob: np.ndarray, strategy: str) -> float:
-    thresholds = np.unique(np.concatenate(([0.05, 0.5, 0.95], np.quantile(prob, np.linspace(0.02, 0.98, 97)))))
+    thresholds = np.unique(
+        np.concatenate(([0.05, 0.5, 0.95], np.quantile(prob, np.linspace(0.02, 0.98, 97))))
+    )
     best_threshold = 0.5
     best_score = -np.inf
     for threshold in thresholds:
@@ -171,7 +190,9 @@ def choose_threshold(y_true: np.ndarray, prob: np.ndarray, strategy: str) -> flo
             score = metrics["recall"] if metrics["specificity"] >= 0.55 else -np.inf
         else:
             raise ValueError(f"Unknown threshold strategy: {strategy}")
-        if np.isfinite(score) and (score > best_score or (score == best_score and threshold > best_threshold)):
+        if np.isfinite(score) and (
+            score > best_score or (score == best_score and threshold > best_threshold)
+        ):
             best_score = score
             best_threshold = float(threshold)
     return best_threshold
@@ -211,7 +232,9 @@ def read_2025_plot_map() -> pd.DataFrame:
         import geopandas as gpd
     except ImportError as exc:
         raise RuntimeError("geopandas is required to read the 2025 polygon file") from exc
-    polygons = gpd.read_file(POLYGON_2025_PATH, layer="2025_oncerco_plot_polygons").drop(columns="geometry")
+    polygons = gpd.read_file(POLYGON_2025_PATH, layer="2025_oncerco_plot_polygons").drop(
+        columns="geometry"
+    )
     polygons = polygons.reset_index(drop=True)
     polygons["plot_id"] = [f"plot_{i}" for i in range(len(polygons))]
     polygons["ifz_id"] = [90001 + i for i in range(len(polygons))]
@@ -226,7 +249,9 @@ def load_2024_disease_with_fallback() -> pd.DataFrame:
     except Exception as exc:
         if not DISEASE_2024_CLEAN.exists():
             raise
-        logging.warning("Using local 2024 clean disease fallback because polygon load failed: %s", exc)
+        logging.warning(
+            "Using local 2024 clean disease fallback because polygon load failed: %s", exc
+        )
         return pd.read_csv(DISEASE_2024_CLEAN)
 
 
@@ -236,7 +261,9 @@ def load_2025_disease_with_fallback() -> tuple[pd.DataFrame, pd.DataFrame]:
     except Exception as exc:
         if not DISEASE_OUT.exists():
             raise
-        logging.warning("Using local 2025 clean disease fallback because DSDI parsing/mapping failed: %s", exc)
+        logging.warning(
+            "Using local 2025 clean disease fallback because DSDI parsing/mapping failed: %s", exc
+        )
         disease = pd.read_csv(DISEASE_OUT)
         audit = pd.DataFrame(
             [
@@ -291,7 +318,9 @@ def parse_2025_dsdi() -> tuple[pd.DataFrame, pd.DataFrame]:
                 continue
             valid_blocks.append(block)
         if not valid_blocks:
-            audit_rows.append({"week": week, "selected": False, "reason": "no valid 24-plot non-null block"})
+            audit_rows.append(
+                {"week": week, "selected": False, "reason": "no valid 24-plot non-null block"}
+            )
             continue
         block = valid_blocks[-1].copy()
         selected.append(block)
@@ -313,7 +342,9 @@ def parse_2025_dsdi() -> tuple[pd.DataFrame, pd.DataFrame]:
     disease["cult"] = disease["cult"].astype(str).str.lower()
     disease["trt"] = disease["trt"].astype(str).str.lower()
     if ds_cols:
-        disease["ds_leaf_mean"] = disease[ds_cols].apply(pd.to_numeric, errors="coerce").mean(axis=1)
+        disease["ds_leaf_mean"] = (
+            disease[ds_cols].apply(pd.to_numeric, errors="coerce").mean(axis=1)
+        )
         disease["ds_leaf_sd"] = disease[ds_cols].apply(pd.to_numeric, errors="coerce").std(axis=1)
     else:
         disease["ds_leaf_mean"] = np.nan
@@ -337,27 +368,46 @@ def parse_2025_dsdi() -> tuple[pd.DataFrame, pd.DataFrame]:
             "di_leaf_mean",
             "source_path",
         ]
-    ].sort_values(["week", "plot_id"], key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col)
+    ].sort_values(
+        ["week", "plot_id"],
+        key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col,
+    )
     log_phase("parse 2025 DSDI", t0)
     return disease, pd.DataFrame(audit_rows).sort_values("week")
 
 
-def validate_2025_mapping(vza: pd.DataFrame, disease: pd.DataFrame, plot_map: pd.DataFrame) -> pd.DataFrame:
+def validate_2025_mapping(
+    vza: pd.DataFrame, disease: pd.DataFrame, plot_map: pd.DataFrame
+) -> pd.DataFrame:
     meta = (
         vza[["plot_id", "cult", "trt"]]
         .drop_duplicates()
         .sort_values("plot_id", key=lambda s: s.map(natural_plot_sort_key))
     )
-    validation = meta.merge(plot_map, on="plot_id", suffixes=("_reflectance", "_polygon"), how="left")
-    disease_meta = disease[disease["week"] == disease["week"].min()][["plot_id", "cult", "trt"]].drop_duplicates()
+    validation = meta.merge(
+        plot_map, on="plot_id", suffixes=("_reflectance", "_polygon"), how="left"
+    )
+    disease_meta = disease[disease["week"] == disease["week"].min()][
+        ["plot_id", "cult", "trt"]
+    ].drop_duplicates()
     validation = validation.merge(disease_meta, on="plot_id", suffixes=("", "_disease"), how="left")
-    validation["cult_match"] = validation["cult_reflectance"].str.lower() == validation["cult_polygon"].str.lower()
-    validation["trt_match"] = validation["trt_reflectance"].str.lower() == validation["trt_polygon"].str.lower()
-    validation["cult_disease_match"] = validation["cult_reflectance"].str.lower() == validation["cult"].str.lower()
-    validation["trt_disease_match"] = validation["trt_reflectance"].str.lower() == validation["trt"].str.lower()
+    validation["cult_match"] = (
+        validation["cult_reflectance"].str.lower() == validation["cult_polygon"].str.lower()
+    )
+    validation["trt_match"] = (
+        validation["trt_reflectance"].str.lower() == validation["trt_polygon"].str.lower()
+    )
+    validation["cult_disease_match"] = (
+        validation["cult_reflectance"].str.lower() == validation["cult"].str.lower()
+    )
+    validation["trt_disease_match"] = (
+        validation["trt_reflectance"].str.lower() == validation["trt"].str.lower()
+    )
     checks = ["cult_match", "trt_match", "cult_disease_match", "trt_disease_match"]
     if not validation[checks].all().all():
-        raise RuntimeError("2025 plot mapping validation failed:\n" + validation.to_string(index=False))
+        raise RuntimeError(
+            "2025 plot mapping validation failed:\n" + validation.to_string(index=False)
+        )
     return validation.rename(columns={"cult": "cult_disease", "trt": "trt_disease"})
 
 
@@ -369,7 +419,9 @@ def load_feature_sets_for_year(vza_path: Path, raa_path: Path) -> dict[str, pd.D
     return build_feature_sets_any_year(vza, raa)
 
 
-def pivot_features_any_year(frame: pd.DataFrame, feature_set: str, category_cols: list[str]) -> pd.DataFrame:
+def pivot_features_any_year(
+    frame: pd.DataFrame, feature_set: str, category_cols: list[str]
+) -> pd.DataFrame:
     data = frame.copy()
     parts = [data["band_name"].map(clean_token)]
     for col in category_cols:
@@ -398,10 +450,16 @@ def summarize_vza_curve(vza: pd.DataFrame) -> pd.DataFrame:
         y = group["reflectance"].to_numpy(float)
         low = group[group["vza_midpoint"] <= 20]["reflectance"]
         high = group[group["vza_midpoint"] >= 45]["reflectance"]
-        nadir = float(group.iloc[(group["vza_midpoint"] - group["vza_midpoint"].min()).abs().argmin()]["reflectance"])
+        nadir = float(
+            group.iloc[(group["vza_midpoint"] - group["vza_midpoint"].min()).abs().argmin()][
+                "reflectance"
+            ]
+        )
         slope = float(np.polyfit(x, y, 1)[0]) if len(np.unique(x)) >= 2 else np.nan
         curvature = float(np.polyfit(x, y, 2)[0]) if len(np.unique(x)) >= 3 else np.nan
-        high_minus_low = float(high.mean() - low.mean()) if not low.empty and not high.empty else np.nan
+        high_minus_low = (
+            float(high.mean() - low.mean()) if not low.empty and not high.empty else np.nan
+        )
         angular_range = float(np.max(y) - np.min(y)) if len(y) else np.nan
         off_nadir = group.loc[group["vza_midpoint"] > group["vza_midpoint"].min(), "reflectance"]
         off_nadir_mean = float(off_nadir.mean()) if not off_nadir.empty else np.nan
@@ -416,9 +474,13 @@ def summarize_vza_curve(vza: pd.DataFrame) -> pd.DataFrame:
             "curvature": curvature,
             "angular_range": angular_range,
             "high_minus_low": high_minus_low,
-            "relative_high_minus_low": high_minus_low / nadir if np.isfinite(high_minus_low) and nadir != 0 else np.nan,
+            "relative_high_minus_low": (
+                high_minus_low / nadir if np.isfinite(high_minus_low) and nadir != 0 else np.nan
+            ),
             "off_nadir_minus_nadir": off_nadir_minus_nadir,
-            "off_nadir_ratio_nadir": off_nadir_mean / nadir if np.isfinite(off_nadir_mean) and nadir != 0 else np.nan,
+            "off_nadir_ratio_nadir": (
+                off_nadir_mean / nadir if np.isfinite(off_nadir_mean) and nadir != 0 else np.nan
+            ),
         }
         for metric, value in values.items():
             row = base.copy()
@@ -453,12 +515,16 @@ def summarize_geometry_contrasts(raa: pd.DataFrame) -> pd.DataFrame:
         low_raa = group[group["raa_midpoint"] <= 45]["reflectance"]
         high_raa = group[group["raa_midpoint"] >= 135]["reflectance"]
         values = {
-            "phase_near_minus_far": float(near_phase.mean() - far_phase.mean())
-            if not near_phase.empty and not far_phase.empty
-            else np.nan,
-            "raa_low_minus_high": float(low_raa.mean() - high_raa.mean())
-            if not low_raa.empty and not high_raa.empty
-            else np.nan,
+            "phase_near_minus_far": (
+                float(near_phase.mean() - far_phase.mean())
+                if not near_phase.empty and not far_phase.empty
+                else np.nan
+            ),
+            "raa_low_minus_high": (
+                float(low_raa.mean() - high_raa.mean())
+                if not low_raa.empty and not high_raa.empty
+                else np.nan
+            ),
             "phase_std": float(group.groupby("phase_class")["reflectance"].mean().std(ddof=0)),
             "raa_std": float(group.groupby("raa_class")["reflectance"].mean().std(ddof=0)),
         }
@@ -488,7 +554,9 @@ def filter_reliable_angular_bins(raa: pd.DataFrame) -> pd.DataFrame:
     required = {"n_pixels", "n_images"}
     if not required.issubset(raa.columns):
         return raa.copy()
-    return raa[(raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS) & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)].copy()
+    return raa[
+        (raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS) & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)
+    ].copy()
 
 
 def build_feature_sets_any_year(vza: pd.DataFrame, raa: pd.DataFrame) -> dict[str, pd.DataFrame]:
@@ -511,9 +579,15 @@ def build_feature_sets_any_year(vza: pd.DataFrame, raa: pd.DataFrame) -> dict[st
         "multiangular_geometry_compact": angular_shape,
         "multiangular_vza": pivot_features_any_year(vza, "vza", ["vza_class"]),
         "multiangular_vza_raa": pivot_features_any_year(raa, "vza_raa", ["vza_class", "raa_class"]),
-        "multiangular_vza_phase": pivot_features_any_year(raa, "vza_phase", ["vza_class", "phase_class"]),
-        "multiangular_vza_raa_reliable": pivot_features_any_year(raa_reliable, "vza_raa_reliable", ["vza_class", "raa_class"]),
-        "multiangular_vza_phase_reliable": pivot_features_any_year(raa_reliable, "vza_phase_reliable", ["vza_class", "phase_class"]),
+        "multiangular_vza_phase": pivot_features_any_year(
+            raa, "vza_phase", ["vza_class", "phase_class"]
+        ),
+        "multiangular_vza_raa_reliable": pivot_features_any_year(
+            raa_reliable, "vza_raa_reliable", ["vza_class", "raa_class"]
+        ),
+        "multiangular_vza_phase_reliable": pivot_features_any_year(
+            raa_reliable, "vza_phase_reliable", ["vza_class", "phase_class"]
+        ),
     }
     for name, frame in feature_sets.items():
         logging.info("  %s: %s rows, %s feature columns", name, frame.shape[0], frame.shape[1] - 5)
@@ -521,11 +595,20 @@ def build_feature_sets_any_year(vza: pd.DataFrame, raa: pd.DataFrame) -> dict[st
     return feature_sets
 
 
-def align_train_test(train: pd.DataFrame, test: pd.DataFrame) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
+def align_train_test(
+    train: pd.DataFrame, test: pd.DataFrame
+) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
     common_cols = sorted(set(feature_columns(train)).intersection(feature_columns(test)))
     common_cols = [c for c in common_cols if train[c].notna().mean() >= MIN_NON_NULL_FRACTION]
     common_cols = [c for c in common_cols if test[c].notna().mean() > 0]
-    keep = ["plot_id", "predictor_week", "target_week", TARGET, TARGET_LOG, WARNING_TARGET] + common_cols
+    keep = [
+        "plot_id",
+        "predictor_week",
+        "target_week",
+        TARGET,
+        TARGET_LOG,
+        WARNING_TARGET,
+    ] + common_cols
     return common_cols, train[keep].copy(), test[keep].copy()
 
 
@@ -535,7 +618,9 @@ def lagged_disease_features_for_pairs(
     lag_policy: str,
 ) -> pd.DataFrame:
     if lag_policy not in LAG_POLICIES:
-        raise ValueError(f"Unknown lag policy {lag_policy!r}; expected one of {sorted(LAG_POLICIES)}")
+        raise ValueError(
+            f"Unknown lag policy {lag_policy!r}; expected one of {sorted(LAG_POLICIES)}"
+        )
     rows = []
     disease = disease.copy()
     for col in ["ds_plot", "ds_leaf_mean", "ds_leaf_sd", "di_leaf_mean"]:
@@ -546,10 +631,9 @@ def lagged_disease_features_for_pairs(
             history_mask = disease["week"] <= row.predictor_week
         else:
             history_mask = disease["week"] < row.predictor_week
-        plot_history = disease[
-            (disease["plot_id"] == row.plot_id)
-            & history_mask
-        ].sort_values("week")
+        plot_history = disease[(disease["plot_id"] == row.plot_id) & history_mask].sort_values(
+            "week"
+        )
         base = {
             "plot_id": row.plot_id,
             "predictor_week": row.predictor_week,
@@ -574,15 +658,31 @@ def lagged_disease_features_for_pairs(
             latest = plot_history.iloc[-1]
             previous = plot_history.iloc[-2] if len(plot_history) >= 2 else None
             latest_ds = float(latest["ds_plot"]) if pd.notna(latest["ds_plot"]) else 0.0
-            previous_ds = float(previous["ds_plot"]) if previous is not None and pd.notna(previous["ds_plot"]) else latest_ds
+            previous_ds = (
+                float(previous["ds_plot"])
+                if previous is not None and pd.notna(previous["ds_plot"])
+                else latest_ds
+            )
             base.update(
                 {
                     "lag_ds_plot": latest_ds,
                     "lag_any_disease": int(latest_ds > 0),
                     "lag_warning": int(latest_ds >= WARNING_THRESHOLD),
-                    "lag_ds_leaf_mean": float(latest["ds_leaf_mean"]) if "ds_leaf_mean" in latest and pd.notna(latest["ds_leaf_mean"]) else 0.0,
-                    "lag_ds_leaf_sd": float(latest["ds_leaf_sd"]) if "ds_leaf_sd" in latest and pd.notna(latest["ds_leaf_sd"]) else 0.0,
-                    "lag_di_leaf_mean": float(latest["di_leaf_mean"]) if "di_leaf_mean" in latest and pd.notna(latest["di_leaf_mean"]) else 0.0,
+                    "lag_ds_leaf_mean": (
+                        float(latest["ds_leaf_mean"])
+                        if "ds_leaf_mean" in latest and pd.notna(latest["ds_leaf_mean"])
+                        else 0.0
+                    ),
+                    "lag_ds_leaf_sd": (
+                        float(latest["ds_leaf_sd"])
+                        if "ds_leaf_sd" in latest and pd.notna(latest["ds_leaf_sd"])
+                        else 0.0
+                    ),
+                    "lag_di_leaf_mean": (
+                        float(latest["di_leaf_mean"])
+                        if "di_leaf_mean" in latest and pd.notna(latest["di_leaf_mean"])
+                        else 0.0
+                    ),
                     "lag_observation_week": int(latest["week"]),
                     "lag_weeks_since_observation": int(row.predictor_week - latest["week"]),
                     "lag_ds_change": latest_ds - previous_ds,
@@ -593,25 +693,44 @@ def lagged_disease_features_for_pairs(
     return pd.DataFrame(rows)
 
 
-def add_lagged_disease_features(model_table: pd.DataFrame, disease: pd.DataFrame, lag_policy: str) -> pd.DataFrame:
+def add_lagged_disease_features(
+    model_table: pd.DataFrame, disease: pd.DataFrame, lag_policy: str
+) -> pd.DataFrame:
     lagged = lagged_disease_features_for_pairs(model_table, disease, lag_policy)
     merged = model_table.merge(lagged, on=["plot_id", "predictor_week", "target_week"], how="left")
     if lag_policy == "through_predictor_week":
-        valid_lag = merged["lag_observation_week"].dropna() <= merged.loc[merged["lag_observation_week"].notna(), "predictor_week"]
+        valid_lag = (
+            merged["lag_observation_week"].dropna()
+            <= merged.loc[merged["lag_observation_week"].notna(), "predictor_week"]
+        )
     else:
-        valid_lag = merged["lag_observation_week"].dropna() < merged.loc[merged["lag_observation_week"].notna(), "predictor_week"]
+        valid_lag = (
+            merged["lag_observation_week"].dropna()
+            < merged.loc[merged["lag_observation_week"].notna(), "predictor_week"]
+        )
     if not valid_lag.all():
         raise RuntimeError(f"Lagged disease leakage detected for lag_policy={lag_policy}")
     for col in LAG_FEATURE_COLUMNS:
         if col not in merged.columns:
             merged[col] = 0.0
-    fill_zero = [col for col in LAG_FEATURE_COLUMNS if col not in {"lag_observation_week", "lag_weeks_since_observation"}]
+    fill_zero = [
+        col
+        for col in LAG_FEATURE_COLUMNS
+        if col not in {"lag_observation_week", "lag_weeks_since_observation"}
+    ]
     merged[fill_zero] = merged[fill_zero].fillna(0.0)
     return merged
 
 
 def lagged_disease_only_table(model_table: pd.DataFrame) -> pd.DataFrame:
-    keep = ["plot_id", "predictor_week", "target_week", TARGET, TARGET_LOG, WARNING_TARGET] + LAG_FEATURE_COLUMNS
+    keep = [
+        "plot_id",
+        "predictor_week",
+        "target_week",
+        TARGET,
+        TARGET_LOG,
+        WARNING_TARGET,
+    ] + LAG_FEATURE_COLUMNS
     meta = [col for col in ["year", "week", "cult", "trt"] if col in model_table.columns]
     return model_table[meta + keep].copy()
 
@@ -644,7 +763,9 @@ def evaluate_external_regression(
     covariate_mode: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     target_col = TARGET_LOG if use_log else TARGET
     pipeline = Pipeline(
         [
@@ -673,7 +794,8 @@ def evaluate_external_regression(
     predictions["y_pred"] = pred
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(
-        PREDICTIONS_DIR / f"severity_predictions_{model_key}_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
+        PREDICTIONS_DIR
+        / f"severity_predictions_{model_key}_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
         index=False,
     )
     return {
@@ -803,7 +925,9 @@ def calibrated_warning_rows_from_prob(
     return rows
 
 
-def evaluate_external_warning_calibrated(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> list[dict]:
+def evaluate_external_warning_calibrated(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> list[dict]:
     cols, train_aligned, test_aligned = align_train_test(train, test)
     y_train = train_aligned[WARNING_TARGET].to_numpy(int)
     y_test = test_aligned[WARNING_TARGET].to_numpy(int)
@@ -826,8 +950,12 @@ def evaluate_external_warning_calibrated(train: pd.DataFrame, test: pd.DataFrame
         ]
     )
     threshold_t0 = time.time()
-    thresholds = grouped_cv_thresholds(estimator, train_aligned[cols], y_train, train_aligned["plot_id"].to_numpy())
-    logging.info("[PHASE] calibrate logistic thresholds %s: %.1fs", feature_set, time.time() - threshold_t0)
+    thresholds = grouped_cv_thresholds(
+        estimator, train_aligned[cols], y_train, train_aligned["plot_id"].to_numpy()
+    )
+    logging.info(
+        "[PHASE] calibrate logistic thresholds %s: %.1fs", feature_set, time.time() - threshold_t0
+    )
     fit_t0 = time.time()
     estimator.fit(train_aligned[cols], y_train)
     fit_time = time.time() - fit_t0
@@ -882,12 +1010,32 @@ def save_xgboost_learning_curve(
     curve.to_csv(curve_path, index=False)
 
     fig, ax = plt.subplots(figsize=(8.5, 5.2))
-    ax.plot(curve["iteration"], curve[f"train_{metric_name}"], label=f"2024 train {metric_name}", color="#2f6f9f", linewidth=2)
-    ax.plot(curve["iteration"], curve[f"eval_{metric_name}"], label=f"2024 eval {metric_name}", color="#d08336", linewidth=2)
+    ax.plot(
+        curve["iteration"],
+        curve[f"train_{metric_name}"],
+        label=f"2024 train {metric_name}",
+        color="#2f6f9f",
+        linewidth=2,
+    )
+    ax.plot(
+        curve["iteration"],
+        curve[f"eval_{metric_name}"],
+        label=f"2024 eval {metric_name}",
+        color="#d08336",
+        linewidth=2,
+    )
     best_iteration = getattr(model, "best_iteration", None)
     if best_iteration is not None:
-        ax.axvline(best_iteration, color="#323232", linestyle="--", linewidth=1.1, label=f"best iter {best_iteration}")
-    ax.set_title(f"XGBoost learning curve: {feature_set} ({covariate_mode})", fontsize=13, fontweight="bold")
+        ax.axvline(
+            best_iteration,
+            color="#323232",
+            linestyle="--",
+            linewidth=1.1,
+            label=f"best iter {best_iteration}",
+        )
+    ax.set_title(
+        f"XGBoost learning curve: {feature_set} ({covariate_mode})", fontsize=13, fontweight="bold"
+    )
     ax.set_xlabel("Boosting iteration")
     ax.set_ylabel(metric_name.upper())
     ax.grid(axis="y", color="#d7d0c6", linewidth=0.8, alpha=0.75)
@@ -909,7 +1057,9 @@ def evaluate_xgboost_regression(
     covariate_mode: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     train_idx, eval_idx = split_train_eval_by_plot(train_aligned)
     fit_part = train_aligned.iloc[train_idx].copy()
     eval_part = train_aligned.iloc[eval_idx].copy()
@@ -965,7 +1115,8 @@ def evaluate_xgboost_regression(
     predictions["y_pred"] = test_pred
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(
-        PREDICTIONS_DIR / f"severity_predictions_xgboost_raw_severity_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
+        PREDICTIONS_DIR
+        / f"severity_predictions_xgboost_raw_severity_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
         index=False,
     )
     return {
@@ -998,7 +1149,9 @@ def evaluate_xgboost_regression_200_trees(
     covariate_mode: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     train_idx, eval_idx = split_train_eval_by_plot(train_aligned)
     fit_part = train_aligned.iloc[train_idx].copy()
     eval_part = train_aligned.iloc[eval_idx].copy()
@@ -1046,7 +1199,8 @@ def evaluate_xgboost_regression_200_trees(
     predictions["y_pred"] = test_pred
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(
-        PREDICTIONS_DIR / f"severity_predictions_xgboost_200_raw_severity_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
+        PREDICTIONS_DIR
+        / f"severity_predictions_xgboost_200_raw_severity_{safe_filename(feature_set)}_{safe_filename(covariate_mode)}.csv",
         index=False,
     )
     return {
@@ -1144,14 +1298,22 @@ def evaluate_xgboost_warning(train: pd.DataFrame, test: pd.DataFrame, feature_se
         "n_features": len(cols),
         "best_iteration": getattr(model, "best_iteration", np.nan),
         "scale_pos_weight": scale_pos_weight,
-        "eval_auprc_2024": average_precision_score(y_eval, eval_prob) if eval_has_two_classes else math.nan,
+        "eval_auprc_2024": (
+            average_precision_score(y_eval, eval_prob) if eval_has_two_classes else math.nan
+        ),
         "eval_f1_2024": f1_score(y_eval, eval_pred, zero_division=0),
-        "external_auroc_2025": roc_auc_score(y_test, test_prob) if test_has_two_classes else math.nan,
-        "external_auprc_2025": average_precision_score(y_test, test_prob) if test_has_two_classes else math.nan,
+        "external_auroc_2025": (
+            roc_auc_score(y_test, test_prob) if test_has_two_classes else math.nan
+        ),
+        "external_auprc_2025": (
+            average_precision_score(y_test, test_prob) if test_has_two_classes else math.nan
+        ),
         "external_f1_2025": f1_score(y_test, test_pred, zero_division=0),
         "external_precision_2025": precision_score(y_test, test_pred, zero_division=0),
         "external_recall_2025": recall_score(y_test, test_pred, zero_division=0),
-        "external_balanced_accuracy_2025": balanced_accuracy_score(y_test, test_pred) if test_has_two_classes else math.nan,
+        "external_balanced_accuracy_2025": (
+            balanced_accuracy_score(y_test, test_pred) if test_has_two_classes else math.nan
+        ),
         "learning_curve_csv": str(curve_path) if curve_path else "",
         "learning_curve_figure": str(figure_path) if figure_path else "",
         "fit_time_s": fit_time,
@@ -1159,7 +1321,9 @@ def evaluate_xgboost_warning(train: pd.DataFrame, test: pd.DataFrame, feature_se
     }
 
 
-def evaluate_xgboost_warning_calibrated(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> list[dict]:
+def evaluate_xgboost_warning_calibrated(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> list[dict]:
     cols, train_aligned, test_aligned = align_train_test(train, test)
     y_train = train_aligned[WARNING_TARGET].to_numpy(int)
     y_test = test_aligned[WARNING_TARGET].to_numpy(int)
@@ -1191,8 +1355,12 @@ def evaluate_xgboost_warning_calibrated(train: pd.DataFrame, test: pd.DataFrame,
         ]
     )
     threshold_t0 = time.time()
-    thresholds = grouped_cv_thresholds(estimator, train_aligned[cols], y_train, train_aligned["plot_id"].to_numpy())
-    logging.info("[PHASE] calibrate xgboost thresholds %s: %.1fs", feature_set, time.time() - threshold_t0)
+    thresholds = grouped_cv_thresholds(
+        estimator, train_aligned[cols], y_train, train_aligned["plot_id"].to_numpy()
+    )
+    logging.info(
+        "[PHASE] calibrate xgboost thresholds %s: %.1fs", feature_set, time.time() - threshold_t0
+    )
     fit_t0 = time.time()
     estimator.fit(train_aligned[cols], y_train)
     fit_time = time.time() - fit_t0
@@ -1263,7 +1431,9 @@ def evaluate_lagged_ridge(
     lag_policy: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_lagged_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_lagged_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     target_col = TARGET_LOG if use_log else TARGET
     pipeline = Pipeline(
         [
@@ -1291,7 +1461,9 @@ def evaluate_lagged_ridge(
     predictions["lag_policy"] = lag_policy
     predictions["y_true"] = y
     predictions["y_pred"] = pred
-    save_lagged_severity_predictions(predictions, model_key, feature_block, covariate_mode, lag_policy)
+    save_lagged_severity_predictions(
+        predictions, model_key, feature_block, covariate_mode, lag_policy
+    )
     return {
         "feature_block": feature_block,
         "model": "ridge_log_severity" if use_log else "ridge_raw_severity",
@@ -1318,7 +1490,9 @@ def evaluate_lagged_xgboost(
     lag_policy: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_lagged_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_lagged_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     train_idx, eval_idx = split_train_eval_by_plot(train_aligned)
     fit_part = train_aligned.iloc[train_idx].copy()
     eval_part = train_aligned.iloc[eval_idx].copy()
@@ -1363,7 +1537,9 @@ def evaluate_lagged_xgboost(
     predictions["lag_policy"] = lag_policy
     predictions["y_true"] = y_test
     predictions["y_pred"] = test_pred
-    save_lagged_severity_predictions(predictions, model_key, feature_block, covariate_mode, lag_policy)
+    save_lagged_severity_predictions(
+        predictions, model_key, feature_block, covariate_mode, lag_policy
+    )
     return {
         "feature_block": feature_block,
         "model": model_key,
@@ -1391,7 +1567,11 @@ def evaluate_lagged_xgboost(
 def disease_progression(disease: pd.DataFrame) -> pd.DataFrame:
     return (
         disease.groupby(["year", "week"], as_index=False)
-        .agg(plots=("plot_id", "nunique"), mean_ds_plot=("ds_plot", "mean"), max_ds_plot=("ds_plot", "max"))
+        .agg(
+            plots=("plot_id", "nunique"),
+            mean_ds_plot=("ds_plot", "mean"),
+            max_ds_plot=("ds_plot", "max"),
+        )
         .sort_values(["year", "week"])
     )
 
@@ -1404,10 +1584,18 @@ def warning_horizon_diagnostics_from_predictions() -> pd.DataFrame:
             continue
         model = pred["model"].iloc[0] if "model" in pred.columns else path.stem
         feature_set = pred["feature_set"].iloc[0] if "feature_set" in pred.columns else ""
-        strategy = pred["threshold_strategy"].iloc[0] if "threshold_strategy" in pred.columns else "fixed_0_5"
+        strategy = (
+            pred["threshold_strategy"].iloc[0]
+            if "threshold_strategy" in pred.columns
+            else "fixed_0_5"
+        )
         threshold = pred["threshold"].iloc[0] if "threshold" in pred.columns else 0.5
         for target_week, group in pred.groupby("target_week", sort=True):
-            metrics = binary_metrics(group["y_true"].to_numpy(int), group["y_pred"].to_numpy(int), group.get("y_prob", pd.Series(np.nan, index=group.index)).to_numpy(float))
+            metrics = binary_metrics(
+                group["y_true"].to_numpy(int),
+                group["y_pred"].to_numpy(int),
+                group.get("y_prob", pd.Series(np.nan, index=group.index)).to_numpy(float),
+            )
             rows.append(
                 {
                     "source_file": path.name,
@@ -1471,7 +1659,9 @@ def lagged_severity_horizon_diagnostics_from_predictions() -> pd.DataFrame:
                     "model": pred["model"].iloc[0],
                     "feature_block": pred["feature_block"].iloc[0],
                     "covariates": pred["covariates"].iloc[0],
-                    "lag_policy": pred["lag_policy"].iloc[0] if "lag_policy" in pred.columns else "",
+                    "lag_policy": (
+                        pred["lag_policy"].iloc[0] if "lag_policy" in pred.columns else ""
+                    ),
                     "target_week": target_week,
                     "n": len(group),
                     "mean_true": group["y_true"].mean(),
@@ -1487,7 +1677,9 @@ def lagged_severity_horizon_diagnostics_from_predictions() -> pd.DataFrame:
 def lagged_severity_delta_vs_baselines(results: pd.DataFrame) -> pd.DataFrame:
     rows = []
     baseline_names = ["previous_disease_only", "nadir_plus_previous_disease"]
-    for (model, covariates, lag_policy), group in results.groupby(["model", "covariates", "lag_policy"]):
+    for (model, covariates, lag_policy), group in results.groupby(
+        ["model", "covariates", "lag_policy"]
+    ):
         for baseline_name in baseline_names:
             baseline = group[group["feature_block"] == baseline_name]
             if baseline.empty:
@@ -1553,7 +1745,11 @@ def severity_delta_vs_nadir(severity: pd.DataFrame) -> pd.DataFrame:
             else:
                 result[group_keys[0]] = keys
             rows.append(result)
-    sort_cols = ["model", "covariates", "delta_rmse"] if rows and "covariates" in rows[0] else ["model", "delta_rmse"]
+    sort_cols = (
+        ["model", "covariates", "delta_rmse"]
+        if rows and "covariates" in rows[0]
+        else ["model", "delta_rmse"]
+    )
     return pd.DataFrame(rows).sort_values(sort_cols)
 
 
@@ -1620,7 +1816,14 @@ def plot_binary_warning_metrics(warning: pd.DataFrame, output_path: Path) -> Non
     for ax, (metric, title) in zip(axes, metrics):
         values = plot_data[metric].to_numpy(float)
         colors = [palette[key] for key in plot_data["feature_set"]]
-        bars = ax.bar(range(len(plot_data)), values, color=colors, width=0.68, edgecolor="white", linewidth=1.2)
+        bars = ax.bar(
+            range(len(plot_data)),
+            values,
+            color=colors,
+            width=0.68,
+            edgecolor="white",
+            linewidth=1.2,
+        )
         baseline = float(plot_data.loc[plot_data["feature_set"] == "nadir", metric].iloc[0])
         ax.axhline(baseline, color="#323232", linestyle="--", linewidth=1.1, alpha=0.75)
         ax.text(
@@ -1645,7 +1848,9 @@ def plot_binary_warning_metrics(warning: pd.DataFrame, output_path: Path) -> Non
         ax.set_title(title, fontsize=12, fontweight="bold", pad=8)
         ax.set_ylim(0, 0.82)
         ax.set_xticks(range(len(plot_data)))
-        ax.set_xticklabels([labels[key] for key in plot_data["feature_set"]], rotation=25, ha="right")
+        ax.set_xticklabels(
+            [labels[key] for key in plot_data["feature_set"]], rotation=25, ha="right"
+        )
         ax.grid(axis="y", color="#d7d0c6", linewidth=0.8, alpha=0.75)
         ax.set_axisbelow(True)
         ax.spines["top"].set_visible(False)
@@ -1715,7 +1920,14 @@ def plot_binary_warning_delta_metrics(warning_delta: pd.DataFrame, output_path: 
     for ax, (metric, title) in zip(axes, metrics):
         values = plot_data[metric].to_numpy(float)
         colors = [palette[key] for key in plot_data["feature_set"]]
-        bars = ax.bar(range(len(plot_data)), values, color=colors, width=0.68, edgecolor="white", linewidth=1.2)
+        bars = ax.bar(
+            range(len(plot_data)),
+            values,
+            color=colors,
+            width=0.68,
+            edgecolor="white",
+            linewidth=1.2,
+        )
         ax.axhline(0, color="#323232", linewidth=1.2)
         ax.text(4.42, 0.006, "nadir = 0", fontsize=8.5, color="#323232", ha="right", va="bottom")
         for bar, value in zip(bars, values):
@@ -1733,7 +1945,9 @@ def plot_binary_warning_delta_metrics(warning_delta: pd.DataFrame, output_path: 
         ax.set_title(title, fontsize=12, fontweight="bold", pad=8)
         ax.set_ylim(-0.06, 0.24)
         ax.set_xticks(range(len(plot_data)))
-        ax.set_xticklabels([labels[key] for key in plot_data["feature_set"]], rotation=25, ha="right")
+        ax.set_xticklabels(
+            [labels[key] for key in plot_data["feature_set"]], rotation=25, ha="right"
+        )
         ax.grid(axis="y", color="#d7d0c6", linewidth=0.8, alpha=0.75)
         ax.set_axisbelow(True)
         ax.spines["top"].set_visible(False)
@@ -1897,7 +2111,17 @@ def write_lagged_disease_report(
     lagged_horizon: pd.DataFrame,
     log_path: Path,
 ) -> None:
-    display_cols = ["feature_block", "model", "covariates", "lag_policy", "n_features", "rmse", "mae", "r2", "spearman"]
+    display_cols = [
+        "feature_block",
+        "model",
+        "covariates",
+        "lag_policy",
+        "n_features",
+        "rmse",
+        "mae",
+        "r2",
+        "spearman",
+    ]
     best = lagged_results.sort_values("rmse").head(20)
     report = [
         "## Results: Lagged Disease Presence for External Severity Prediction",
@@ -1957,7 +2181,9 @@ def main() -> None:
     features_2024 = load_feature_sets_for_year(VZA_2024, RAA_2024)
     features_2025 = load_feature_sets_for_year(VZA_2025, RAA_2025)
     try:
-        validate_2025_mapping(pl.read_parquet(VZA_2025).to_pandas(), disease_2025, read_2025_plot_map())
+        validate_2025_mapping(
+            pl.read_parquet(VZA_2025).to_pandas(), disease_2025, read_2025_plot_map()
+        )
     except Exception as exc:
         logging.warning("Skipping 2025 polygon mapping validation: %s", exc)
 
@@ -1992,12 +2218,20 @@ def main() -> None:
                 )
             )
         warning_rows.append(evaluate_external_warning(train, test, feature_set))
-        calibrated_warning_rows.extend(evaluate_external_warning_calibrated(train, test, feature_set))
+        calibrated_warning_rows.extend(
+            evaluate_external_warning_calibrated(train, test, feature_set)
+        )
         for covariate_mode in ["spectral_only", "spectral_plus_week", "spectral_plus_week_horizon"]:
-            xgb_severity_rows.append(evaluate_xgboost_regression(train, test, feature_set, covariate_mode))
-            xgb_severity_200_rows.append(evaluate_xgboost_regression_200_trees(train, test, feature_set, covariate_mode))
+            xgb_severity_rows.append(
+                evaluate_xgboost_regression(train, test, feature_set, covariate_mode)
+            )
+            xgb_severity_200_rows.append(
+                evaluate_xgboost_regression_200_trees(train, test, feature_set, covariate_mode)
+            )
         xgb_warning_rows.append(evaluate_xgboost_warning(train, test, feature_set))
-        calibrated_warning_rows.extend(evaluate_xgboost_warning_calibrated(train, test, feature_set))
+        calibrated_warning_rows.extend(
+            evaluate_xgboost_warning_calibrated(train, test, feature_set)
+        )
 
     lagged_rows = []
     clear_lagged_prediction_outputs()
@@ -2021,24 +2255,77 @@ def main() -> None:
             if block_name == "previous_disease_only":
                 train_lagged = lagged_disease_only_table(train_lagged)
                 test_lagged = lagged_disease_only_table(test_lagged)
-            for covariate_mode in ["lagged_only", "lagged_plus_predictor_week", "lagged_plus_week_horizon"]:
-                lagged_rows.append(evaluate_lagged_ridge(train_lagged, test_lagged, block_name, covariate_mode, use_log=False, lag_policy=lag_policy))
-                lagged_rows.append(evaluate_lagged_ridge(train_lagged, test_lagged, block_name, covariate_mode, use_log=True, lag_policy=lag_policy))
-                lagged_rows.append(evaluate_lagged_xgboost(train_lagged, test_lagged, block_name, covariate_mode, fixed_200=False, lag_policy=lag_policy))
-                lagged_rows.append(evaluate_lagged_xgboost(train_lagged, test_lagged, block_name, covariate_mode, fixed_200=True, lag_policy=lag_policy))
+            for covariate_mode in [
+                "lagged_only",
+                "lagged_plus_predictor_week",
+                "lagged_plus_week_horizon",
+            ]:
+                lagged_rows.append(
+                    evaluate_lagged_ridge(
+                        train_lagged,
+                        test_lagged,
+                        block_name,
+                        covariate_mode,
+                        use_log=False,
+                        lag_policy=lag_policy,
+                    )
+                )
+                lagged_rows.append(
+                    evaluate_lagged_ridge(
+                        train_lagged,
+                        test_lagged,
+                        block_name,
+                        covariate_mode,
+                        use_log=True,
+                        lag_policy=lag_policy,
+                    )
+                )
+                lagged_rows.append(
+                    evaluate_lagged_xgboost(
+                        train_lagged,
+                        test_lagged,
+                        block_name,
+                        covariate_mode,
+                        fixed_200=False,
+                        lag_policy=lag_policy,
+                    )
+                )
+                lagged_rows.append(
+                    evaluate_lagged_xgboost(
+                        train_lagged,
+                        test_lagged,
+                        block_name,
+                        covariate_mode,
+                        fixed_200=True,
+                        lag_policy=lag_policy,
+                    )
+                )
 
     severity = pd.DataFrame(severity_rows).sort_values(["model", "covariates", "rmse"])
-    lagged_severity = pd.DataFrame(lagged_rows).sort_values(["model", "covariates", "lag_policy", "rmse"])
-    lagged_delta = lagged_severity_delta_vs_baselines(lagged_severity) if not lagged_severity.empty else pd.DataFrame()
+    lagged_severity = pd.DataFrame(lagged_rows).sort_values(
+        ["model", "covariates", "lag_policy", "rmse"]
+    )
+    lagged_delta = (
+        lagged_severity_delta_vs_baselines(lagged_severity)
+        if not lagged_severity.empty
+        else pd.DataFrame()
+    )
     warning = pd.DataFrame(warning_rows).sort_values("f1", ascending=False)
-    calibrated_warning = pd.DataFrame(calibrated_warning_rows).sort_values(["model", "threshold_strategy", "f1"], ascending=[True, True, False])
+    calibrated_warning = pd.DataFrame(calibrated_warning_rows).sort_values(
+        ["model", "threshold_strategy", "f1"], ascending=[True, True, False]
+    )
     xgb_severity = pd.DataFrame(xgb_severity_rows).sort_values("external_rmse_2025")
     xgb_severity_200 = pd.DataFrame(xgb_severity_200_rows).sort_values("external_rmse_2025")
     xgb_warning = pd.DataFrame(xgb_warning_rows).sort_values("external_f1_2025", ascending=False)
     severity_delta = severity_delta_vs_nadir(severity)
     warning_delta = warning_delta_vs_nadir(warning)
-    progress = pd.concat([disease_progression(disease_2024), disease_progression(disease_2025)], ignore_index=True)
-    feature_audit = pd.concat([feature_set_audit(features_2024, 2024), feature_set_audit(features_2025, 2025)], ignore_index=True)
+    progress = pd.concat(
+        [disease_progression(disease_2024), disease_progression(disease_2025)], ignore_index=True
+    )
+    feature_audit = pd.concat(
+        [feature_set_audit(features_2024, 2024), feature_set_audit(features_2025, 2025)],
+        ignore_index=True,
+    )
     warning_horizon = warning_horizon_diagnostics_from_predictions()
     severity_horizon = severity_horizon_diagnostics_from_predictions()
     lagged_horizon = lagged_severity_horizon_diagnostics_from_predictions()
@@ -2048,23 +2335,29 @@ def main() -> None:
         "disease_progression": RESULTS_DIR / "disease_progression_2024_2025.csv",
         "dsdi_audit_2025": RESULTS_DIR / "dsdi_parsing_audit_2025.csv",
         "severity_external": RESULTS_DIR / "severity_external_2024_train_2025_test.csv",
-        "lagged_disease_severity_external": RESULTS_DIR / "severity_lagged_disease_external_2024_train_2025_test.csv",
-        "lagged_disease_delta_vs_baselines": RESULTS_DIR / "severity_lagged_disease_delta_vs_baselines.csv",
+        "lagged_disease_severity_external": RESULTS_DIR
+        / "severity_lagged_disease_external_2024_train_2025_test.csv",
+        "lagged_disease_delta_vs_baselines": RESULTS_DIR
+        / "severity_lagged_disease_delta_vs_baselines.csv",
         "severity_external_delta_vs_nadir": RESULTS_DIR / "severity_external_delta_vs_nadir.csv",
         "warning_external": RESULTS_DIR / "warning_external_2024_train_2025_test.csv",
-        "warning_calibrated_external": RESULTS_DIR / "warning_calibrated_external_2024_train_2025_test.csv",
+        "warning_calibrated_external": RESULTS_DIR
+        / "warning_calibrated_external_2024_train_2025_test.csv",
         "warning_external_delta_vs_nadir": RESULTS_DIR / "warning_external_delta_vs_nadir.csv",
         "xgboost_severity_external": RESULTS_DIR / "xgboost_severity_train_eval_2024_test_2025.csv",
-        "xgboost_severity_200_external": RESULTS_DIR / "xgboost_severity_200_trees_train_eval_2024_test_2025.csv",
+        "xgboost_severity_200_external": RESULTS_DIR
+        / "xgboost_severity_200_trees_train_eval_2024_test_2025.csv",
         "xgboost_warning_external": RESULTS_DIR / "xgboost_warning_train_eval_2024_test_2025.csv",
         "warning_horizon_diagnostics": RESULTS_DIR / "warning_horizon_diagnostics.csv",
         "severity_horizon_diagnostics": RESULTS_DIR / "severity_horizon_diagnostics.csv",
-        "lagged_disease_horizon_diagnostics": RESULTS_DIR / "severity_lagged_disease_horizon_diagnostics.csv",
+        "lagged_disease_horizon_diagnostics": RESULTS_DIR
+        / "severity_lagged_disease_horizon_diagnostics.csv",
         "feature_set_audit": RESULTS_DIR / "feature_set_audit.csv",
         "early_warning_predictions": PREDICTIONS_DIR,
         "lagged_disease_predictions": LAGGED_PREDICTIONS_DIR,
         "binary_warning_figure": FIGURES_DIR / "binary_warning_external_2024_train_2025_test.png",
-        "binary_warning_delta_figure": FIGURES_DIR / "binary_warning_delta_vs_nadir_external_2024_train_2025_test.png",
+        "binary_warning_delta_figure": FIGURES_DIR
+        / "binary_warning_delta_vs_nadir_external_2024_train_2025_test.png",
         "xgboost_learning_curves": XGB_CURVES_DIR,
         "report": REPORTS_DIR / "cross_year_generalization_2024_to_2025_summary.md",
         "lagged_disease_report": REPORTS_DIR / "severity_lagged_disease_summary.md",
