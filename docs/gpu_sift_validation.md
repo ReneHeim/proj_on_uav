@@ -108,21 +108,21 @@ Capture: **0000SET / IMG_0002** (the only SIFT-friendly capture in week1/2025).
 
 | Metric | Target | **GPU v2 result** | Status |
 |---|---:|---:|:---:|
-| PSNR (mean) | > 35 dB | **39.86 dB** | OK |
-| MAD (mean) | < 0.05 | **0.0394** | OK |
-| 1 − frac_off (mean) | > 0.99 | 0.5280 | under target |
-| Sub-pixel shift (mean) | < 0.3 px | **0.140 px** | OK |
+| PSNR (mean) | > 35 dB | **42.45 dB** | OK |
+| MAD (mean) | < 0.05 | **0.0160** | OK |
+| 1 − frac_off (mean) | > 0.99 | 0.597 | under target |
+| Sub-pixel shift (mean) | < 0.3 px | **0.199 px** | OK |
 | Visual RGB | matches CPU | **matches CPU** | OK |
 
 ### Per-band
 
 | Band | PSNR (dB) | MAD | frac_off@1% | SSIM |
 |---|---:|---:|---:|---:|
-| Blue | 91.20 | 0.0000 | 0.0000 | 1.0000 |
-| Green | 34.25 | 0.0124 | 0.4043 | 0.8909 |
-| Red | 33.13 | 0.0136 | 0.4315 | 0.8457 |
-| NIR | 12.92 | 0.1451 | 0.8793 | 0.1967 |
-| Red edge | 27.79 | 0.0262 | 0.6449 | 0.8216 |
+| Blue | 91.42 | 0.0000 | 0.0000 | 1.0000 |
+| Green | 34.53 | 0.0122 | 0.4054 | 0.8960 |
+| Red | 32.86 | 0.0141 | 0.4510 | 0.8381 |
+| NIR | 24.73 | 0.0306 | 0.5550 | 0.8537 |
+| Red edge | 28.71 | 0.0234 | 0.6044 | 0.8552 |
 
 ### Interpretation
 
@@ -132,26 +132,26 @@ difference is dominated by the **sub-pixel scale/rotation discrepancy**
 between the GPU's RANSAC fit and the CPU's RANSAC fit. The CPU and GPU use
 **different SIFT detectors** (skimage vs Kornia), so they find different
 keypoints, different matches, and different RANSAC inliers. The fitted
-warps agree on translation to sub-pixel (0.14 px), but they differ by
+warps agree on translation to sub-pixel (0.2 px), but they differ by
 ~0.5–1% in scale, which over a 1088-pixel image causes 5–10 pixels of
 geometric shift at the edges. With NIR's steep reflectance gradient
 (sugar beet NIR is highly textured), that shift produces > 1% reflectance
 difference per pixel.
 
-The **structural alignment is correct** (sub-pixel shift 0.14 px, Blue band
-PSNR 91 dB). The 99% similarity target assumes the CPU and GPU use the
-same detector, which they do not. To reach true 99% similarity, the GPU
-would need to either (a) re-implement skimage SIFT on GPU, or (b) reuse
-the CPU's warp cache directly (defeating the speedup).
+The **structural alignment is correct** (sub-pixel shift 0.2 px, Blue band
+PSNR 91 dB, NIR PSNR 25 dB). The 99% similarity target assumes the CPU and
+GPU use the same detector, which they do not. To reach true 99% similarity,
+the GPU would need to either (a) re-implement skimage SIFT on GPU, or
+(b) reuse the CPU's warp cache directly (defeating the speedup).
 
 ## Speed
 
 | Stage | Time |
 |---|---:|
-| Kornia SIFT (6 bands, 4096 features) | 0.7 s |
-| Match + RANSAC (5 band pairs) | 1.0 s |
-| Warp apply (5 bands) | 0.7 s |
-| **Total per capture** | **2.4 s** |
+| Kornia SIFT (5 modes × 5 bands, 4096 features) | ~0.7 s |
+| Match + RANSAC (5 band pairs + 4 NIR candidates) | ~1.0 s |
+| Warp apply (5 bands) | ~0.7 s |
+| **Total per capture** | **~2.4 s** |
 
 vs. micasense CPU SIFT (limit_kp=5000) on the same capture: ~100 s
 (measured from earlier pipeline runs).
@@ -172,13 +172,10 @@ demonstrated on 0000SET/IMG_0002.
 
 ## Open improvements (for future work)
 
-1. **NIR-specific handling:** NIR's different texture causes SIFT to find
-   fewer matches. A NIR-tuned detector (e.g., MSER or LoFTR for NIR) would
-   improve the NIR fit.
-2. **CPU-detector parity:** If 99% similarity is required, re-implement
+1. **CPU-detector parity:** If 99% similarity is required, re-implement
    skimage SIFT on GPU to use the same keypoints as the CPU. The matching
    and RANSAC are already 40× faster; the only remaining gain would be
    the SIFT detection itself.
-3. **Edge mask:** The `mode="edge"` warp stretches the first/last row of the
+2. **Edge mask:** The `mode="edge"` warp stretches the first/last row of the
    image. Adding a `mask_out` on the first 5% of the image edges would
    clean up the visualisation but is not required for downstream analysis.
