@@ -43,7 +43,7 @@ from pathlib import Path
 import numpy as np
 import torch
 from skimage.measure import ransac as _sk_ransac
-from skimage.transform import SimilarityTransform
+from skimage.transform import ProjectiveTransform, SimilarityTransform
 from kornia.feature import SIFTFeature, match_smnn
 from kornia.feature.laf import get_laf_center
 
@@ -63,8 +63,12 @@ MODEL_CLS = "ProjectiveTransform"
 SCALE_GUARD = 0.01           # |scale - 1| must be < 1% (RedEdge-P physical co-registration)
 PROJ_GUARD = 0.05            # |a - d|, |b + c| must be < 0.05; very loose to allow CPU-like fits
 TRANS_FRAC_GUARD = 0.15      # |tx|, |ty| must be < this * image_dim; else reject fit
-MIN_INLIERS = 2              # minimum inliers to accept the fit (NIR often has only 2-3 matches)
+MIN_INLIERS = 8              # minimum real inliers to accept a fit
 MIN_MATCHES = 6              # minimum matches to attempt a fit
+MAX_RESIDUAL_STD = 1.5       # px; reject unstable low-consensus fits
+NIR_BAND = 3                 # 0-based: band 4, NIR
+RED_BAND = 2                 # 0-based: band 3, Red
+RED_EDGE_BAND = 4            # 0-based: band 5, Red edge
 
 
 def detect_sift(sift: SIFTFeature, band_t: torch.Tensor
@@ -75,6 +79,24 @@ def detect_sift(sift: SIFTFeature, band_t: torch.Tensor
         centers = get_laf_center(lafs_i).squeeze(0).detach().cpu().numpy()
         descs = torch.nn.functional.normalize(descs_i.squeeze(0).detach(), dim=-1)
     return centers, descs
+
+
+def normalize_for_sift(bands_t: torch.Tensor) -> torch.Tensor:
+    """Robust per-band normalization to [0, 1] for feature detection."""
+    flat = bands_t.flatten(2)
+    lo = torch.quantile(flat, 0.01, dim=2).view(-1, 1, 1, 1)
+    hi = torch.quantile(flat, 0.99, dim=2).view(-1, 1, 1, 1)
+    return torch.clamp((bands_t - lo) / (hi - lo + 1e-6), 0.0, 1.0)
+
+
+def gradient_for_sift(bands_t: torch.Tensor) -> torch.Tensor:
+    """Gradient-magnitude feature image for cross-spectral matching."""
+    norm = normalize_for_sift(bands_t)
+    gx = torch.zeros_like(norm)
+    gy = torch.zeros_like(norm)
+    gx[:, :, :, 1:] = norm[:, :, :, 1:] - norm[:, :, :, :-1]
+    gy[:, :, 1:, :] = norm[:, :, 1:, :] - norm[:, :, :-1, :]
+    return normalize_for_sift(torch.sqrt(gx * gx + gy * gy + 1e-12))
 
 
 def main() -> None:
@@ -109,32 +131,150 @@ def main() -> None:
     work_indices = [i for i in range(5) if i != ref]  # 0..4 only
     print(f"[WORKER-V2] SIFT work indices = {work_indices} (panchro band 6 excluded)", flush=True)
 
-    # --- Phase 2: Build tensor on GPU (multispec bands only) ---
-    work_bands = [bands[i] for i in work_indices]
-    bands_t = torch.from_numpy(np.stack(work_bands + [bands[ref]])).unsqueeze(1)  # (5, 1, H, W)
-    tensor_ref_idx = len(work_indices)  # index of the ref band in the tensor
+    # --- Phase 2: Build tensor on GPU (multispec bands only, natural order) ---
+    bands_t = torch.from_numpy(np.stack(bands[:5])).unsqueeze(1)  # (5, 1, H, W)
     print(f"[WORKER-V2] tensor shape (B,1,H,W) = {tuple(bands_t.shape)}", flush=True)
 
     if UPSCALE != 1.0:
         up_h, up_w = int(target_h * UPSCALE), int(target_w * UPSCALE)
-        bands_up = torch.nn.functional.interpolate(
+        raw_up = torch.nn.functional.interpolate(
             bands_t, size=(up_h, up_w), mode="bilinear", align_corners=False
         ).cuda()
         print(f"[WORKER-V2] upsampled to ({up_h}, {up_w})", flush=True)
     else:
-        bands_up = bands_t.cuda()
+        raw_up = bands_t.cuda()
         print(f"[WORKER-V2] no upscale; using native ({target_h}, {target_w})", flush=True)
+    grad_up = gradient_for_sift(raw_up)
 
-    # --- Phase 3: SIFT detection on ref ---
+    # --- Phase 3: SIFT detection and pairwise fitting helpers ---
     t_sift0 = time.perf_counter()
     sift = SIFTFeature(NUM_FEATURES, device="cuda", rootsift=True, upright=False)
-    ref_centers_up, ref_descs = detect_sift(sift, bands_up[tensor_ref_idx])
+    feature_cache: dict[tuple[str, int], tuple[np.ndarray, torch.Tensor]] = {}
+
+    def features(mode: str, band_i: int) -> tuple[np.ndarray, torch.Tensor]:
+        key = (mode, band_i)
+        if key not in feature_cache:
+            tensor = raw_up if mode == "raw" else grad_up
+            centers_up, descs = detect_sift(sift, tensor[band_i])
+            feature_cache[key] = (centers_up / UPSCALE, descs)
+        return feature_cache[key]
+
+    def validate_model(model, inliers, kp_ref: np.ndarray, kp_mov: np.ndarray,
+                       ref_i: int, mov_i: int, mode: str) -> dict:
+        if model is None or inliers is None:
+            return {
+                "valid": False, "reject_reason": "ransac returned no model",
+                "ref_band": ref_i, "moving_band": mov_i, "mode": mode,
+            }
+        a, b_, c, d = (model.params[0, 0], model.params[0, 1],
+                       model.params[1, 0], model.params[1, 1])
+        if MODEL_CLS == "ProjectiveTransform":
+            _, s_vals, _ = np.linalg.svd(np.array([[a, b_], [c, d]]))
+            scale = float(np.exp(np.mean(np.log(s_vals))))
+            proj_asym = float(abs(a - d))
+            proj_shear = float(abs(b_ + c))
+        else:
+            scale = float(np.sqrt(a * a + c * c))
+            proj_asym = 0.0
+            proj_shear = 0.0
+        res = model.residuals(kp_ref, kp_mov)
+        n_inliers = int(inliers.sum())
+        resid_std = float(np.std(res[inliers])) if n_inliers > 1 else float("inf")
+        tx = float(model.params[0, 2])
+        ty = float(model.params[1, 2])
+        reasons = []
+        if n_inliers < MIN_INLIERS:
+            reasons.append(f"n_inliers={n_inliers} < MIN_INLIERS={MIN_INLIERS}")
+        if resid_std > MAX_RESIDUAL_STD:
+            reasons.append(f"residual_std={resid_std:.2f} > {MAX_RESIDUAL_STD}")
+        if abs(scale - 1.0) > 0.03:
+            reasons.append(f"|scale-1|={abs(scale - 1.0):.4f} > 0.03")
+        if abs(tx) > TRANS_FRAC_GUARD * target_w or abs(ty) > TRANS_FRAC_GUARD * target_h:
+            reasons.append(
+                f"|tx|,|ty|=({tx:.1f},{ty:.1f}) > {TRANS_FRAC_GUARD}*({target_w},{target_h})"
+            )
+        if MODEL_CLS == "ProjectiveTransform" and PROJ_GUARD > 0:
+            if proj_asym > PROJ_GUARD or proj_shear > PROJ_GUARD:
+                reasons.append(
+                    f"asym={proj_asym:.4f} or shear={proj_shear:.4f} > {PROJ_GUARD}"
+                )
+        return {
+            "valid": not reasons,
+            "reject_reason": "; ".join(reasons) if reasons else None,
+            "ref_band": ref_i,
+            "moving_band": mov_i,
+            "mode": mode,
+            "n_inliers": n_inliers,
+            "fitted_scale": scale,
+            "fitted_proj_asym": proj_asym,
+            "fitted_proj_shear": proj_shear,
+            "fitted_trans": [tx, ty],
+            "residual_std": resid_std,
+            "params": model.params,
+        }
+
+    def update_transform_fields(record: dict) -> None:
+        params = np.asarray(record["params"])
+        a, b_, c, d = params[0, 0], params[0, 1], params[1, 0], params[1, 1]
+        if MODEL_CLS == "ProjectiveTransform":
+            _, s_vals, _ = np.linalg.svd(np.array([[a, b_], [c, d]]))
+            record["fitted_scale"] = float(np.exp(np.mean(np.log(s_vals))))
+            record["fitted_proj_asym"] = float(abs(a - d))
+            record["fitted_proj_shear"] = float(abs(b_ + c))
+        else:
+            record["fitted_scale"] = float(np.sqrt(a * a + c * c))
+            record["fitted_proj_asym"] = 0.0
+            record["fitted_proj_shear"] = 0.0
+        record["fitted_trans"] = [float(params[0, 2]), float(params[1, 2])]
+
+    def fit_pair(ref_i: int, mov_i: int, mode: str) -> dict:
+        ref_centers, ref_descs_i = features(mode, ref_i)
+        mov_centers, mov_descs = features(mode, mov_i)
+        _, idxs = match_smnn(mov_descs, ref_descs_i, th=MATCH_TH)
+        n_match = int(idxs.size(0))
+        record = {
+            "ref_band": ref_i,
+            "moving_band": mov_i,
+            "mode": mode,
+            "n_features_ref": int(len(ref_centers)),
+            "n_features_moving": int(len(mov_centers)),
+            "n_matches": n_match,
+            "n_inliers": 0,
+            "valid": False,
+            "reject_reason": None,
+        }
+        if n_match < MIN_MATCHES:
+            record["reject_reason"] = f"n_match={n_match} < MIN_MATCHES={MIN_MATCHES}"
+            return record
+        idx_mov = idxs[:, 0].cpu().numpy()
+        idx_ref = idxs[:, 1].cpu().numpy()
+        kp_mov = mov_centers[idx_mov, :]
+        kp_ref = ref_centers[idx_ref, :]
+        if MODEL_CLS == "ProjectiveTransform":
+            model_cls = ProjectiveTransform
+            min_samples_ransac = 4
+        else:
+            model_cls = SimilarityTransform
+            min_samples_ransac = 2
+        try:
+            model, inliers = _sk_ransac(
+                (kp_ref, kp_mov),
+                model_cls,
+                min_samples=min_samples_ransac,
+                residual_threshold=RANSAC_RESIDUAL,
+                max_trials=RANSAC_TRIALS,
+            )
+        except Exception as exc:
+            record["reject_reason"] = f"ransac_error: {exc}"
+            return record
+        record.update(validate_model(model, inliers, kp_ref, kp_mov, ref_i, mov_i, mode))
+        return record
+
+    # Prime raw features for the Blue reference so timing remains comparable.
+    ref_centers, _ = features("raw", ref)
     torch.cuda.synchronize()
     t_sift = time.perf_counter() - t_sift0
-    print(f"[WORKER-V2] ref SIFT: n_features={len(ref_centers_up)}  t={t_sift:.2f}s", flush=True)
-
-    # Convert ref keypoints to (x, y) at target (multispec native) resolution
-    ref_centers = ref_centers_up / UPSCALE
+    print(f"[WORKER-V2] ref SIFT: n_features={len(ref_centers)}  t={t_sift:.2f}s", flush=True)
 
     # --- Phase 4: Match and fit per band ---
     t_match0 = time.perf_counter()
@@ -143,182 +283,97 @@ def main() -> None:
     # get identity warps.
     warps_out = [[[1, 0, 0], [0, 1, 0], [0, 0, 1]] for _ in range(6)]
     n_inliers_total = 0
-    for tensor_i, band_i in enumerate(work_indices):
-        ix_centers_up, ix_descs = detect_sift(sift, bands_up[tensor_i])
-        _, idxs = match_smnn(ix_descs, ref_descs, th=MATCH_TH)
-        n_match = int(idxs.size(0))
-        del ix_descs
-        torch.cuda.empty_cache()
-        record = {"band": band_i, "n_features": int(len(ix_centers_up)),
-                  "n_matches": n_match, "n_inliers": 0,
-                  "fitted_scale": 1.0, "fitted_trans": [0.0, 0.0],
-                  "residual_std": 0.0, "reject_reason": None}
-        if n_match < MIN_MATCHES:
-            record["reject_reason"] = f"n_match={n_match} < MIN_MATCHES={MIN_MATCHES}"
-            matches_per_band.append(record)
-            print(f"[WORKER-V2] band {band_i+1}: n_features={len(ix_centers_up)} "
-                  f"n_match={n_match}  -> REJECT ({record['reject_reason']})", flush=True)
+    direct_results: dict[int, dict] = {}
+    for band_i in work_indices:
+        if band_i == NIR_BAND:
             continue
-        ix_centers = ix_centers_up / UPSCALE
-        idx_ix = idxs[:, 0].cpu().numpy()
-        idx_ref = idxs[:, 1].cpu().numpy()
-        kp_ix = ix_centers[idx_ix, :]
-        kp_ref = ref_centers[idx_ref, :]
-        # Both Kornia SIFT keypoints and skimage ProjectiveTransform use (x, y)
-        # order: `predict([x, y]) -> [x', y']` and `params = [[a, b, tx], [c, d, ty], [0, 0, 1]]`.
-        # Pass keypoints directly (no reversal) so the fit is in the right basis.
-        # micasense CPU reverses because its skimage SIFT keypoints are in (y, x);
-        # Kornia returns (x, y), so we must NOT reverse.
-        # RANSAC fits: model @ kp_ref = kp_ix, so model maps ref -> moving.
-        # Choose model class
-        if MODEL_CLS == "ProjectiveTransform":
-            from skimage.transform import ProjectiveTransform
-            model_cls = ProjectiveTransform
-            min_samples_ransac = 4
+        fit = fit_pair(ref, band_i, "raw")
+        direct_results[band_i] = fit
+        record = {
+            "band": band_i,
+            "n_features": fit.get("n_features_moving", 0),
+            "n_matches": fit["n_matches"],
+            "n_inliers": fit.get("n_inliers", 0),
+            "fitted_scale": fit.get("fitted_scale", 1.0),
+            "fitted_trans": fit.get("fitted_trans", [0.0, 0.0]),
+            "residual_std": fit.get("residual_std", 0.0),
+            "reject_reason": fit.get("reject_reason"),
+            "fitted_proj_asym": fit.get("fitted_proj_asym", 0.0),
+            "fitted_proj_shear": fit.get("fitted_proj_shear", 0.0),
+            "selected_for_band": fit.get("valid", False),
+            "candidate_ref_band": ref,
+            "candidate_mode": "raw",
+        }
+        if fit.get("valid", False):
+            warps_out[band_i] = fit["params"].tolist()
+            n_inliers_total += int(fit["n_inliers"])
+            print(f"[WORKER-V2] band {band_i+1}: raw Blue candidate OK "
+                  f"n_match={fit['n_matches']} n_inliers={fit['n_inliers']} "
+                  f"trans=({fit['fitted_trans'][0]:+.2f},{fit['fitted_trans'][1]:+.2f}) "
+                  f"resid_std={fit['residual_std']:.2f}", flush=True)
         else:
-            model_cls = SimilarityTransform
-            min_samples_ransac = 2
-        try:
-            model, inliers = _sk_ransac(
-                (kp_ref, kp_ix),  # (x, y) order
-                model_cls,
-                min_samples=min_samples_ransac,
-                residual_threshold=RANSAC_RESIDUAL,
-                max_trials=RANSAC_TRIALS,
-            )
-        except Exception as e:
-            record["reject_reason"] = f"ransac_error: {e}"
-            matches_per_band.append(record)
-            print(f"[WORKER-V2] band {band_i+1}: RANSAC error {e}", flush=True)
-            continue
-        if model is None or inliers is None or inliers.sum() < MIN_INLIERS:
-            record["reject_reason"] = (
-                f"n_inliers={int(inliers.sum()) if inliers is not None else 0} "
-                f"< MIN_INLIERS={MIN_INLIERS}"
-            )
-            matches_per_band.append(record)
-            print(f"[WORKER-V2] band {band_i+1}: n_match={n_match} "
-                  f"n_inliers={int(inliers.sum()) if inliers is not None else 0}  "
-                  f"-> REJECT ({record['reject_reason']})", flush=True)
-            continue
-        a, b_, c, d = (model.params[0, 0], model.params[0, 1],
-                       model.params[1, 0], model.params[1, 1])
-        # For Projective, a/d may differ; use a combined "scale" as the
-        # geometric mean of singular values of the 2x2 linear part.
-        if MODEL_CLS == "ProjectiveTransform":
-            U, S, Vt = np.linalg.svd(np.array([[a, b_], [c, d]]))
-            scale = float(np.exp(np.mean(np.log(S))))
-            proj_asym = float(abs(a - d))  # non-uniform scale
-            proj_shear = float(abs(b_ + c))  # non-similarity shear
+            print(f"[WORKER-V2] band {band_i+1}: raw Blue candidate REJECT "
+                  f"({fit.get('reject_reason')})", flush=True)
+        matches_per_band.append(record)
+
+    if NIR_BAND in work_indices:
+        nir_candidates = []
+        direct_nir = fit_pair(ref, NIR_BAND, "raw")
+        direct_nir["candidate_name"] = "blue_to_nir_raw"
+        nir_candidates.append(direct_nir)
+
+        for bridge_i, bridge_name in [(RED_EDGE_BAND, "rededge"), (RED_BAND, "red")]:
+            bridge_blue = direct_results.get(bridge_i)
+            if not bridge_blue or not bridge_blue.get("valid", False):
+                continue
+            for mode in ["raw", "gradient"]:
+                bridge_nir = fit_pair(bridge_i, NIR_BAND, mode)
+                bridge_nir["candidate_name"] = f"blue_to_{bridge_name}_to_nir_{mode}"
+                if bridge_nir.get("valid", False):
+                    bridge_nir["params"] = bridge_nir["params"] @ bridge_blue["params"]
+                    update_transform_fields(bridge_nir)
+                    bridge_nir["candidate_ref_band"] = bridge_i
+                    bridge_nir["bridge_warp_band"] = bridge_i
+                nir_candidates.append(bridge_nir)
+
+        valid_nir = [c for c in nir_candidates if c.get("valid", False)]
+        selected = min(
+            valid_nir,
+            key=lambda c: (float(c.get("residual_std", np.inf)), -int(c.get("n_inliers", 0))),
+            default=None,
+        )
+        if selected is not None:
+            warps_out[NIR_BAND] = selected["params"].tolist()
+            n_inliers_total += int(selected["n_inliers"])
+            print(f"[WORKER-V2] band {NIR_BAND+1}: selected {selected['candidate_name']} "
+                  f"n_match={selected['n_matches']} n_inliers={selected['n_inliers']} "
+                  f"resid_std={selected['residual_std']:.2f}", flush=True)
         else:
-            scale = float(np.sqrt(a * a + c * c))
-            proj_asym = 0.0
-            proj_shear = 0.0
-        # Residual std computed in (x, y) order (no reversal)
-        res = model.residuals(kp_ref, kp_ix)
-        resid_std = float(np.std(res[inliers])) if inliers is not None and inliers.sum() > 1 else 0.0
-        # In (x, y) convention: params = [[a, b, tx], [c, d, ty], [0, 0, 1]]
-        # model maps ref -> moving in (x, y) coords
-        tx = float(model.params[0, 2])
-        ty = float(model.params[1, 2])
-        record.update({
-            "n_inliers": int(inliers.sum()),
-            "fitted_scale": scale,
-            "fitted_proj_asym": proj_asym,
-            "fitted_proj_shear": proj_shear,
-            "fitted_trans": [tx, ty],
-            "residual_std": resid_std,
-        })
-        # Validation chain with relaxed fallback: try strict first, then relax
-        accepted = False
-        rejection_reasons = []
-        for scale_try, trans_try in [
-            (SCALE_GUARD, TRANS_FRAC_GUARD),
-            (SCALE_GUARD * 4, TRANS_FRAC_GUARD * 2),  # 4x scale, 2x trans
-            (0.05, 0.3),  # very permissive final fallback
-        ]:
-            scale_ok = abs(scale - 1.0) <= scale_try
-            trans_ok = (abs(tx) <= trans_try * target_w
-                        and abs(ty) <= trans_try * target_h)
-            # Projective guard (only for Projective model)
-            proj_ok = True
-            if MODEL_CLS == "ProjectiveTransform" and PROJ_GUARD > 0:
-                proj_ok = (proj_asym <= PROJ_GUARD and proj_shear <= PROJ_GUARD)
-            if scale_ok and trans_ok and proj_ok:
-                if scale_try > SCALE_GUARD or (MODEL_CLS == "ProjectiveTransform" and PROJ_GUARD > 0):
-                    print(f"[WORKER-V2] band {band_i+1}: accepted (scale_try={scale_try}, "
-                          f"trans_try={trans_try}, asym={proj_asym:.4f}, shear={proj_shear:.4f})",
-                          flush=True)
-                accepted = True
-                break
-            else:
-                why = []
-                if not scale_ok:
-                    why.append(f"|scale-1|={abs(scale - 1.0):.4f}>{scale_try}")
-                if not trans_ok:
-                    why.append(f"|tx|,|ty|=({tx:.1f},{ty:.1f})>{trans_try}*({target_w},{target_h})")
-                if not proj_ok:
-                    why.append(f"asym={proj_asym:.4f} or shear={proj_shear:.4f} > {PROJ_GUARD}")
-                rejection_reasons.append("; ".join(why))
-        if not accepted:
-            record["reject_reason"] = f"rejected at all guards: {rejection_reasons[-1]}"
-            print(f"[WORKER-V2] band {band_i+1}: REJECT ({record['reject_reason']})",
-                  flush=True)
-            matches_per_band.append(record)
-            continue
-        # ACCEPT
-        warps_out[band_i] = model.params.tolist()
-        n_inliers_total += int(inliers.sum())
-        print(f"[WORKER-V2] band {band_i+1}: n_match={n_match} n_inliers={int(inliers.sum())} "
-              f"scale={scale:.5f} asym={proj_asym:.4f} shear={proj_shear:.4f} "
-              f"trans=(tx={tx:+.2f},ty={ty:+.2f}) resid_std={resid_std:.2f}  OK",
-              flush=True)
+            print(f"[WORKER-V2] band {NIR_BAND+1}: all NIR candidates rejected", flush=True)
+
+        record = {
+            "band": NIR_BAND,
+            "n_features": features("raw", NIR_BAND)[0].shape[0],
+            "n_matches": selected["n_matches"] if selected else direct_nir["n_matches"],
+            "n_inliers": selected.get("n_inliers", 0) if selected else 0,
+            "fitted_scale": selected.get("fitted_scale", 1.0) if selected else 1.0,
+            "fitted_trans": selected.get("fitted_trans", [0.0, 0.0]) if selected else [0.0, 0.0],
+            "residual_std": selected.get("residual_std", 0.0) if selected else 0.0,
+            "reject_reason": None if selected else "all NIR candidates rejected",
+            "fitted_proj_asym": selected.get("fitted_proj_asym", 0.0) if selected else 0.0,
+            "fitted_proj_shear": selected.get("fitted_proj_shear", 0.0) if selected else 0.0,
+            "selected_for_band": selected is not None,
+            "candidate_ref_band": selected.get("ref_band") if selected else ref,
+            "candidate_mode": selected.get("mode") if selected else "raw",
+            "selected_candidate": selected.get("candidate_name") if selected else None,
+            "nir_candidates": [
+                {k: v for k, v in c.items() if k != "params"}
+                for c in nir_candidates
+            ],
+        }
         matches_per_band.append(record)
     t_match = time.perf_counter() - t_match0
     torch.cuda.synchronize()
-
-    # --- Phase 4.5: Fall back to mean warp for rejected bands ---
-    # RedEdge-P bands have physically similar inter-band offsets. If a band's
-    # RANSAC fit is degenerate (e.g., NIR has very different texture), use the
-    # mean of the accepted warps as a physical-prior fallback.
-    accepted_warps = []
-    accepted_record_idxs = []
-    rejected_record_idxs = []
-    for i, m in enumerate(matches_per_band):
-        if m.get("reject_reason") is None and m.get("n_inliers", 0) >= MIN_INLIERS:
-            accepted_warps.append(np.array(warps_out[m["band"]]))
-            accepted_record_idxs.append(i)
-        else:
-            rejected_record_idxs.append(i)
-    if accepted_warps and rejected_record_idxs:
-        # Mean warp (per-parameter)
-        mean_warp = np.mean(accepted_warps, axis=0)
-        # Force the 3x3 matrix to be a proper similarity: enforce a/d symmetric
-        # and b=-c (no shear), normalize so the (a, d) eigenvalues have mean 1
-        a, b_, c, d = mean_warp[0, 0], mean_warp[0, 1], mean_warp[1, 0], mean_warp[1, 1]
-        scale = np.sqrt(np.sqrt(a * d - b_ * c))  # geometric mean
-        theta = 0.5 * np.arctan2(b_ + c, a + d)  # mean rotation
-        # Build a clean similarity matrix from scale, theta, mean translation
-        cos_t, sin_t = np.cos(theta), np.sin(theta)
-        clean = np.array([
-            [scale * cos_t, -scale * sin_t, mean_warp[0, 2]],
-            [scale * sin_t,  scale * cos_t, mean_warp[1, 2]],
-            [0, 0, 1]
-        ])
-        for i in rejected_record_idxs:
-            band_i = matches_per_band[i]["band"]
-            warps_out[band_i] = clean.tolist()
-            matches_per_band[i]["fitted_scale"] = float(scale)
-            matches_per_band[i]["fitted_trans"] = [float(clean[1, 2]), float(clean[0, 2])]
-            matches_per_band[i]["fitted_proj_asym"] = 0.0
-            matches_per_band[i]["fitted_proj_shear"] = 0.0
-            matches_per_band[i]["fallback_used"] = "mean_of_accepted_warps"
-            old_reason = matches_per_band[i].get("reject_reason", "n/a")
-            matches_per_band[i]["reject_reason"] = None
-            matches_per_band[i]["previous_reject_reason"] = old_reason
-            print(f"[WORKER-V2] band {band_i+1}: FALLBACK to mean warp "
-                  f"(scale={scale:.5f}, trans=({clean[1, 2]:+.2f},{clean[0, 2]:+.2f}), "
-                  f"prev reason: {old_reason})", flush=True)
 
     out = {
         "worker_version": "v2",
