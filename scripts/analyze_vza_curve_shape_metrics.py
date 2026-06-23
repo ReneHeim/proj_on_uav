@@ -12,9 +12,11 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-
 ROOT = Path(__file__).resolve().parents[1]
-INPUT_TEMPLATE = ROOT / "outputs/result_01_reflectance_distributions/{year}/ground_filtered/results/plot_week_angle_features_{year}.parquet"
+INPUT_TEMPLATE = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/{year}/ground_filtered/results/plot_week_angle_features_{year}.parquet"
+)
 OUT_ROOT = ROOT / "outputs/result_03_vza_curve_shape_metrics"
 LOG_ROOT = ROOT / "outputs/logs"
 REPORTS_ROOT = ROOT / "outputs/reports"
@@ -41,7 +43,10 @@ def phase(name: str, started: float) -> None:
 def markdown_table(df: pd.DataFrame) -> str:
     if df.empty:
         return "_No rows._"
-    lines = ["| " + " | ".join(df.columns) + " |", "| " + " | ".join(["---"] * len(df.columns)) + " |"]
+    lines = [
+        "| " + " | ".join(df.columns) + " |",
+        "| " + " | ".join(["---"] * len(df.columns)) + " |",
+    ]
     for _, row in df.iterrows():
         lines.append("| " + " | ".join(str(row[col]) for col in df.columns) + " |")
     return "\n".join(lines)
@@ -75,7 +80,10 @@ def load_inputs() -> pd.DataFrame:
 def summarize_curves(data: pd.DataFrame) -> pd.DataFrame:
     t0 = time.perf_counter()
     summary = (
-        data.groupby(["year", "week", "cult", "band", "band_name", "vza_class", "vza_midpoint"], as_index=False)
+        data.groupby(
+            ["year", "week", "cult", "band", "band_name", "vza_class", "vza_midpoint"],
+            as_index=False,
+        )
         .agg(
             mean_reflectance=("reflectance", "mean"),
             sd_reflectance=("reflectance", "std"),
@@ -108,8 +116,12 @@ def curve_metrics(curve: pd.DataFrame) -> dict[str, float | int | str]:
     low = curve[curve["vza_midpoint"] <= 25]["mean_reflectance"]
     high = curve[curve["vza_midpoint"] >= 45]["mean_reflectance"]
     mid = curve[(curve["vza_midpoint"] >= 30) & (curve["vza_midpoint"] <= 40)]["mean_reflectance"]
-    result["high_minus_low_reflectance"] = float(high.mean() - low.mean()) if len(low) and len(high) else np.nan
-    result["high_minus_mid_reflectance"] = float(high.mean() - mid.mean()) if len(mid) and len(high) else np.nan
+    result["high_minus_low_reflectance"] = (
+        float(high.mean() - low.mean()) if len(low) and len(high) else np.nan
+    )
+    result["high_minus_mid_reflectance"] = (
+        float(high.mean() - mid.mean()) if len(mid) and len(high) else np.nan
+    )
 
     if n_bins >= 3:
         x_centered = x - x.mean()
@@ -121,7 +133,9 @@ def curve_metrics(curve: pd.DataFrame) -> dict[str, float | int | str]:
         result["linear_slope_per_degree"] = float(linear[0])
         result["quadratic_curvature"] = float(quadratic[0])
         result["quadratic_r2"] = float(1 - ss_res / ss_tot) if ss_tot > 0 else np.nan
-        result["spearman_vza_reflectance"] = float(pd.Series(x).corr(pd.Series(y), method="spearman"))
+        result["spearman_vza_reflectance"] = float(
+            pd.Series(x).corr(pd.Series(y), method="spearman")
+        )
     else:
         result["linear_slope_per_degree"] = np.nan
         result["quadratic_curvature"] = np.nan
@@ -143,7 +157,9 @@ def build_metrics(summary: pd.DataFrame) -> pd.DataFrame:
     return metrics
 
 
-def write_report(log_path: Path, summary_path: Path, metrics_path: Path, metrics: pd.DataFrame) -> Path:
+def write_report(
+    log_path: Path, summary_path: Path, metrics_path: Path, metrics: pd.DataFrame
+) -> Path:
     t0 = time.perf_counter()
     REPORTS_ROOT.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_ROOT / "vza_curve_shape_metrics_summary.md"

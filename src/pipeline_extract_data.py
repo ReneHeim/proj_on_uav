@@ -229,7 +229,9 @@ def process_orthophoto(
                 raise ValueError("No Points are inside the polygon, skipping this image.")
 
         # Part 4: Retrieve solar angles from position and time and filter
-        sunelev, saa = extract_sun_angles(name, camera_lon, camera_lat, source["start date"], source["time zone"])
+        sunelev, saa = extract_sun_angles(
+            name, camera_lon, camera_lat, source["start date"], source["time zone"]
+        )
 
         # Calculate viewing angles
         df_merged = calculate_angles(df_merged, lon, lat, zcam, sunelev, saa)

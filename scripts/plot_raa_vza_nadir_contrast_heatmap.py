@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
+import argparse
 import logging
 import time
-import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -36,7 +36,9 @@ MAX_ABS_PERCENT_CHANGE_FOR_HEATMAP = 30.0
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--year", type=int, choices=[2024, 2025], default=2024)
-    parser.add_argument("--filter-state", choices=["ground_filtered", "unfiltered"], default="ground_filtered")
+    parser.add_argument(
+        "--filter-state", choices=["ground_filtered", "unfiltered"], default="ground_filtered"
+    )
     return parser.parse_args()
 
 
@@ -86,23 +88,34 @@ def build_nadir_contrast(df: pl.DataFrame) -> tuple[pl.DataFrame, str]:
         .with_columns((pl.col("reflectance") * pl.col("n_pixels")).alias("weighted_reflectance"))
         .group_by("plot_id", "week", "band")
         .agg(
-            (pl.col("weighted_reflectance").sum() / pl.col("n_pixels").sum()).alias("reference_reflectance"),
+            (pl.col("weighted_reflectance").sum() / pl.col("n_pixels").sum()).alias(
+                "reference_reflectance"
+            ),
             pl.col("n_pixels").sum().alias("reference_pixels"),
         )
     )
     if reference.is_empty():
-        raise RuntimeError(f"No VZA observations below {REFERENCE_VZA_MAX} degrees are available for nadir reference.")
-    contrast = (
-        df.join(reference, on=["plot_id", "week", "band"], how="inner")
-        .with_columns(
-            (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
-            ((pl.col("reflectance") - pl.col("reference_reflectance")) / pl.col("reference_reflectance")).alias(
-                "relative_contrast"
-            ),
+        raise RuntimeError(
+            f"No VZA observations below {REFERENCE_VZA_MAX} degrees are available for nadir reference."
         )
+    contrast = df.join(reference, on=["plot_id", "week", "band"], how="inner").with_columns(
+        (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
+        (
+            (pl.col("reflectance") - pl.col("reference_reflectance"))
+            / pl.col("reference_reflectance")
+        ).alias("relative_contrast"),
     )
     summary = (
-        contrast.group_by("year", "week", "band", "band_name", "vza_class", "vza_midpoint", "raa_class", "raa_midpoint")
+        contrast.group_by(
+            "year",
+            "week",
+            "band",
+            "band_name",
+            "vza_class",
+            "vza_midpoint",
+            "raa_class",
+            "raa_midpoint",
+        )
         .agg(
             pl.col("plot_id").n_unique().alias("plots"),
             pl.col("n_pixels").sum().alias("pixels"),
@@ -125,21 +138,27 @@ def build_phase_contrast(df: pl.DataFrame) -> tuple[pl.DataFrame, str]:
         df.filter(pl.col("vza_midpoint") < REFERENCE_VZA_MAX)
         .with_columns((pl.col("reflectance") * pl.col("n_pixels")).alias("weighted_reflectance"))
         .group_by("plot_id", "week", "band")
-        .agg((pl.col("weighted_reflectance").sum() / pl.col("n_pixels").sum()).alias("reference_reflectance"))
-    )
-    if reference.is_empty():
-        raise RuntimeError(f"No VZA observations below {REFERENCE_VZA_MAX} degrees are available for nadir reference.")
-    contrast = (
-        df.join(reference, on=["plot_id", "week", "band"], how="inner")
-        .with_columns(
-            (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
-            ((pl.col("reflectance") - pl.col("reference_reflectance")) / pl.col("reference_reflectance")).alias(
-                "relative_contrast"
-            ),
+        .agg(
+            (pl.col("weighted_reflectance").sum() / pl.col("n_pixels").sum()).alias(
+                "reference_reflectance"
+            )
         )
     )
+    if reference.is_empty():
+        raise RuntimeError(
+            f"No VZA observations below {REFERENCE_VZA_MAX} degrees are available for nadir reference."
+        )
+    contrast = df.join(reference, on=["plot_id", "week", "band"], how="inner").with_columns(
+        (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
+        (
+            (pl.col("reflectance") - pl.col("reference_reflectance"))
+            / pl.col("reference_reflectance")
+        ).alias("relative_contrast"),
+    )
     summary = (
-        contrast.group_by("year", "week", "band", "band_name", "phase_class", "raa_class", "raa_midpoint")
+        contrast.group_by(
+            "year", "week", "band", "band_name", "phase_class", "raa_class", "raa_midpoint"
+        )
         .agg(
             pl.col("phase_midpoint").mean().alias("phase_midpoint"),
             pl.col("plot_id").n_unique().alias("plots"),
@@ -156,17 +175,23 @@ def build_phase_contrast(df: pl.DataFrame) -> tuple[pl.DataFrame, str]:
     return summary, reference_label
 
 
-def heatmap_matrix(data: pl.DataFrame, value_column: str) -> tuple[np.ndarray, list[str], list[str]]:
+def heatmap_matrix(
+    data: pl.DataFrame, value_column: str
+) -> tuple[np.ndarray, list[str], list[str]]:
     if data.is_empty():
         return np.empty((0, 0)), [], []
-    matrix = data.pivot(
-        on="raa_class",
-        index="vza_class",
-        values=value_column,
-        aggregate_function="mean",
-    ).with_columns(
-        pl.col("vza_class").str.split("-").list.first().cast(pl.Int64).alias("vza_low")
-    ).sort("vza_low")
+    matrix = (
+        data.pivot(
+            on="raa_class",
+            index="vza_class",
+            values=value_column,
+            aggregate_function="mean",
+        )
+        .with_columns(
+            pl.col("vza_class").str.split("-").list.first().cast(pl.Int64).alias("vza_low")
+        )
+        .sort("vza_low")
+    )
     raa_cols = sorted(
         [col for col in matrix.columns if col not in {"vza_class", "vza_low"}],
         key=lambda value: int(value.split("-")[0]),
@@ -174,17 +199,23 @@ def heatmap_matrix(data: pl.DataFrame, value_column: str) -> tuple[np.ndarray, l
     return matrix.select(raa_cols).to_numpy(), matrix["vza_class"].to_list(), raa_cols
 
 
-def phase_heatmap_matrix(data: pl.DataFrame, value_column: str) -> tuple[np.ndarray, list[str], list[str]]:
+def phase_heatmap_matrix(
+    data: pl.DataFrame, value_column: str
+) -> tuple[np.ndarray, list[str], list[str]]:
     if data.is_empty():
         return np.empty((0, 0)), [], []
-    matrix = data.pivot(
-        on="raa_class",
-        index="phase_class",
-        values=value_column,
-        aggregate_function="mean",
-    ).with_columns(
-        pl.col("phase_class").str.split("-").list.first().cast(pl.Int64).alias("phase_low")
-    ).sort("phase_low")
+    matrix = (
+        data.pivot(
+            on="raa_class",
+            index="phase_class",
+            values=value_column,
+            aggregate_function="mean",
+        )
+        .with_columns(
+            pl.col("phase_class").str.split("-").list.first().cast(pl.Int64).alias("phase_low")
+        )
+        .sort("phase_low")
+    )
     raa_cols = sorted(
         [col for col in matrix.columns if col not in {"phase_class", "phase_low"}],
         key=lambda value: int(value.split("-")[0]),
@@ -253,7 +284,9 @@ def plot_heatmap(
                 ax.set_yticks(range(len(vza_labels)), [])
             if row_index == len(bands) - 1:
                 ax.set_xlabel("RAA to sun (deg)", fontsize=8)
-                ax.set_xticks(range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.2)
+                ax.set_xticks(
+                    range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.2
+                )
             else:
                 ax.set_xticks(range(len(raa_labels)), [])
             ax.tick_params(length=0)
@@ -322,7 +355,9 @@ def plot_phase_heatmap(
                 ax.set_yticks(range(len(phase_labels)), [])
             if row_index == len(bands) - 1:
                 ax.set_xlabel("RAA to sun (deg)", fontsize=8)
-                ax.set_xticks(range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.2)
+                ax.set_xticks(
+                    range(len(raa_labels)), raa_labels, rotation=45, ha="right", fontsize=6.2
+                )
             else:
                 ax.set_xticks(range(len(raa_labels)), [])
             ax.tick_params(length=0)
@@ -458,7 +493,9 @@ def main() -> None:
     input_path, fig_dir, results_dir, _ = paths_for_run(args.year, args.filter_state)
     log_path = configure_logging()
     total_started = time.perf_counter()
-    logging.info("Starting %s for year=%s filter_state=%s", SCRIPT_NAME, args.year, args.filter_state)
+    logging.info(
+        "Starting %s for year=%s filter_state=%s", SCRIPT_NAME, args.year, args.filter_state
+    )
     df = load_features(input_path)
     summary, reference_class = build_nadir_contrast(df)
     phase_summary, _ = build_phase_contrast(df)
@@ -466,9 +503,13 @@ def main() -> None:
     plot_phase_summary = trim_for_heatmap(phase_summary)
     results_dir.mkdir(parents=True, exist_ok=True)
     untrimmed_summary_path = results_dir / f"raa_vza_nadir_percent_change_summary_{args.year}.csv"
-    untrimmed_phase_summary_path = results_dir / f"raa_phase_nadir_percent_change_summary_{args.year}.csv"
+    untrimmed_phase_summary_path = (
+        results_dir / f"raa_phase_nadir_percent_change_summary_{args.year}.csv"
+    )
     summary_path = results_dir / f"raa_vza_nadir_percent_change_summary_{args.year}_trimmed.csv"
-    phase_summary_path = results_dir / f"raa_phase_nadir_percent_change_summary_{args.year}_trimmed.csv"
+    phase_summary_path = (
+        results_dir / f"raa_phase_nadir_percent_change_summary_{args.year}_trimmed.csv"
+    )
     summary.write_csv(untrimmed_summary_path)
     phase_summary.write_csv(untrimmed_phase_summary_path)
     plot_summary.write_csv(summary_path)
@@ -506,7 +547,9 @@ def main() -> None:
         suffix="",
         title_note="",
     )
-    untrimmed_outputs = plot_heatmap(summary, reference_class, fig_dir, args.year, suffix="", title_note="")
+    untrimmed_outputs = plot_heatmap(
+        summary, reference_class, fig_dir, args.year, suffix="", title_note=""
+    )
     untrimmed_phase_outputs = plot_phase_heatmap(
         phase_summary, reference_class, fig_dir, args.year, suffix="", title_note=""
     )

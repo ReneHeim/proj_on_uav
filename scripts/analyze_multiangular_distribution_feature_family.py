@@ -37,6 +37,22 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.analyze_cross_year_generalization_2024_to_2025 import (
+    ALPHAS,
+    MIN_NON_NULL_FRACTION,
+    SEED,
+    TARGET,
+    TARGET_LOG,
+    WARNING_TARGET,
+    add_known_covariates,
+    add_lagged_disease_features,
+    add_lagged_known_covariates,
+    build_model_table,
+    feature_columns,
+    load_2024_disease_with_fallback,
+    load_2025_disease_with_fallback,
+    safe_filename,
+)
 from src.analysis.result_01_reflectance_distributions import (
     BANDS,
     FINE_VZA_MAX,
@@ -49,23 +65,6 @@ from src.analysis.result_01_reflectance_distributions import (
     load_polygon_meta,
     sample_equal_vza_bins,
 )
-from scripts.analyze_cross_year_generalization_2024_to_2025 import (
-    ALPHAS,
-    MIN_NON_NULL_FRACTION,
-    SEED,
-    TARGET,
-    TARGET_LOG,
-    WARNING_TARGET,
-    add_lagged_disease_features,
-    add_lagged_known_covariates,
-    add_known_covariates,
-    build_model_table,
-    feature_columns,
-    load_2024_disease_with_fallback,
-    load_2025_disease_with_fallback,
-    safe_filename,
-)
-
 
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -142,7 +141,9 @@ def safe_spearman(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(value) if value is not None else math.nan
 
 
-def align_train_test(train: pd.DataFrame, test: pd.DataFrame) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
+def align_train_test(
+    train: pd.DataFrame, test: pd.DataFrame
+) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
     common_cols = sorted(set(feature_columns(train)).intersection(feature_columns(test)))
     train = train.copy()
     test = test.copy()
@@ -150,13 +151,22 @@ def align_train_test(train: pd.DataFrame, test: pd.DataFrame) -> tuple[list[str]
     test[common_cols] = test[common_cols].replace([np.inf, -np.inf], np.nan)
     common_cols = [col for col in common_cols if train[col].notna().mean() >= MIN_NON_NULL_FRACTION]
     common_cols = [col for col in common_cols if test[col].notna().mean() > 0]
-    keep = ["plot_id", "predictor_week", "target_week", TARGET, TARGET_LOG, WARNING_TARGET] + common_cols
+    keep = [
+        "plot_id",
+        "predictor_week",
+        "target_week",
+        TARGET,
+        TARGET_LOG,
+        WARNING_TARGET,
+    ] + common_cols
     return common_cols, train[keep].copy(), test[keep].copy()
 
 
 def split_train_eval_by_plot(table: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     splitter = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=SEED)
-    train_idx, eval_idx = next(splitter.split(table, table[TARGET], groups=table["plot_id"].to_numpy()))
+    train_idx, eval_idx = next(
+        splitter.split(table, table[TARGET], groups=table["plot_id"].to_numpy())
+    )
     return train_idx, eval_idx
 
 
@@ -191,14 +201,20 @@ def plot_week_dirs_available(year: int) -> dict[int, Path]:
     return available
 
 
-def summarize_plot_file(path: Path, year: int, week: int, meta: dict[str, dict[str, object]]) -> tuple[list[dict], dict]:
+def summarize_plot_file(
+    path: Path, year: int, week: int, meta: dict[str, dict[str, object]]
+) -> tuple[list[dict], dict]:
     plot_id = path.stem
     read_t0 = time.perf_counter()
     frame = pl.read_parquet(path)
     read_seconds = time.perf_counter() - read_t0
     original_rows = frame.height
     band_columns = list(BANDS)
-    quality = pl.col("vza").is_not_nan() & (pl.col("vza") >= FINE_VZA_MIN) & (pl.col("vza") < FINE_VZA_MAX)
+    quality = (
+        pl.col("vza").is_not_nan()
+        & (pl.col("vza") >= FINE_VZA_MIN)
+        & (pl.col("vza") < FINE_VZA_MAX)
+    )
     for band in band_columns:
         quality = quality & pl.col(band).is_not_nan() & (pl.col(band) > 0)
     frame = frame.filter(quality)
@@ -288,7 +304,13 @@ def summarize_plot_file(path: Path, year: int, week: int, meta: dict[str, dict[s
                     }
                 )
     for record in osavi.to_dicts():
-        for metric in ["osavi_mean", "osavi_p10", "osavi_iqr", "osavi_frac_lt_025", "osavi_frac_lt_035"]:
+        for metric in [
+            "osavi_mean",
+            "osavi_p10",
+            "osavi_iqr",
+            "osavi_frac_lt_025",
+            "osavi_frac_lt_035",
+        ]:
             value = record[metric]
             if value is not None and np.isfinite(value):
                 rows.append(
@@ -327,7 +349,9 @@ def build_distribution_long(year: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     audit_rows: list[dict] = []
     for week, directory in plot_week_dirs_available(year).items():
         files = sorted(directory.glob("plot_*.parquet"))
-        logging.info("%s week %s: reading %d plot parquets from %s", year, week, len(files), directory)
+        logging.info(
+            "%s week %s: reading %d plot parquets from %s", year, week, len(files), directory
+        )
         for path in files:
             if path.stem not in meta:
                 continue
@@ -352,7 +376,9 @@ def build_distribution_long(year: int) -> tuple[pd.DataFrame, pd.DataFrame]:
     return frame, audit
 
 
-def pivot_distribution_features(long: pd.DataFrame, feature_set: str, include_all_angles: bool) -> pd.DataFrame:
+def pivot_distribution_features(
+    long: pd.DataFrame, feature_set: str, include_all_angles: bool
+) -> pd.DataFrame:
     data = long.copy()
     if not include_all_angles:
         closest = (
@@ -361,7 +387,9 @@ def pivot_distribution_features(long: pd.DataFrame, feature_set: str, include_al
             .groupby(["year", "week", "plot_id", "band_name", "metric"], as_index=False)
             .head(1)[["year", "week", "plot_id", "band_name", "metric", "vza_class"]]
         )
-        data = data.merge(closest, on=["year", "week", "plot_id", "band_name", "metric", "vza_class"], how="inner")
+        data = data.merge(
+            closest, on=["year", "week", "plot_id", "band_name", "metric", "vza_class"], how="inner"
+        )
         data["feature"] = (
             feature_set
             + "__"
@@ -408,24 +436,30 @@ def add_angular_distribution_shape_features(multiangular: pd.DataFrame) -> pd.Da
         mids = np.array([mid for mid, _ in entries], dtype=float)
         values = out[cols].to_numpy(float)
         with np.errstate(invalid="ignore", divide="ignore"):
-            shape_columns[f"dist_shape__{band}__{metric}__range"] = np.nanmax(values, axis=1) - np.nanmin(values, axis=1)
+            shape_columns[f"dist_shape__{band}__{metric}__range"] = np.nanmax(
+                values, axis=1
+            ) - np.nanmin(values, axis=1)
             shape_columns[f"dist_shape__{band}__{metric}__std"] = np.nanstd(values, axis=1)
         if len(cols) >= 2:
             first = values[:, 0]
             last = values[:, -1]
             shape_columns[f"dist_shape__{band}__{metric}__offnadir_minus_nadir"] = last - first
-            shape_columns[f"dist_shape__{band}__{metric}__relative_offnadir_minus_nadir"] = np.divide(
-                last - first,
-                first,
-                out=np.full_like(first, np.nan, dtype=float),
-                where=np.isfinite(first) & (first != 0),
+            shape_columns[f"dist_shape__{band}__{metric}__relative_offnadir_minus_nadir"] = (
+                np.divide(
+                    last - first,
+                    first,
+                    out=np.full_like(first, np.nan, dtype=float),
+                    where=np.isfinite(first) & (first != 0),
+                )
             )
         if len(cols) >= 3:
             centered_x = mids - mids.mean()
             denom = float(np.sum(centered_x**2))
             if denom > 0:
                 y_centered = values - np.nanmean(values, axis=1, keepdims=True)
-                shape_columns[f"dist_shape__{band}__{metric}__slope"] = np.nansum(y_centered * centered_x, axis=1) / denom
+                shape_columns[f"dist_shape__{band}__{metric}__slope"] = (
+                    np.nansum(y_centered * centered_x, axis=1) / denom
+                )
     if shape_columns:
         out = pd.concat([out, pd.DataFrame(shape_columns, index=out.index)], axis=1)
     log_phase("add angular distribution shape features", started)
@@ -452,7 +486,11 @@ def is_compact_shape_feature(column: str) -> bool:
     if len(parts) != 4:
         return False
     _, band, metric, shape_metric = parts
-    return band in COMPACT_BANDS and metric in COMPACT_METRICS and shape_metric in COMPACT_SHAPE_METRICS
+    return (
+        band in COMPACT_BANDS
+        and metric in COMPACT_METRICS
+        and shape_metric in COMPACT_SHAPE_METRICS
+    )
 
 
 def compact_feature_frame(frame: pd.DataFrame, include_shape: bool) -> pd.DataFrame:
@@ -461,17 +499,25 @@ def compact_feature_frame(frame: pd.DataFrame, include_shape: bool) -> pd.DataFr
     for col in frame.columns:
         if col in meta:
             continue
-        if is_compact_distribution_feature(col) or (include_shape and is_compact_shape_feature(col)):
+        if is_compact_distribution_feature(col) or (
+            include_shape and is_compact_shape_feature(col)
+        ):
             keep.append(col)
     return frame[meta + keep].copy()
 
 
-def build_feature_sets(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
+def build_feature_sets(
+    long_2024: pd.DataFrame, long_2025: pd.DataFrame
+) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
     started = time.perf_counter()
     train_nadir = pivot_distribution_features(long_2024, "dist_nadir", include_all_angles=False)
     test_nadir = pivot_distribution_features(long_2025, "dist_nadir", include_all_angles=False)
-    train_multi = pivot_distribution_features(long_2024, "dist_multiangular", include_all_angles=True)
-    test_multi = pivot_distribution_features(long_2025, "dist_multiangular", include_all_angles=True)
+    train_multi = pivot_distribution_features(
+        long_2024, "dist_multiangular", include_all_angles=True
+    )
+    test_multi = pivot_distribution_features(
+        long_2025, "dist_multiangular", include_all_angles=True
+    )
     train_shape = add_angular_distribution_shape_features(train_multi)
     test_shape = add_angular_distribution_shape_features(test_multi)
     train_nadir_compact = compact_feature_frame(train_nadir, include_shape=False)
@@ -501,7 +547,9 @@ def build_feature_sets(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> dict
     return feature_sets
 
 
-def save_predictions(predictions: pd.DataFrame, model: str, feature_set: str, covariates: str) -> None:
+def save_predictions(
+    predictions: pd.DataFrame, model: str, feature_set: str, covariates: str
+) -> None:
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(
         PREDICTIONS_DIR
@@ -517,9 +565,13 @@ def prediction_path(model: str, feature_set: str, covariates: str) -> Path:
     )
 
 
-def evaluate_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str, covariate_mode: str, use_log: bool) -> dict:
+def evaluate_ridge(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str, covariate_mode: str, use_log: bool
+) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     target_col = TARGET_LOG if use_log else TARGET
     pipeline = Pipeline(
         [
@@ -571,7 +623,9 @@ def evaluate_reduced_ridge(
     reduction: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     if reduction == "pca95":
         reducer = PCA(n_components=PCA_EXPLAINED_VARIANCE, svd_solver="full", random_state=SEED)
         model_name = "ridge_pca95_raw_severity"
@@ -600,7 +654,9 @@ def evaluate_reduced_ridge(
     predict_time = time.perf_counter() - pred_t0
     y = test_aligned[TARGET].to_numpy(float)
     fitted_reducer = pipeline.named_steps["reducer"]
-    n_reduced = int(getattr(fitted_reducer, "n_components_", getattr(fitted_reducer, "k", len(cols))))
+    n_reduced = int(
+        getattr(fitted_reducer, "n_components_", getattr(fitted_reducer, "k", len(cols)))
+    )
     predictions = test_aligned[["plot_id", "predictor_week", "target_week"]].copy()
     predictions["model"] = model_name
     predictions["feature_set"] = feature_set
@@ -635,11 +691,15 @@ def select_stable_features(
 ) -> tuple[list[str], pd.DataFrame]:
     started = time.perf_counter()
     groups = train_aligned["plot_id"].to_numpy()
-    splitter = GroupShuffleSplit(n_splits=STABILITY_REPEATS, test_size=STABILITY_TEST_SIZE, random_state=SEED)
+    splitter = GroupShuffleSplit(
+        n_splits=STABILITY_REPEATS, test_size=STABILITY_TEST_SIZE, random_state=SEED
+    )
     counts = pd.Series(0, index=cols, dtype=float)
     abs_coef_sum = pd.Series(0.0, index=cols, dtype=float)
     fit_rows = []
-    for repeat, (fit_idx, _) in enumerate(splitter.split(train_aligned, train_aligned[TARGET], groups=groups)):
+    for repeat, (fit_idx, _) in enumerate(
+        splitter.split(train_aligned, train_aligned[TARGET], groups=groups)
+    ):
         fit_part = train_aligned.iloc[fit_idx].copy()
         pipeline = Pipeline(
             [
@@ -686,16 +746,26 @@ def select_stable_features(
             "mean_abs_elasticnet_coef": mean_abs_coef.to_numpy(float),
         }
     ).sort_values(["selection_frequency", "mean_abs_elasticnet_coef"], ascending=[False, False])
-    selection["meets_stability_threshold"] = selection["selection_frequency"] >= STABILITY_MIN_FREQUENCY
+    selection["meets_stability_threshold"] = (
+        selection["selection_frequency"] >= STABILITY_MIN_FREQUENCY
+    )
     selected_features = selection.loc[selection["meets_stability_threshold"], "feature"].tolist()
     selection_mode = "threshold"
     if not selected_features:
         selection_mode = "fallback_top_k"
-        selected_features = selection.head(min(STABILITY_FALLBACK_TOP_K, len(selection)))["feature"].tolist()
+        selected_features = selection.head(min(STABILITY_FALLBACK_TOP_K, len(selection)))[
+            "feature"
+        ].tolist()
     fit_audit = pd.DataFrame(fit_rows)
-    selection["mean_selected_features_per_repeat"] = float(fit_audit["selected_features"].mean()) if not fit_audit.empty else np.nan
-    selection["mean_elasticnet_alpha"] = float(fit_audit["alpha"].mean()) if not fit_audit.empty else np.nan
-    selection["mean_elasticnet_l1_ratio"] = float(fit_audit["l1_ratio"].mean()) if not fit_audit.empty else np.nan
+    selection["mean_selected_features_per_repeat"] = (
+        float(fit_audit["selected_features"].mean()) if not fit_audit.empty else np.nan
+    )
+    selection["mean_elasticnet_alpha"] = (
+        float(fit_audit["alpha"].mean()) if not fit_audit.empty else np.nan
+    )
+    selection["mean_elasticnet_l1_ratio"] = (
+        float(fit_audit["l1_ratio"].mean()) if not fit_audit.empty else np.nan
+    )
     selection["selection_mode"] = selection_mode
     logging.info(
         "[PHASE] stability selection %s %s: selected %d/%d features in %.1fs",
@@ -715,8 +785,12 @@ def evaluate_stability_selected_ridge(
     covariate_mode: str,
 ) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
-    selected_cols, selection = select_stable_features(train_aligned, cols, feature_set, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
+    selected_cols, selection = select_stable_features(
+        train_aligned, cols, feature_set, covariate_mode
+    )
     pipeline = Pipeline(
         [
             ("imputer", SimpleImputer(strategy="median")),
@@ -762,9 +836,13 @@ def evaluate_stability_selected_ridge(
     return result, selection
 
 
-def evaluate_xgboost(train: pd.DataFrame, test: pd.DataFrame, feature_set: str, covariate_mode: str) -> dict:
+def evaluate_xgboost(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str, covariate_mode: str
+) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     train_idx, eval_idx = split_train_eval_by_plot(train_aligned)
     fit_part = train_aligned.iloc[train_idx].copy()
     eval_part = train_aligned.iloc[eval_idx].copy()
@@ -833,7 +911,9 @@ def evaluate_lagged_ridge(
     lag_policy: str,
 ) -> dict:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_lagged_known_covariates(train_aligned, test_aligned, cols, covariate_mode)
+    train_aligned, test_aligned, cols = add_lagged_known_covariates(
+        train_aligned, test_aligned, cols, covariate_mode
+    )
     pipeline = Pipeline(
         [
             ("imputer", SimpleImputer(strategy="median")),
@@ -857,7 +937,9 @@ def evaluate_lagged_ridge(
     predictions["lag_policy"] = lag_policy
     predictions["y_true"] = y
     predictions["y_pred"] = pred
-    save_predictions(predictions, f"ridge_raw_severity_lagged_{lag_policy}", feature_set, covariate_mode)
+    save_predictions(
+        predictions, f"ridge_raw_severity_lagged_{lag_policy}", feature_set, covariate_mode
+    )
     return {
         "feature_set": feature_set,
         "model": "ridge_raw_severity_lagged",
@@ -879,7 +961,10 @@ def delta_vs_nadir(results: pd.DataFrame) -> pd.DataFrame:
     rows = []
     baseline_to_candidates = {
         "distribution_nadir": ["distribution_multiangular", "distribution_multiangular_shape"],
-        "compact_anomaly_nadir": ["compact_anomaly_multiangular", "compact_anomaly_multiangular_shape"],
+        "compact_anomaly_nadir": [
+            "compact_anomaly_multiangular",
+            "compact_anomaly_multiangular_shape",
+        ],
     }
     for (model, covariates), group in results.groupby(["model", "covariates"], dropna=False):
         for baseline_name, candidate_names in baseline_to_candidates.items():
@@ -931,8 +1016,7 @@ def paired_bootstrap_delta_ci(
 
     plot_ids = np.asarray(sorted(merged["plot_id"].unique()))
     plot_to_indices = {
-        plot_id: merged.index[merged["plot_id"] == plot_id].to_numpy()
-        for plot_id in plot_ids
+        plot_id: merged.index[merged["plot_id"] == plot_id].to_numpy() for plot_id in plot_ids
     }
     observed_base = regression_metric_values(
         merged["y_true"].to_numpy(float),
@@ -1021,7 +1105,17 @@ def write_report(
     log_path: Path,
 ) -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    best_cols = ["feature_set", "model", "covariates", "n_features", "n_reduced_features", "rmse", "mae", "r2", "spearman"]
+    best_cols = [
+        "feature_set",
+        "model",
+        "covariates",
+        "n_features",
+        "n_reduced_features",
+        "rmse",
+        "mae",
+        "r2",
+        "spearman",
+    ]
     report = [
         "## Results: Multiangular Image-Distribution Feature Family",
         "",
@@ -1118,13 +1212,21 @@ def main() -> None:
         for covariate_mode in ["spectral_only", "spectral_plus_week", "spectral_plus_week_horizon"]:
             rows.append(evaluate_ridge(train, test, feature_set, covariate_mode, use_log=False))
             rows.append(evaluate_ridge(train, test, feature_set, covariate_mode, use_log=True))
-            rows.append(evaluate_reduced_ridge(train, test, feature_set, covariate_mode, reduction="pca95"))
-            rows.append(evaluate_reduced_ridge(train, test, feature_set, covariate_mode, reduction="selectk"))
+            rows.append(
+                evaluate_reduced_ridge(train, test, feature_set, covariate_mode, reduction="pca95")
+            )
+            rows.append(
+                evaluate_reduced_ridge(
+                    train, test, feature_set, covariate_mode, reduction="selectk"
+                )
+            )
             rows.append(evaluate_xgboost(train, test, feature_set, covariate_mode))
 
         if feature_set.startswith("compact_anomaly"):
             for covariate_mode in ["spectral_only", "spectral_plus_week_horizon"]:
-                result, selection = evaluate_stability_selected_ridge(train, test, feature_set, covariate_mode)
+                result, selection = evaluate_stability_selected_ridge(
+                    train, test, feature_set, covariate_mode
+                )
                 rows.append(result)
                 stability_selection_rows.append(selection)
 
@@ -1153,19 +1255,18 @@ def main() -> None:
     deltas.to_csv(deltas_path, index=False)
     delta_ci.to_csv(delta_ci_path, index=False)
     if stability_selection_rows:
-        pd.concat(stability_selection_rows, ignore_index=True).to_csv(stability_selection_path, index=False)
+        pd.concat(stability_selection_rows, ignore_index=True).to_csv(
+            stability_selection_path, index=False
+        )
     else:
         pd.DataFrame().to_csv(stability_selection_path, index=False)
 
-    audit_summary = (
-        full_audit.groupby(["year", "week"], as_index=False)
-        .agg(
-            plots=("plot_id", "nunique"),
-            original_rows=("original_rows", "sum"),
-            rows_after_quality=("rows_after_quality", "sum"),
-            rows_after_ground_filter=("rows_after_ground_filter", "sum"),
-            rows_after_sampling=("rows_after_sampling", "sum"),
-        )
+    audit_summary = full_audit.groupby(["year", "week"], as_index=False).agg(
+        plots=("plot_id", "nunique"),
+        original_rows=("original_rows", "sum"),
+        rows_after_quality=("rows_after_quality", "sum"),
+        rows_after_ground_filter=("rows_after_ground_filter", "sum"),
+        rows_after_sampling=("rows_after_sampling", "sum"),
     )
     audit_summary_path = RESULTS_DIR / "distribution_feature_input_audit_summary.csv"
     audit_summary.to_csv(audit_summary_path, index=False)

@@ -14,7 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "outputs/cross_year_generalization_2024_to_2025"
 RESULTS_DIR = BASE / "results"
@@ -94,7 +93,16 @@ def build_early_warning_table() -> pd.DataFrame:
     )
 
     table = pd.concat([logistic, xgb], ignore_index=True)
-    keep = ["model_family", "feature_set", "f1", "precision", "recall", "balanced_accuracy", "auroc", "auprc"]
+    keep = [
+        "model_family",
+        "feature_set",
+        "f1",
+        "precision",
+        "recall",
+        "balanced_accuracy",
+        "auroc",
+        "auprc",
+    ]
     table = table[keep].copy()
     table["feature_label"] = table["feature_set"].map(pretty_feature)
     return table.sort_values("f1", ascending=False)
@@ -153,15 +161,34 @@ def plot_early_warning_f1(table: pd.DataFrame, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plot = table.copy()
     plot["label"] = plot["model_family"] + "\n" + plot["feature_label"]
-    colors = plot["model_family"].map({"Logistic": "#2f6f9f", "XGBoost": "#d08336"}).fillna("#777777")
+    colors = (
+        plot["model_family"].map({"Logistic": "#2f6f9f", "XGBoost": "#d08336"}).fillna("#777777")
+    )
 
     fig, ax = plt.subplots(figsize=(12.5, 6.2))
     bars = ax.bar(np.arange(len(plot)), plot["f1"], color=colors, edgecolor="white", linewidth=1.1)
-    nadir_f1 = float(plot[(plot["model_family"] == "Logistic") & (plot["feature_set"] == "nadir")]["f1"].iloc[0])
-    ax.axhline(nadir_f1, color="#323232", linestyle="--", linewidth=1.1, label=f"Logistic nadir F1 = {nadir_f1:.2f}")
+    nadir_f1 = float(
+        plot[(plot["model_family"] == "Logistic") & (plot["feature_set"] == "nadir")]["f1"].iloc[0]
+    )
+    ax.axhline(
+        nadir_f1,
+        color="#323232",
+        linestyle="--",
+        linewidth=1.1,
+        label=f"Logistic nadir F1 = {nadir_f1:.2f}",
+    )
     for bar, value in zip(bars, plot["f1"]):
-        ax.text(bar.get_x() + bar.get_width() / 2, value + 0.015, f"{value:.2f}", ha="center", va="bottom", fontsize=9)
-    ax.set_title("External early-warning F1 without week covariates", fontsize=14, fontweight="bold")
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            value + 0.015,
+            f"{value:.2f}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    ax.set_title(
+        "External early-warning F1 without week covariates", fontsize=14, fontweight="bold"
+    )
     ax.set_ylabel("F1 score")
     ax.set_ylim(0, max(0.82, plot["f1"].max() + 0.09))
     ax.set_xticks(np.arange(len(plot)))
@@ -183,20 +210,31 @@ def plot_severity_no_week(table: pd.DataFrame, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     plot = table.head(12).copy()
     plot["label"] = plot["model_family"] + "\n" + plot["feature_label"]
-    colors = plot["model_family"].map(
-        {
-            "Ridge log": "#4f7f58",
-            "Ridge raw": "#7b9e87",
-            "XGBoost early stop": "#d08336",
-            "XGBoost 200 trees": "#a75d2a",
-        }
-    ).fillna("#777777")
+    colors = (
+        plot["model_family"]
+        .map(
+            {
+                "Ridge log": "#4f7f58",
+                "Ridge raw": "#7b9e87",
+                "XGBoost early stop": "#d08336",
+                "XGBoost 200 trees": "#a75d2a",
+            }
+        )
+        .fillna("#777777")
+    )
 
     fig, axes = plt.subplots(1, 2, figsize=(14.5, 7.8))
     y = np.arange(len(plot))
     bars = axes[0].barh(y, plot["rmse"], color=colors, edgecolor="white", linewidth=1.1)
     for bar, value in zip(bars, plot["rmse"]):
-        axes[0].text(value + 0.12, bar.get_y() + bar.get_height() / 2, f"{value:.1f}", ha="left", va="center", fontsize=9)
+        axes[0].text(
+            value + 0.12,
+            bar.get_y() + bar.get_height() / 2,
+            f"{value:.1f}",
+            ha="left",
+            va="center",
+            fontsize=9,
+        )
     axes[0].set_title("Severity RMSE", fontsize=12, fontweight="bold")
     axes[0].set_xlabel("RMSE")
     axes[0].set_yticks(y)
@@ -208,7 +246,9 @@ def plot_severity_no_week(table: pd.DataFrame, output_path: Path) -> None:
         axes[1].text(value + 0.015, i, f"{value:.2f}", ha="left", va="center", fontsize=9)
     axes[1].set_title("Severity rank correlation", fontsize=12, fontweight="bold")
     axes[1].set_xlabel("Spearman")
-    axes[1].set_xlim(min(-0.05, plot["spearman"].min() - 0.05), max(0.75, plot["spearman"].max() + 0.08))
+    axes[1].set_xlim(
+        min(-0.05, plot["spearman"].min() - 0.05), max(0.75, plot["spearman"].max() + 0.08)
+    )
     axes[1].set_yticks(y)
     axes[1].set_yticklabels([])
     axes[1].invert_yaxis()
@@ -218,7 +258,11 @@ def plot_severity_no_week(table: pd.DataFrame, output_path: Path) -> None:
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.set_facecolor("#fbf7ef")
-    fig.suptitle("External severity prediction without week covariates: top 12 models by RMSE", fontsize=15, fontweight="bold")
+    fig.suptitle(
+        "External severity prediction without week covariates: top 12 models by RMSE",
+        fontsize=15,
+        fontweight="bold",
+    )
     fig.patch.set_facecolor("#fbf7ef")
     fig.tight_layout()
     fig.savefig(output_path, dpi=300, bbox_inches="tight")
@@ -226,7 +270,9 @@ def plot_severity_no_week(table: pd.DataFrame, output_path: Path) -> None:
     log_phase("plot severity no-week", t0)
 
 
-def write_report(outputs: dict[str, Path], warning: pd.DataFrame, severity: pd.DataFrame, log_path: Path) -> None:
+def write_report(
+    outputs: dict[str, Path], warning: pd.DataFrame, severity: pd.DataFrame, log_path: Path
+) -> None:
     report = [
         "## Results: No-Week External Model Summary",
         "",
@@ -234,11 +280,26 @@ def write_report(outputs: dict[str, Path], warning: pd.DataFrame, severity: pd.D
         "",
         "### Early-warning F1",
         "",
-        markdown_table(warning[["model_family", "feature_label", "f1", "precision", "recall", "balanced_accuracy", "auroc", "auprc"]].round(4)),
+        markdown_table(
+            warning[
+                [
+                    "model_family",
+                    "feature_label",
+                    "f1",
+                    "precision",
+                    "recall",
+                    "balanced_accuracy",
+                    "auroc",
+                    "auprc",
+                ]
+            ].round(4)
+        ),
         "",
         "### Severity Without Week",
         "",
-        markdown_table(severity[["model_family", "feature_label", "rmse", "mae", "r2", "spearman"]].round(4)),
+        markdown_table(
+            severity[["model_family", "feature_label", "rmse", "mae", "r2", "spearman"]].round(4)
+        ),
         "",
         "**Interpretation**: Without week covariates, severity calibration is weak, but multiangular features improve some models over nadir. The strongest no-week result is early-warning classification, especially XGBoost VZA F1.",
         "",

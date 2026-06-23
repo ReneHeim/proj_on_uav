@@ -38,12 +38,17 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DISEASE_ROOT = ROOT / "outputs/backup_metadata/csv/data/processed/2024/rating"
 POLYGON_PATH = Path("/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg")
-VZA_FEATURES = ROOT / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
-RAA_FEATURES = ROOT / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+VZA_FEATURES = (
+    ROOT
+    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+)
+RAA_FEATURES = (
+    ROOT
+    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+)
 
 OUTPUT_ROOT = ROOT / "outputs/early_warning_severity_2024"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -197,7 +202,10 @@ def load_disease_scores(plot_map: pd.DataFrame) -> pd.DataFrame:
             "ds_leaf_sd",
             "di_leaf_mean",
         ]
-    ].sort_values(["week", "plot_id"], key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col)
+    ].sort_values(
+        ["week", "plot_id"],
+        key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col,
+    )
 
     logging.info(
         "[PHASE] parquet/csv read summary: min=%.3fs median=%.3fs mean=%.3fs max=%.3fs",
@@ -210,21 +218,35 @@ def load_disease_scores(plot_map: pd.DataFrame) -> pd.DataFrame:
     return disease
 
 
-def validate_plot_mapping(vza_long: pd.DataFrame, plot_map: pd.DataFrame, disease: pd.DataFrame) -> pd.DataFrame:
+def validate_plot_mapping(
+    vza_long: pd.DataFrame, plot_map: pd.DataFrame, disease: pd.DataFrame
+) -> pd.DataFrame:
     t0 = time.time()
     reflectance_meta = (
         vza_long[["plot_id", "cult", "trt"]]
         .drop_duplicates()
         .sort_values("plot_id", key=lambda s: s.map(natural_plot_sort_key))
     )
-    validation = reflectance_meta.merge(plot_map, on="plot_id", suffixes=("_reflectance", "_polygon"), how="left")
-    validation["cult_match"] = validation["cult_reflectance"].str.lower() == validation["cult_polygon"].str.lower()
-    validation["trt_match"] = validation["trt_reflectance"].str.lower() == validation["trt_polygon"].str.lower()
+    validation = reflectance_meta.merge(
+        plot_map, on="plot_id", suffixes=("_reflectance", "_polygon"), how="left"
+    )
+    validation["cult_match"] = (
+        validation["cult_reflectance"].str.lower() == validation["cult_polygon"].str.lower()
+    )
+    validation["trt_match"] = (
+        validation["trt_reflectance"].str.lower() == validation["trt_polygon"].str.lower()
+    )
 
-    disease_meta = disease[disease["week"] == disease["week"].min()][["plot_id", "cult", "trt"]].drop_duplicates()
+    disease_meta = disease[disease["week"] == disease["week"].min()][
+        ["plot_id", "cult", "trt"]
+    ].drop_duplicates()
     validation = validation.merge(disease_meta, on="plot_id", suffixes=("", "_disease"), how="left")
-    validation["cult_disease_match"] = validation["cult_reflectance"].str.lower() == validation["cult"].str.lower()
-    validation["trt_disease_match"] = validation["trt_reflectance"].str.lower() == validation["trt"].str.lower()
+    validation["cult_disease_match"] = (
+        validation["cult_reflectance"].str.lower() == validation["cult"].str.lower()
+    )
+    validation["trt_disease_match"] = (
+        validation["trt_reflectance"].str.lower() == validation["trt"].str.lower()
+    )
     validation = validation.rename(columns={"cult": "cult_disease", "trt": "trt_disease"})
 
     checks = ["cult_match", "trt_match", "cult_disease_match", "trt_disease_match"]
@@ -375,7 +397,9 @@ def evaluate_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.DataFrame, 
 
     fold_rows = []
     prediction_rows = []
-    for fold, (train_idx, test_idx) in enumerate(splitter.split(table, table[TARGET], groups=groups)):
+    for fold, (train_idx, test_idx) in enumerate(
+        splitter.split(table, table[TARGET], groups=groups)
+    ):
         train = table.iloc[train_idx].copy()
         test = table.iloc[test_idx].copy()
         fold_cols = filter_sparse_columns(train, cols)
@@ -441,7 +465,9 @@ def evaluate_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.DataFrame, 
     return pd.DataFrame(fold_rows), pd.DataFrame(prediction_rows)
 
 
-def evaluate_log_severity_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_log_severity_feature_set(
+    name: str, table: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     t0 = time.time()
     cols = feature_columns(table)
     groups = table["plot_id"].to_numpy()
@@ -450,7 +476,9 @@ def evaluate_log_severity_feature_set(name: str, table: pd.DataFrame) -> tuple[p
 
     fold_rows = []
     prediction_rows = []
-    for fold, (train_idx, test_idx) in enumerate(splitter.split(table, table[TARGET_LOG], groups=groups)):
+    for fold, (train_idx, test_idx) in enumerate(
+        splitter.split(table, table[TARGET_LOG], groups=groups)
+    ):
         train = table.iloc[train_idx].copy()
         test = table.iloc[test_idx].copy()
         fold_cols = filter_sparse_columns(train, cols)
@@ -517,7 +545,9 @@ def evaluate_log_severity_feature_set(name: str, table: pd.DataFrame) -> tuple[p
     return pd.DataFrame(fold_rows), pd.DataFrame(prediction_rows)
 
 
-def evaluate_warning_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def evaluate_warning_feature_set(
+    name: str, table: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     t0 = time.time()
     cols = feature_columns(table)
     groups = table["plot_id"].to_numpy()
@@ -526,7 +556,9 @@ def evaluate_warning_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.Dat
 
     fold_rows = []
     prediction_rows = []
-    for fold, (train_idx, test_idx) in enumerate(splitter.split(table, table[WARNING_TARGET], groups=groups)):
+    for fold, (train_idx, test_idx) in enumerate(
+        splitter.split(table, table[WARNING_TARGET], groups=groups)
+    ):
         train = table.iloc[train_idx].copy()
         test = table.iloc[test_idx].copy()
         fold_cols = filter_sparse_columns(train, cols)
@@ -575,11 +607,15 @@ def evaluate_warning_feature_set(name: str, table: pd.DataFrame) -> tuple[pd.Dat
                 "n_positive_test": int(y_test.sum()),
                 "n_features": len(fold_cols),
                 "auroc": roc_auc_score(y_test, prob) if has_two_test_classes else math.nan,
-                "auprc": average_precision_score(y_test, prob) if has_two_test_classes else math.nan,
+                "auprc": (
+                    average_precision_score(y_test, prob) if has_two_test_classes else math.nan
+                ),
                 "f1": f1_score(y_test, pred, zero_division=0),
                 "precision": precision_score(y_test, pred, zero_division=0),
                 "recall": recall_score(y_test, pred, zero_division=0),
-                "balanced_accuracy": balanced_accuracy_score(y_test, pred) if has_two_test_classes else math.nan,
+                "balanced_accuracy": (
+                    balanced_accuracy_score(y_test, pred) if has_two_test_classes else math.nan
+                ),
                 "fit_time_s": fit_time,
                 "predict_time_s": predict_time,
             }
@@ -729,7 +765,9 @@ def paired_deltas_by_week_pair(pair_summary: pd.DataFrame, baseline: str = "nadi
                 "target_week": int(row["target_week"]),
             }
             for metric in metrics:
-                out[f"delta_{metric}"] = row[f"{feature_set}_{metric}"] - row[f"{baseline}_{metric}"]
+                out[f"delta_{metric}"] = (
+                    row[f"{feature_set}_{metric}"] - row[f"{baseline}_{metric}"]
+                )
             rows.append(out)
     return pd.DataFrame(rows).sort_values(["predictor_week", "target_week", "comparator"])
 
@@ -774,7 +812,13 @@ def plot_predictions(predictions: pd.DataFrame, path: Path) -> None:
 def plot_summary(summary: pd.DataFrame, path: Path) -> None:
     ordered = summary.sort_values("mean_rmse")
     fig, ax = plt.subplots(figsize=(10, 5.5))
-    ax.barh(ordered["feature_set"], ordered["mean_rmse"], xerr=ordered["sd_rmse"], color="#486B53", alpha=0.85)
+    ax.barh(
+        ordered["feature_set"],
+        ordered["mean_rmse"],
+        xerr=ordered["sd_rmse"],
+        color="#486B53",
+        alpha=0.85,
+    )
     ax.set_xlabel("Cross-validated RMSE, lower is better")
     ax.set_ylabel("")
     ax.set_title("Nadir vs multiangular severity prediction")
@@ -904,7 +948,10 @@ def main() -> None:
     all_warning_predictions = []
     for name, features in feature_sets.items():
         model_table = build_model_table(features, disease)
-        model_table = model_table.sort_values(["predictor_week", "plot_id"], key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col)
+        model_table = model_table.sort_values(
+            ["predictor_week", "plot_id"],
+            key=lambda col: col.map(natural_plot_sort_key) if col.name == "plot_id" else col,
+        )
         folds, predictions = evaluate_feature_set(name, model_table)
         log_folds, log_predictions = evaluate_log_severity_feature_set(name, model_table)
         warning_folds, warning_predictions = evaluate_warning_feature_set(name, model_table)
@@ -947,7 +994,8 @@ def main() -> None:
         "log_predictions": RESULTS_DIR / "early_warning_log_severity_predictions_2024.csv",
         "warning_fold_metrics": RESULTS_DIR / "early_warning_binary_warning_by_fold_2024.csv",
         "warning_summary": RESULTS_DIR / "early_warning_binary_warning_summary_2024.csv",
-        "warning_paired_deltas": RESULTS_DIR / "early_warning_binary_warning_paired_deltas_2024.csv",
+        "warning_paired_deltas": RESULTS_DIR
+        / "early_warning_binary_warning_paired_deltas_2024.csv",
         "warning_predictions": RESULTS_DIR / "early_warning_binary_warning_predictions_2024.csv",
         "predictions": RESULTS_DIR / "early_warning_severity_predictions_2024.csv",
         "coefficients": RESULTS_DIR / "early_warning_severity_top_coefficients_2024.csv",

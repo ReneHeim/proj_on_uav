@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 ROOT = Path(__file__).resolve().parents[1]
 OUT_ROOT = ROOT / "outputs/backup_metadata/weather_angular_curve_correlation"
 RESULT_DIR = OUT_ROOT / "results"
@@ -21,7 +20,10 @@ LOG_DIR = ROOT / "outputs/logs"
 WEATHER_PATH = Path(
     "/run/media/davidem/heim_data/Backup/proj_on_cerco/code/scripts/r/2024_leaf_dynamics/data/20250129_weather_indices.csv"
 )
-VZA_METRICS_PATH = ROOT / "outputs/result_03_vza_curve_shape_metrics/vza_curve_shape_metrics_by_year_week_cultivar_band.csv"
+VZA_METRICS_PATH = (
+    ROOT
+    / "outputs/result_03_vza_curve_shape_metrics/vza_curve_shape_metrics_by_year_week_cultivar_band.csv"
+)
 RAA_PERCENT_PATH = (
     ROOT
     / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/raa_vza_nadir_percent_change_summary_2024_trimmed.csv"
@@ -142,7 +144,9 @@ def build_weather_table() -> pd.DataFrame:
         if not same_day.empty:
             row.update(same_day.iloc[0].drop(labels=["date"]).to_dict())
         for days in (3, 7):
-            window = daily[(daily["date"] >= date - pd.Timedelta(days=days - 1)) & (daily["date"] <= date)]
+            window = daily[
+                (daily["date"] >= date - pd.Timedelta(days=days - 1)) & (daily["date"] <= date)
+            ]
             row[f"w{days}_t_mean"] = window["day_t_mean"].mean()
             row[f"w{days}_rh_mean"] = window["day_rh_mean"].mean()
             row[f"w{days}_globrad_mean"] = window["day_globrad_mean"].mean()
@@ -160,41 +164,35 @@ def build_curve_metrics() -> pd.DataFrame:
     t0 = time.time()
     vza = pd.read_csv(VZA_METRICS_PATH)
     vza = vza[vza["year"] == 2024].copy()
-    vza_metrics = (
-        vza.groupby(["year", "week", "band", "band_name"], as_index=False)
-        .agg(
-            vza_curve_amplitude=("curve_amplitude", "mean"),
-            vza_abs_high_minus_low=("high_minus_low_reflectance", lambda s: s.abs().mean()),
-            vza_abs_slope=("linear_slope_per_degree", lambda s: s.abs().mean()),
-            vza_abs_curvature=("quadratic_curvature", lambda s: s.abs().mean()),
-            vza_quadratic_r2=("quadratic_r2", "mean"),
-        )
+    vza_metrics = vza.groupby(["year", "week", "band", "band_name"], as_index=False).agg(
+        vza_curve_amplitude=("curve_amplitude", "mean"),
+        vza_abs_high_minus_low=("high_minus_low_reflectance", lambda s: s.abs().mean()),
+        vza_abs_slope=("linear_slope_per_degree", lambda s: s.abs().mean()),
+        vza_abs_curvature=("quadratic_curvature", lambda s: s.abs().mean()),
+        vza_quadratic_r2=("quadratic_r2", "mean"),
     )
 
     raa = pd.read_csv(RAA_PERCENT_PATH)
-    raa_metrics = (
-        raa.groupby(["year", "week", "band", "band_name"], as_index=False)
-        .agg(
-            raa_percent_abs_median=("median_percent_change", lambda s: s.abs().median()),
-            raa_percent_max_abs=("median_percent_change", lambda s: s.abs().max()),
-        )
+    raa_metrics = raa.groupby(["year", "week", "band", "band_name"], as_index=False).agg(
+        raa_percent_abs_median=("median_percent_change", lambda s: s.abs().median()),
+        raa_percent_max_abs=("median_percent_change", lambda s: s.abs().max()),
     )
 
     phase = pd.read_csv(PHASE_PERCENT_PATH)
-    phase_by_bin = (
-        phase.groupby(["year", "week", "band", "band_name", "phase_class"], as_index=False)
-        .agg(
-            phase_midpoint=("phase_midpoint", "mean"),
-            median_percent_change=("median_percent_change", "median"),
-            plots=("plots", "sum"),
-        )
+    phase_by_bin = phase.groupby(
+        ["year", "week", "band", "band_name", "phase_class"], as_index=False
+    ).agg(
+        phase_midpoint=("phase_midpoint", "mean"),
+        median_percent_change=("median_percent_change", "median"),
+        plots=("plots", "sum"),
     )
     phase_metrics = (
         phase_by_bin.groupby(["year", "week", "band", "band_name"], as_index=False)
         .apply(
             lambda g: pd.Series(
                 {
-                    "phase_percent_range": g["median_percent_change"].max() - g["median_percent_change"].min(),
+                    "phase_percent_range": g["median_percent_change"].max()
+                    - g["median_percent_change"].min(),
                     "phase_abs_slope": abs(phase_slope(g)),
                     "phase_low_minus_high": (
                         g.loc[g["phase_midpoint"] <= 20, "median_percent_change"].mean()
@@ -237,14 +235,21 @@ def build_correlations(joined: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
-def write_report(correlations: pd.DataFrame, joined: pd.DataFrame, outputs: dict[str, Path], log_path: Path) -> None:
+def write_report(
+    correlations: pd.DataFrame, joined: pd.DataFrame, outputs: dict[str, Path], log_path: Path
+) -> None:
     top = correlations[correlations["n_weeks"] >= 6].head(15).copy()
     selected = correlations[
         (correlations["n_weeks"] >= 6)
         & (correlations["band_name"].isin(["Red edge", "NIR"]))
         & (
             correlations["curve_metric"].isin(
-                ["vza_curve_amplitude", "raa_percent_abs_median", "phase_percent_range", "phase_low_minus_high"]
+                [
+                    "vza_curve_amplitude",
+                    "raa_percent_abs_median",
+                    "phase_percent_range",
+                    "phase_low_minus_high",
+                ]
             )
         )
     ].sort_values(["band_name", "curve_metric", "abs_spearman_r"], ascending=[True, True, False])
@@ -278,13 +283,31 @@ def write_report(correlations: pd.DataFrame, joined: pd.DataFrame, outputs: dict
         "### Strongest correlations, all bands/metrics",
         "",
         markdown_table(
-            top[["band_name", "weather_variable", "curve_metric", "n_weeks", "pearson_r", "spearman_r"]]
+            top[
+                [
+                    "band_name",
+                    "weather_variable",
+                    "curve_metric",
+                    "n_weeks",
+                    "pearson_r",
+                    "spearman_r",
+                ]
+            ]
         ),
         "",
         "### Selected paper-relevant Red Edge/NIR metrics",
         "",
         markdown_table(
-            selected[["band_name", "weather_variable", "curve_metric", "n_weeks", "pearson_r", "spearman_r"]].head(30)
+            selected[
+                [
+                    "band_name",
+                    "weather_variable",
+                    "curve_metric",
+                    "n_weeks",
+                    "pearson_r",
+                    "spearman_r",
+                ]
+            ].head(30)
         ),
         "",
         "**Interpretation**: Weather is correlated with some angular-curve descriptors, especially phase-angle and RAA contrast metrics, but the week-level sample size is limited. The strongest practical use is as a covariate/sensitivity check: report whether VZA/RAA/phase effects remain after accounting for flight-date temperature, radiation, precipitation, and VPD.",

@@ -132,18 +132,21 @@ def build_phase_contrast(data: pl.DataFrame, variant: str) -> pl.DataFrame:
         )
         .filter(pl.col("reference_cell_plots") >= MIN_CELL_PLOTS)
     )
-    contrast = (
-        data.join(reference, on=["year", "plot_id", "week", "band"], how="inner")
-        .with_columns(
-            (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
-            ((pl.col("reflectance") - pl.col("reference_reflectance")) / pl.col("reference_reflectance") * 100.0).alias(
-                "percent_change"
-            ),
-            pl.lit(variant).alias("variant"),
-        )
+    contrast = data.join(
+        reference, on=["year", "plot_id", "week", "band"], how="inner"
+    ).with_columns(
+        (pl.col("reflectance") - pl.col("reference_reflectance")).alias("absolute_contrast"),
+        (
+            (pl.col("reflectance") - pl.col("reference_reflectance"))
+            / pl.col("reference_reflectance")
+            * 100.0
+        ).alias("percent_change"),
+        pl.lit(variant).alias("variant"),
     )
     summary = (
-        contrast.group_by("variant", "year", "week", "band", "band_name", "phase_class", "phase_midpoint")
+        contrast.group_by(
+            "variant", "year", "week", "band", "band_name", "phase_class", "phase_midpoint"
+        )
         .agg(
             pl.col("plot_id").n_unique().alias("plots"),
             pl.len().alias("observations"),
@@ -168,12 +171,22 @@ def fit_models(data: pl.DataFrame, variant: str) -> pl.DataFrame:
             if frame.empty or frame["plot_id"].nunique() < 2:
                 continue
             fit_started = time.perf_counter()
-            base = smf.ols(VZA_ONLY_FORMULA, frame).fit(cov_type="cluster", cov_kwds={"groups": frame["plot_id"]})
+            base = smf.ols(VZA_ONLY_FORMULA, frame).fit(
+                cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
+            )
             phase_model = smf.ols(PHASE_FORMULA, frame).fit(
                 cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
             )
-            raa_model = smf.ols(RAA_FORMULA, frame).fit(cov_type="cluster", cov_kwds={"groups": frame["plot_id"]})
-            logging.info("[ML] fit %s %s %s: %.2fs", variant, year, band_name, time.perf_counter() - fit_started)
+            raa_model = smf.ols(RAA_FORMULA, frame).fit(
+                cov_type="cluster", cov_kwds={"groups": frame["plot_id"]}
+            )
+            logging.info(
+                "[ML] fit %s %s %s: %.2fs",
+                variant,
+                year,
+                band_name,
+                time.perf_counter() - fit_started,
+            )
             rows.append(
                 {
                     "variant": variant,
@@ -191,13 +204,17 @@ def fit_models(data: pl.DataFrame, variant: str) -> pl.DataFrame:
                     "vza_adj_r2": float(base.rsquared_adj),
                     "phase_adj_r2": float(phase_model.rsquared_adj),
                     "raa_adj_r2": float(raa_model.rsquared_adj),
-                    "delta_adj_r2_phase_vs_vza": float(phase_model.rsquared_adj - base.rsquared_adj),
+                    "delta_adj_r2_phase_vs_vza": float(
+                        phase_model.rsquared_adj - base.rsquared_adj
+                    ),
                     "delta_adj_r2_raa_vs_vza": float(raa_model.rsquared_adj - base.rsquared_adj),
                     "delta_aic_phase_vs_vza": float(phase_model.aic - base.aic),
                     "delta_aic_raa_vs_vza": float(raa_model.aic - base.aic),
                     "delta_bic_phase_vs_vza": float(phase_model.bic - base.bic),
                     "delta_bic_raa_vs_vza": float(raa_model.bic - base.bic),
-                    "phase_angle_estimate": float(phase_model.params.get("mean_phase_angle", np.nan)),
+                    "phase_angle_estimate": float(
+                        phase_model.params.get("mean_phase_angle", np.nan)
+                    ),
                     "phase_angle_p": float(phase_model.pvalues.get("mean_phase_angle", np.nan)),
                 }
             )
@@ -234,7 +251,16 @@ def plot_phase_curves(summary: pl.DataFrame, variant: str) -> list[Path]:
                 x = curve["phase_midpoint"].to_numpy()
                 y = curve["median_percent_change"].to_numpy()
                 se = curve["se_percent_change"].fill_null(0).to_numpy()
-                ax.errorbar(x, y, yerr=se, marker="o", linewidth=1.3, markersize=3.2, capsize=2, label=f"W{week}")
+                ax.errorbar(
+                    x,
+                    y,
+                    yerr=se,
+                    marker="o",
+                    linewidth=1.3,
+                    markersize=3.2,
+                    capsize=2,
+                    label=f"W{week}",
+                )
             ax.axhline(0, color="#333333", linewidth=0.8)
             ax.set_title(f"{year} {BANDS[band]}", loc="left", fontsize=10, fontweight="bold")
             ax.set_xlabel("Phase angle bin midpoint (deg)")
