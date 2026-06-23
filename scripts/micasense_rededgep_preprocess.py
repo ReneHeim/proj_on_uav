@@ -88,16 +88,41 @@ def panel_irradiance(panel_folder: Path, panel_seed: str | None) -> tuple[list[f
     return irradiance, meta
 
 
-def compute_warps(seed: Path, min_matches: int, verbose: int) -> tuple[list[np.ndarray], dict]:
+def compute_warps(
+    seed: Path, min_matches: int, verbose: int, allow_calibrated_fallback: bool
+) -> tuple[list[np.ndarray], dict]:
     cap = load_capture(seed)
-    warps = cap.SIFT_align_capture(ref=5, min_matches=min_matches, verbose=verbose)
+    alignment_method = "sift"
+    alignment_warning = None
+    try:
+        warps = cap.SIFT_align_capture(ref=5, min_matches=min_matches, verbose=verbose)
+    except UnboundLocalError as exc:
+        if not allow_calibrated_fallback:
+            raise RuntimeError(
+                "SIFT band alignment failed and calibrated fallback is disabled. "
+                "Choose a better --alignment-seed, usually a sharp mid-flight "
+                "capture, or rerun with --allow-calibrated-fallback only for "
+                "diagnostic/non-production outputs."
+            ) from exc
+        # micasense.capture.SIFT_align_capture can leave kpi/kpr undefined when
+        # a band has too few valid SIFT matches and the calibrated fallback is used.
+        alignment_method = "calibrated_fallback_after_sift_failure"
+        alignment_warning = repr(exc)
+        print(
+            "SIFT alignment failed; using calibrated camera warp matrices "
+            f"for {seed}: {exc}"
+        )
+        warps = cap.get_warp_matrices(ref_index=5)
     meta = {
         "alignment_seed": str(seed),
         "alignment_capture_id": cap.uuid,
         "alignment_utc": cap.utc_time().isoformat(),
         "alignment_location": cap.location(),
         "alignment_min_matches": min_matches,
+        "alignment_method": alignment_method,
     }
+    if alignment_warning:
+        meta["alignment_warning"] = alignment_warning
     return warps, meta
 
 
@@ -195,7 +220,7 @@ def main() -> int:
     parser.add_argument(
         "--alignment-seed",
         type=str,
-        help="*_1.tif filename to use for SIFT alignment; default first capture",
+        help="*_1.tif filename to use for SIFT alignment; default middle capture",
     )
     parser.add_argument(
         "--panel-seed", type=str, help="panel *_1.tif filename prefix; default first panel capture"
@@ -206,6 +231,15 @@ def main() -> int:
     )
     parser.add_argument("--min-matches", type=int, default=10)
     parser.add_argument("--verbose-align", type=int, default=1)
+    parser.add_argument(
+        "--allow-calibrated-fallback",
+        action="store_true",
+        help=(
+            "Allow camera-calibration warp matrices if SIFT alignment fails. "
+            "Use only for diagnostics because it can leave RedEdge-P bands "
+            "spatially misregistered."
+        ),
+    )
     args = parser.parse_args()
 
     all_seeds = list(iter_capture_seeds(args.input_set))
@@ -213,7 +247,7 @@ def main() -> int:
         raise FileNotFoundError(f"no captures found in {args.input_set}")
     seeds = all_seeds[: args.limit] if args.limit else all_seeds
 
-    alignment_seed = all_seeds[0]
+    alignment_seed = all_seeds[len(all_seeds) // 2]
     if args.alignment_seed:
         matches = [
             seed
@@ -227,7 +261,12 @@ def main() -> int:
         alignment_seed = matches[0]
 
     irradiance, panel_meta = panel_irradiance(args.panel_set, args.panel_seed)
-    warps, alignment_meta = compute_warps(alignment_seed, args.min_matches, args.verbose_align)
+    warps, alignment_meta = compute_warps(
+        alignment_seed,
+        args.min_matches,
+        args.verbose_align,
+        args.allow_calibrated_fallback,
+    )
 
     records = []
     failures = []

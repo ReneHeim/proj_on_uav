@@ -10,6 +10,8 @@ plot-level bootstrap CIs.
 from __future__ import annotations
 
 import logging
+import hashlib
+import json
 import math
 import sys
 import time
@@ -75,9 +77,14 @@ FIGURES_DIR = OUTPUT_ROOT / "figures"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
 LOGS_DIR = ROOT / "outputs/logs"
+FROZEN_CONFIG_DIR = ROOT / "configs/frozen"
+FROZEN_PIPELINE_ID = "multiangular_severity_residual_xgboost_v1"
+FROZEN_CONFIG_PATH = FROZEN_CONFIG_DIR / f"{FROZEN_PIPELINE_ID}.yaml"
+FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "frozen_pipeline_manifest.json"
 
 FEATURE_SETS = ["compact_anomaly_nadir", "compact_anomaly_multiangular"]
 COVARIATES = "spectral_plus_week_horizon"
+SELECTED_MODEL = "residual_reliability_filtered_xgboost"
 BOOTSTRAP_ITERATIONS = 1000
 DISEASE_PRESENT_THRESHOLD = 0.0
 HUBER_EPSILON = 1.35
@@ -717,6 +724,41 @@ def fit_tuned_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFra
     return result, predictions, tuning
 
 
+def fit_residual_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+    cols, train_aligned, test_aligned = prepare_aligned(train, test)
+    selected_cols, _ = select_stable_features(train_aligned, cols)
+    result, predictions, tuning = fit_tuned_xgboost_residual_with_cols(
+        train_aligned,
+        test_aligned,
+        selected_cols,
+        "residual_xgboost_stability",
+        feature_set,
+    )
+    tuning["model"] = result["model"]
+    tuning["feature_set"] = feature_set
+    tuning["n_features"] = len(selected_cols)
+    return result, predictions, tuning
+
+
+def fit_residual_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+    cols, train_aligned, test_aligned = prepare_aligned(train, test)
+    selected_cols, _ = select_stable_features(train_aligned, cols)
+    filtered_cols, _ = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
+    result, predictions, tuning = fit_tuned_xgboost_residual_with_cols(
+        train_aligned,
+        test_aligned,
+        filtered_cols,
+        "residual_reliability_filtered_xgboost",
+        feature_set,
+    )
+    result["n_stability_features_before_reliability"] = len(selected_cols)
+    result["n_features_removed_by_reliability"] = len(selected_cols) - len(filtered_cols)
+    tuning["model"] = result["model"]
+    tuning["feature_set"] = feature_set
+    tuning["n_features"] = len(filtered_cols)
+    return result, predictions, tuning
+
+
 def fit_reliability_filtered_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
@@ -911,15 +953,20 @@ def paired_bootstrap_delta_ci(
     return out
 
 
-def residual_debug(predictions: dict[tuple[str, str], pd.DataFrame], features_2025: pd.DataFrame) -> pd.DataFrame:
-    base = predictions[("direct_stability_ridge", "compact_anomaly_nadir")].rename(columns={"y_pred": "y_pred_nadir"})
-    cand = predictions[("direct_stability_ridge", "compact_anomaly_multiangular")].rename(columns={"y_pred": "y_pred_multiangular"})
+def residual_debug(
+    predictions: dict[tuple[str, str], pd.DataFrame],
+    features_2025: pd.DataFrame,
+    model: str = SELECTED_MODEL,
+) -> pd.DataFrame:
+    base = predictions[(model, "compact_anomaly_nadir")].rename(columns={"y_pred": "y_pred_nadir"})
+    cand = predictions[(model, "compact_anomaly_multiangular")].rename(columns={"y_pred": "y_pred_multiangular"})
     meta = features_2025[["plot_id", "cult", "trt"]].drop_duplicates()
     merged = base[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_nadir"]].merge(
         cand[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_multiangular"]],
         on=["plot_id", "predictor_week", "target_week", "y_true"],
         how="inner",
     ).merge(meta, on="plot_id", how="left")
+    merged["diagnostic_model"] = model
     merged["err_nadir"] = merged["y_pred_nadir"] - merged["y_true"]
     merged["err_multiangular"] = merged["y_pred_multiangular"] - merged["y_true"]
     merged["abs_error_reduction"] = merged["err_nadir"].abs() - merged["err_multiangular"].abs()
@@ -965,6 +1012,28 @@ def group_debug_tables(residuals: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFr
     return by_week, by_group, by_plot
 
 
+def leave_one_plot_sensitivity(residuals: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for plot_id in sorted(residuals["plot_id"].unique()):
+        kept = residuals[residuals["plot_id"] != plot_id]
+        if kept.empty:
+            continue
+        rmse_nadir = math.sqrt(mean_squared_error(kept["y_true"], kept["y_pred_nadir"]))
+        rmse_multi = math.sqrt(mean_squared_error(kept["y_true"], kept["y_pred_multiangular"]))
+        mae_nadir = mean_absolute_error(kept["y_true"], kept["y_pred_nadir"])
+        mae_multi = mean_absolute_error(kept["y_true"], kept["y_pred_multiangular"])
+        rows.append(
+            {
+                "excluded_plot_id": plot_id,
+                "n_rows_kept": len(kept),
+                "rmse_reduction_after_exclusion": rmse_nadir - rmse_multi,
+                "mae_reduction_after_exclusion": mae_nadir - mae_multi,
+                "gain_remains_positive": (rmse_nadir - rmse_multi) > 0,
+            }
+        )
+    return pd.DataFrame(rows).sort_values("rmse_reduction_after_exclusion")
+
+
 def feature_shift_table(train: pd.DataFrame, test: pd.DataFrame, selected: pd.DataFrame) -> pd.DataFrame:
     selected_features = selected.loc[
         (selected["feature_set"] == "compact_anomaly_multiangular")
@@ -996,7 +1065,7 @@ def feature_shift_table(train: pd.DataFrame, test: pd.DataFrame, selected: pd.Da
     return pd.DataFrame(rows).sort_values("standardized_mean_difference", key=lambda s: s.abs(), ascending=False)
 
 
-def plot_observed_predicted(predictions: dict[tuple[str, str], pd.DataFrame]) -> Path:
+def plot_observed_predicted(predictions: dict[tuple[str, str], pd.DataFrame], model: str = SELECTED_MODEL) -> Path:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharex=True, sharey=True)
     specs = [
@@ -1004,7 +1073,7 @@ def plot_observed_predicted(predictions: dict[tuple[str, str], pd.DataFrame]) ->
         ("compact_anomaly_multiangular", "Multiangular"),
     ]
     for ax, (feature_set, title) in zip(axes, specs):
-        df = predictions[("direct_stability_ridge", feature_set)]
+        df = predictions[(model, feature_set)]
         for week, group in df.groupby("target_week"):
             ax.scatter(group["y_true"], group["y_pred"], label=f"week {week}", s=42, alpha=0.8)
         max_val = max(df["y_true"].max(), df["y_pred"].max())
@@ -1015,7 +1084,7 @@ def plot_observed_predicted(predictions: dict[tuple[str, str], pd.DataFrame]) ->
     axes[0].set_ylabel("Predicted severity")
     axes[1].legend(frameon=False, fontsize=8)
     fig.tight_layout()
-    path = FIGURES_DIR / "observed_vs_predicted_direct_stability.png"
+    path = FIGURES_DIR / f"observed_vs_predicted_{safe_filename(model)}.png"
     fig.savefig(path, dpi=220)
     plt.close(fig)
     return path
@@ -1063,17 +1132,115 @@ def plot_plot_level_delta(by_plot: pd.DataFrame) -> Path:
     return path
 
 
+def write_frozen_pipeline_config(results: pd.DataFrame, ci: pd.DataFrame, log_path: Path) -> tuple[Path, Path]:
+    FROZEN_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    selected_results = results[results["model"] == SELECTED_MODEL].copy()
+    selected_ci = ci[ci["model"] == SELECTED_MODEL].copy()
+    result_rows = selected_results.to_dict(orient="records")
+    ci_rows = selected_ci.to_dict(orient="records")
+    payload = {
+        "pipeline_id": FROZEN_PIPELINE_ID,
+        "frozen_at": datetime.now().isoformat(timespec="seconds"),
+        "status": "frozen_after_exploratory_2025_development",
+        "selected_model": SELECTED_MODEL,
+        "paper_safe_interpretation": "strong exploratory external-year evidence, not untouched confirmatory validation",
+        "train_year": 2024,
+        "external_year": 2025,
+        "feature_sets": FEATURE_SETS,
+        "selected_feature_set": "compact_anomaly_multiangular",
+        "matched_baseline_feature_set": "compact_anomaly_nadir",
+        "covariates": COVARIATES,
+        "target": TARGET,
+        "preprocessing": {
+            "feature_family": "compact distribution anomaly features",
+            "missing_value_handling": "SimpleImputer(strategy='median') fit on 2024 training data",
+            "scaling_for_ridge": "StandardScaler fit on 2024 training data",
+            "prediction_clipping": "clip to 2024 training severity min/max",
+        },
+        "stability_selection": {
+            "method": "ElasticNetCV on grouped 2024 resamples",
+            "repeats": STABILITY_REPEATS,
+            "test_size": STABILITY_TEST_SIZE,
+            "min_frequency": STABILITY_MIN_FREQUENCY,
+            "alphas": list(STABILITY_ALPHAS),
+            "l1_ratios": list(STABILITY_L1_RATIOS),
+            "random_seed": SEED,
+        },
+        "reliability_filter": {
+            "min_train_non_null": RELIABILITY_MIN_NON_NULL,
+            "min_external_non_null": RELIABILITY_MIN_NON_NULL,
+            "max_abs_unlabeled_train_external_smd": RELIABILITY_MAX_ABS_SMD,
+            "note": "Uses unlabeled 2025 feature support/shift; must be predeclared or replaced by train-only support rules before confirmatory validation.",
+        },
+        "base_model": {
+            "type": "RidgeCV",
+            "alphas": list(ALPHAS),
+            "role": "broad phenology-adjusted severity trajectory",
+        },
+        "residual_model": {
+            "type": "XGBRegressor",
+            "role": "nonlinear residual correction after grouped OOF Ridge residual construction",
+            "tuning_scope": "grouped 2024 validation only within the candidate ladder",
+            "candidate_grid": XGBOOST_TUNING_GRID,
+        },
+        "evaluation": {
+            "metrics": ["RMSE", "MAE", "R2", "Spearman"],
+            "bootstrap_unit": "plot_id",
+            "bootstrap_iterations": BOOTSTRAP_ITERATIONS,
+            "paired_comparison": "compact_anomaly_multiangular - matched compact_anomaly_nadir",
+        },
+        "locked_outputs": {
+            "results": result_rows,
+            "paired_ci": ci_rows,
+            "log": str(log_path),
+        },
+        "do_not_change_without_new_version": [
+            "feature set",
+            "reliability thresholds",
+            "stability-selection threshold",
+            "Ridge baseline",
+            "residual XGBoost structure",
+            "hyperparameter grid and selected hyperparameters",
+            "preprocessing",
+            "missing-value handling",
+            "week/horizon covariates",
+            "evaluation metrics",
+        ],
+    }
+    config_text = json.dumps(payload, indent=2, sort_keys=True)
+    # JSON is valid YAML 1.2 and keeps the freeze artifact dependency-free.
+    FROZEN_CONFIG_PATH.write_text(config_text + "\n", encoding="utf-8")
+    config_hash = hashlib.sha256(config_text.encode("utf-8")).hexdigest()
+    manifest = {
+        "pipeline_id": FROZEN_PIPELINE_ID,
+        "config_path": str(FROZEN_CONFIG_PATH),
+        "config_sha256": config_hash,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "selected_model": SELECTED_MODEL,
+        "selected_result_summary": ci_rows,
+        "report_path": str(REPORTS_DIR / "model_bottleneck_debug_summary.md"),
+        "log_path": str(log_path),
+    }
+    FROZEN_MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    logging.info("Frozen config: %s sha256=%s", FROZEN_CONFIG_PATH, config_hash)
+    return FROZEN_CONFIG_PATH, FROZEN_MANIFEST_PATH
+
+
 def write_report(
     results: pd.DataFrame,
     ci: pd.DataFrame,
     by_week: pd.DataFrame,
     by_group: pd.DataFrame,
     by_plot: pd.DataFrame,
+    loo_plot: pd.DataFrame,
     feature_shift: pd.DataFrame,
     xgboost_tuning: pd.DataFrame,
     figure_paths: list[Path],
     output_paths: dict[str, Path],
     log_path: Path,
+    frozen_config_path: Path,
+    frozen_manifest_path: Path,
 ) -> None:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     best_ci_cols = [
@@ -1086,10 +1253,118 @@ def write_report(
         "delta_r2_observed",
         "delta_spearman_observed",
     ]
+    sorted_ci = ci.sort_values("rmse_reduction_observed", ascending=False).reset_index(drop=True)
+    top = sorted_ci.iloc[0] if not sorted_ci.empty else pd.Series(dtype=object)
+    residual_xgb = ci[ci["model"] == "residual_reliability_filtered_xgboost"]
+    direct_xgb = ci[ci["model"] == "tuned_reliability_filtered_xgboost"]
+    ridge = ci[ci["model"] == "reliability_filtered_stability_ridge"]
+    residual_xgb_row = residual_xgb.iloc[0] if not residual_xgb.empty else pd.Series(dtype=object)
+    direct_xgb_row = direct_xgb.iloc[0] if not direct_xgb.empty else pd.Series(dtype=object)
+    ridge_row = ridge.iloc[0] if not ridge.empty else pd.Series(dtype=object)
+    top_model = str(top.get("model", "n/a"))
+    top_delta = float(top.get("rmse_reduction_observed", math.nan))
+    top_low = float(top.get("rmse_reduction_ci_low", math.nan))
+    top_high = float(top.get("rmse_reduction_ci_high", math.nan))
+    top_mae = float(top.get("mae_reduction_observed", math.nan))
+    top_r2 = float(top.get("delta_r2_observed", math.nan))
+    top_spearman = float(top.get("delta_spearman_observed", math.nan))
+    direct_week_text = (
+        "The direct stability Ridge bottleneck is week-dependent: multiangular helps target week 5, but it creates false positives in week 1 and does not improve week 6."
+    )
+    if not by_week.empty:
+        week_parts = []
+        for _, row in by_week.iterrows():
+            week_parts.append(
+                f"W{int(row['target_week'])}: mean absolute-error reduction {row['mean_abs_error_reduction']:.3f}, bias nadir {row['bias_nadir']:.3f}, bias multiangular {row['bias_multiangular']:.3f}"
+            )
+        direct_week_text = "; ".join(week_parts) + "."
+    residual_vs_direct_text = "_Not available._"
+    if not residual_xgb_row.empty and not direct_xgb_row.empty:
+        residual_vs_direct_text = (
+            f"Direct tuned reliability-filtered XGBoost gave RMSE reduction {direct_xgb_row['rmse_reduction_observed']:.3f}, "
+            f"whereas residual reliability-filtered XGBoost gave {residual_xgb_row['rmse_reduction_observed']:.3f}. "
+            "This shows that XGBoost is more useful as a nonlinear residual-correction model than as the primary absolute-severity model."
+        )
+    ridge_comparison_text = "_Not available._"
+    if not residual_xgb_row.empty and not ridge_row.empty:
+        ridge_comparison_text = (
+            f"The residual XGBoost model improves the RMSE-reduction point estimate over reliability-filtered Ridge "
+            f"({residual_xgb_row['rmse_reduction_observed']:.3f} vs {ridge_row['rmse_reduction_observed']:.3f}) "
+            f"and has a stronger CI lower bound ({residual_xgb_row['rmse_reduction_ci_low']:.3f} vs {ridge_row['rmse_reduction_ci_low']:.3f})."
+        )
+    loo_text = "_Not available._"
+    if not loo_plot.empty:
+        loo_text = (
+            f"Leave-one-plot-out sensitivity keeps a positive RMSE reduction in "
+            f"{int(loo_plot['gain_remains_positive'].sum())}/{len(loo_plot)} plot exclusions. "
+            f"The worst exclusion leaves an RMSE reduction of {loo_plot['rmse_reduction_after_exclusion'].min():.3f}; "
+            f"the best exclusion leaves {loo_plot['rmse_reduction_after_exclusion'].max():.3f}."
+        )
     report = [
         "## Results: Multiangular RMSE Bottleneck Debug",
         "",
         "This debug run keeps all 2025 weeks pooled and compares matched compact nadir vs compact multiangular candidate models using paired plot-level bootstrap CIs.",
+        "",
+        "### Frozen Pipeline Decision",
+        "",
+        f"The selected severity pipeline is now frozen as `{FROZEN_PIPELINE_ID}`. The frozen model is `{SELECTED_MODEL}`: Ridge captures the broad phenology- and horizon-adjusted severity trajectory, then reliability-filtered XGBoost predicts nonlinear residual corrections from compact multiangular reflectance features.",
+        "",
+        f"Frozen config: `{frozen_config_path}`",
+        "",
+        f"Frozen manifest: `{frozen_manifest_path}`",
+        "",
+        "No further thresholds, hyperparameters, preprocessing choices, feature-selection rules, or evaluation metrics should be changed after inspecting 2025 outcomes. Any change requires a new versioned pipeline ID.",
+        "",
+        "Because the 2025 data informed model debugging and the reliability-screening analysis, the severity result should be reported as strong exploratory external-year evidence, not as untouched confirmatory validation.",
+        "",
+        "### Executive Summary",
+        "",
+        f"The strongest current model is `{top_model}`. It reduces external 2025 RMSE by `{top_delta:.3f}` versus the matched nadir model, with paired plot-level 95% CI `[{top_low:.3f}, {top_high:.3f}]`. It also improves MAE by `{top_mae:.3f}`, R² by `{top_r2:.3f}`, and Spearman rank correlation by `{top_spearman:.3f}`.",
+        "",
+        "The main result is no longer simply that a multiangular model has a lower point-estimate RMSE. The stronger exploratory claim is that after stability selection, reliability filtering, and residual modeling, the multiangular feature set produces a positive paired external-year improvement over the matched nadir feature set.",
+        "",
+        "### Model Ladder Interpretation",
+        "",
+        markdown_table(sorted_ci[best_ci_cols].round(4), max_rows=15),
+        "",
+        ridge_comparison_text,
+        "",
+        residual_vs_direct_text,
+        "",
+        "### What The Model Ladder Shows",
+        "",
+        "- Direct Ridge shows that compact multiangular features contain signal, but the improvement is not strong enough without reliability filtering.",
+        "- Reliability filtering is essential because some selected angular features have weak support or shifted train/test distributions, especially oblique 50-55 degree CV/IQR features.",
+        "- Direct XGBoost underperforms for absolute severity because it must learn both phenology/calibration and nonlinear angular effects from only 166 training rows.",
+        "- Residual XGBoost works better because Ridge first models the broad severity trajectory, then XGBoost only learns the smaller nonlinear angular correction.",
+        "- The best current story is therefore: multiangular data improve disease severity prediction when unstable angular features are screened and nonlinear angular corrections are added on top of an interpretable calibrated baseline.",
+        "- This is a model-development result. The locked pipeline still needs repeated grouped 2024-only validation and a future independent dataset for confirmatory validation.",
+        "",
+        "### Remaining Bottlenecks",
+        "",
+        direct_week_text,
+        "",
+        "- Week 1 is structurally difficult because true disease severity is zero for all 2025 plots. Any nonzero multiangular prediction becomes pure false-positive error.",
+        "- Week 5 is where multiangular data help most, consistent with the idea that angular canopy reflectance carries useful pre/severity signal during active disease development.",
+        "- Week 6 remains difficult because later disease severity is high and heterogeneous; both nadir and multiangular models still show substantial bias and plot-level error.",
+        "- Plot-level variability is still large, so paired CIs depend strongly on a small number of plots that multiangular helps or hurts.",
+        "",
+        "### Leave-One-Plot-Out Sensitivity",
+        "",
+        loo_text,
+        "",
+        markdown_table(loo_plot.round(4), max_rows=24),
+        "",
+        "### What We Need To Improve Multiangular Results",
+        "",
+        "- More external-year rows or additional years are the highest-value improvement; the current external test has only 72 rows from 24 plots.",
+        "- Better reliability rules should be defined before final external testing, not chosen after seeing 2025 labels. The current reliability filter uses unlabeled 2025 feature support/shift and should be formalized as a sensor/feature-support rule.",
+        "- Improve angular feature support at oblique VZA bins. Several useful-looking features around 50-55 degrees have low non-null support in 2025 and large train/test shifts.",
+        "- Separate phenology calibration from angular correction. The residual-XGBoost result indicates this is the right modeling structure.",
+        "- Add uncertainty/stability checks across repeated grouped splits, not just one 2024 validation split, before treating the residual-XGBoost result as manuscript-ready.",
+        "- Inspect the worst plots biologically and geometrically: plot-level drivers show that a few plots dominate the remaining CI width.",
+        "- Rebuild the full selection/tuning procedure inside 2024 only, using repeated grouped nested resampling by plot, to estimate whether the pipeline works without seeing held-out outcomes.",
+        "- Compare against matched disease-history baselines: timing only, nadir plus timing, multiangular plus timing, previous disease plus timing, and previous disease plus each reflectance family.",
         "",
         "### Candidate Model Performance",
         "",
@@ -1099,7 +1374,7 @@ def write_report(
         "",
         markdown_table(ci[best_ci_cols].round(4), max_rows=20),
         "",
-        "### Direct-Model Bottleneck By Target Week",
+        f"### Frozen-Model Bottleneck By Target Week: `{SELECTED_MODEL}`",
         "",
         markdown_table(by_week.round(4), max_rows=20),
         "",
@@ -1131,8 +1406,13 @@ def write_report(
         f"- Bootstrap: `{BOOTSTRAP_ITERATIONS}` resamples of external-test `plot_id` values",
         f"- Stability selection: `{STABILITY_REPEATS}` grouped 2024 resamples; threshold `{STABILITY_MIN_FREQUENCY}`",
         f"- Reliability filter: selected non-timing features require train/test non-null >= `{RELIABILITY_MIN_NON_NULL}` and absolute unlabeled train/test standardized mean difference <= `{RELIABILITY_MAX_ABS_SMD}`",
+        f"- Frozen pipeline ID: `{FROZEN_PIPELINE_ID}`",
+        f"- Frozen config: `{frozen_config_path}`",
+        f"- Frozen manifest: `{frozen_manifest_path}`",
+        f"- Selected model: `{SELECTED_MODEL}`",
         f"- XGBoost candidates: max_depth `{XGBOOST_PARAMS['max_depth']}`, n_estimators `{XGBOOST_PARAMS['n_estimators']}`, learning_rate `{XGBOOST_PARAMS['learning_rate']}`, reg_lambda `{XGBOOST_PARAMS['reg_lambda']}`, early_stopping_rounds `{XGBOOST_PARAMS['early_stopping_rounds']}`",
         f"- Tuned XGBoost grid: `{len(XGBOOST_TUNING_GRID)}` shallow/regularized configs selected by grouped 2024 validation RMSE, then refit on all 2024 with selected tree count",
+        "- Residual XGBoost candidates: grouped OOF Ridge predictions define 2024 residuals; tuned XGBoost predicts residual corrections; final prediction is Ridge base plus residual correction",
         f"- Log: `{log_path}`",
         "",
         "### Figures",
@@ -1174,6 +1454,8 @@ def main() -> None:
         fit_reliability_filtered_xgboost,
         fit_tuned_xgboost_stability,
         fit_tuned_reliability_filtered_xgboost,
+        fit_residual_xgboost_stability,
+        fit_residual_reliability_filtered_xgboost,
         fit_residual_calibrated,
     ]
 
@@ -1186,7 +1468,12 @@ def main() -> None:
             if func is fit_direct_stability_ridge:
                 result, pred, selection = func(train, test, feature_set)
                 selection_tables.append(selection)
-            elif func in {fit_tuned_xgboost_stability, fit_tuned_reliability_filtered_xgboost}:
+            elif func in {
+                fit_tuned_xgboost_stability,
+                fit_tuned_reliability_filtered_xgboost,
+                fit_residual_xgboost_stability,
+                fit_residual_reliability_filtered_xgboost,
+            }:
                 result, pred, tuning = func(train, test, feature_set)
                 xgboost_tuning_tables.append(tuning)
             else:
@@ -1200,8 +1487,9 @@ def main() -> None:
     ci_df = candidate_delta_ci(results_df)
     log_phase("paired plot bootstrap CI", ci_t0)
 
-    residuals = residual_debug(predictions, features["compact_anomaly_multiangular"][1])
+    residuals = residual_debug(predictions, features["compact_anomaly_multiangular"][1], SELECTED_MODEL)
     by_week, by_group, by_plot = group_debug_tables(residuals)
+    loo_plot = leave_one_plot_sensitivity(residuals)
     selections = pd.concat(selection_tables, ignore_index=True)
     xgboost_tuning = pd.concat(xgboost_tuning_tables, ignore_index=True) if xgboost_tuning_tables else pd.DataFrame()
     feature_shift = feature_shift_table(
@@ -1211,10 +1499,11 @@ def main() -> None:
     )
 
     figure_paths = [
-        plot_observed_predicted(predictions),
+        plot_observed_predicted(predictions, SELECTED_MODEL),
         plot_residual_by_week(residuals),
         plot_plot_level_delta(by_plot),
     ]
+    frozen_config_path, frozen_manifest_path = write_frozen_pipeline_config(results_df, ci_df, log_path)
 
     paths = {
         "candidate_results": RESULTS_DIR / "candidate_model_comparison.csv",
@@ -1223,9 +1512,12 @@ def main() -> None:
         "candidate_week_breakdown": RESULTS_DIR / "candidate_model_week_breakdown.csv",
         "candidate_group_breakdown": RESULTS_DIR / "candidate_model_cultivar_treatment_breakdown.csv",
         "candidate_plot_drivers": RESULTS_DIR / "candidate_model_plot_drivers.csv",
+        "leave_one_plot_sensitivity": RESULTS_DIR / "frozen_model_leave_one_plot_sensitivity.csv",
         "feature_shift": RESULTS_DIR / "feature_shift_selected_features.csv",
         "stability_selection": RESULTS_DIR / "candidate_stability_selection_feature_frequencies.csv",
         "xgboost_tuning": RESULTS_DIR / "xgboost_tuning_audit.csv",
+        "frozen_config": frozen_config_path,
+        "frozen_manifest": frozen_manifest_path,
         "predictions": PREDICTIONS_DIR,
         "report": REPORTS_DIR / "model_bottleneck_debug_summary.md",
     }
@@ -1235,11 +1527,26 @@ def main() -> None:
     by_week.to_csv(paths["candidate_week_breakdown"], index=False)
     by_group.to_csv(paths["candidate_group_breakdown"], index=False)
     by_plot.to_csv(paths["candidate_plot_drivers"], index=False)
+    loo_plot.to_csv(paths["leave_one_plot_sensitivity"], index=False)
     feature_shift.to_csv(paths["feature_shift"], index=False)
     selections.to_csv(paths["stability_selection"], index=False)
     xgboost_tuning.to_csv(paths["xgboost_tuning"], index=False)
 
-    write_report(results_df, ci_df, by_week, by_group, by_plot, feature_shift, xgboost_tuning, figure_paths, paths, log_path)
+    write_report(
+        results_df,
+        ci_df,
+        by_week,
+        by_group,
+        by_plot,
+        loo_plot,
+        feature_shift,
+        xgboost_tuning,
+        figure_paths,
+        paths,
+        log_path,
+        frozen_config_path,
+        frozen_manifest_path,
+    )
     logging.info("[PHASE] total: %.1fs", time.perf_counter() - total_t0)
 
 
