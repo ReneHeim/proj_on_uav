@@ -116,7 +116,9 @@ def build_tables():
 
 def evaluate_nadir_reference(train_nadir, test_nadir) -> tuple[dict[str, object], Path]:
     t0 = time.perf_counter()
-    result, predictions, _tuning = fit_residual_reliability_filtered_xgboost(train_nadir, test_nadir, NADIR_SET)
+    result, predictions, _tuning = fit_residual_reliability_filtered_xgboost(
+        train_nadir, test_nadir, NADIR_SET
+    )
     row = {
         "feature_set": NADIR_SET,
         "model_family": "frozen_style_residual_pipeline",
@@ -139,11 +141,17 @@ def evaluate_multiangular_curve(train_multi, test_multi) -> tuple[pl.DataFrame, 
     fixed_timing = timing_features(filtered_cols)
     ranked_reflectance = sorted_reliable_features(selection, filtered_cols)
     if not ranked_reflectance:
-        raise RuntimeError("No reliable compact multiangular reflectance features available for feature-count curve.")
+        raise RuntimeError(
+            "No reliable compact multiangular reflectance features available for feature-count curve."
+        )
 
     selection_out = selection.copy()
-    selection_out["selected_before_reliability_filter"] = selection_out["feature"].isin(selected_cols)
-    selection_out["retained_after_reliability_filter"] = selection_out["feature"].isin(filtered_cols)
+    selection_out["selected_before_reliability_filter"] = selection_out["feature"].isin(
+        selected_cols
+    )
+    selection_out["retained_after_reliability_filter"] = selection_out["feature"].isin(
+        filtered_cols
+    )
     selection_out["feature_rank_after_reliability"] = np.nan
     rank_map = {feature: rank + 1 for rank, feature in enumerate(ranked_reflectance)}
     selection_out.loc[
@@ -223,10 +231,18 @@ def plot_curve(results: pl.DataFrame, nadir_rmse: float) -> Path:
     fig, ax = plt.subplots(figsize=(7.4, 4.5))
     ax.plot(x, y_base, color="#8f8f8f", marker="o", lw=1.8, label="Ridge base only")
     ax.plot(x, y, color="#1f6f5b", marker="o", lw=2.4, label="Ridge + residual XGBoost")
-    ax.axhline(nadir_rmse, color="#b5453c", lw=1.8, ls="--", label=f"Nadir residual reference ({nadir_rmse:.2f})")
+    ax.axhline(
+        nadir_rmse,
+        color="#b5453c",
+        lw=1.8,
+        ls="--",
+        label=f"Nadir residual reference ({nadir_rmse:.2f})",
+    )
     ax.scatter([x[best_idx]], [y[best_idx]], s=90, color="#1f6f5b", edgecolor="white", zorder=5)
     if best_idx != full_idx:
-        ax.scatter([x[full_idx]], [y[full_idx]], s=80, color="#f0b44c", edgecolor="#3d3020", zorder=5)
+        ax.scatter(
+            [x[full_idx]], [y[full_idx]], s=80, color="#f0b44c", edgecolor="#3d3020", zorder=5
+        )
     if best_idx == full_idx:
         ax.annotate(
             f"best/full set: {y[best_idx]:.2f} RMSE\n{k_label(x[best_idx])}",
@@ -258,7 +274,10 @@ def plot_curve(results: pl.DataFrame, nadir_rmse: float) -> Path:
     ax.set_ylabel("External-year 2025 RMSE")
     ax.grid(axis="y", alpha=0.25)
     ax.legend(frameon=False, loc="upper right", fontsize=9)
-    ax.set_ylim(max(0.0, min(np.nanmin(y), np.nanmin(y_base), nadir_rmse) - 0.8), max(np.nanmax(y), np.nanmax(y_base), nadir_rmse) + 0.8)
+    ax.set_ylim(
+        max(0.0, min(np.nanmin(y), np.nanmin(y_base), nadir_rmse) - 0.8),
+        max(np.nanmax(y), np.nanmax(y_base), nadir_rmse) + 0.8,
+    )
     fig.tight_layout()
     path = FIGURES_DIR / "frozen_style_residual_rmse_by_compact_feature_count.png"
     fig.savefig(path, dpi=300)
@@ -271,7 +290,9 @@ def k_label(k: float) -> str:
     return f"{int(k)} compact features"
 
 
-def write_report(results: pl.DataFrame, nadir_row: dict[str, object], figure_path: Path, log_path: Path) -> Path:
+def write_report(
+    results: pl.DataFrame, nadir_row: dict[str, object], figure_path: Path, log_path: Path
+) -> Path:
     t0 = time.perf_counter()
     best = results.sort("rmse").row(0, named=True)
     full = results.sort("k_reflectance_features").row(-1, named=True)

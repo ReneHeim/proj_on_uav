@@ -30,7 +30,9 @@ from scripts.debug_multiangular_rmse_bottleneck import (  # noqa: E402
     load_cached_features,
     prepare_aligned,
 )
-from scripts.test_extra_compact_features_residual_pipeline import classify_candidates  # noqa: E402
+from scripts.test_extra_compact_features_residual_pipeline import (  # noqa: E402
+    classify_candidates,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -88,8 +90,12 @@ def add_cultivar_covariate(
         test = test.merge(test_meta, on="plot_id", how="left")
     if train["cult"].isna().any() or test["cult"].isna().any():
         raise RuntimeError("Could not map cultivar metadata back to aligned train/test rows.")
-    train["known__cultivar_capone"] = (train["cult"].astype(str).str.lower() == "capone").astype(float)
-    test["known__cultivar_capone"] = (test["cult"].astype(str).str.lower() == "capone").astype(float)
+    train["known__cultivar_capone"] = (train["cult"].astype(str).str.lower() == "capone").astype(
+        float
+    )
+    test["known__cultivar_capone"] = (test["cult"].astype(str).str.lower() == "capone").astype(
+        float
+    )
     return train, test, cols + ["known__cultivar_capone"]
 
 
@@ -100,7 +106,9 @@ def main() -> None:
 
     # Use the same accepted-first feature order used to identify the selected
     # 42-feature result. This ensures the only test change is adding cultivar.
-    candidates, timing_cols, ranked_reflectance, train_aligned, test_aligned = classify_candidates(train, test)
+    candidates, timing_cols, ranked_reflectance, train_aligned, test_aligned = classify_candidates(
+        train, test
+    )
     selected_cols = timing_cols + ranked_reflectance[:SELECTED_REFLECTANCE_FEATURES]
     train_cult, test_cult, selected_cols_with_cultivar = add_cultivar_covariate(
         train_aligned,
@@ -153,13 +161,18 @@ def main() -> None:
     pl.from_pandas(predictions).write_csv(prediction_path)
 
     report_path = REPORTS_DIR / "selected42_plus_cultivar_covariate_summary.md"
-    report_path.write_text(build_report(result_row, result_path, tuning_path, prediction_path, log_path), encoding="utf-8")
+    report_path.write_text(
+        build_report(result_row, result_path, tuning_path, prediction_path, log_path),
+        encoding="utf-8",
+    )
     logging.info("Result: %s", result_path)
     logging.info("Report: %s", report_path)
     log_phase("total runtime", started)
 
 
-def build_report(row: dict, result_path: Path, tuning_path: Path, prediction_path: Path, log_path: Path) -> str:
+def build_report(
+    row: dict, result_path: Path, tuning_path: Path, prediction_path: Path, log_path: Path
+) -> str:
     direction = "worse" if row["rmse_change_vs_original_selected42"] > 0 else "better"
     return f"""## Results: Selected Severity Model + Cultivar Covariate
 

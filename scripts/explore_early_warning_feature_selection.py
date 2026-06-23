@@ -20,7 +20,13 @@ import polars as pl
 from sklearn.base import clone
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.metrics import average_precision_score, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.metrics import (
+    average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
+    roc_auc_score,
+)
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -46,7 +52,9 @@ from scripts.analyze_cross_year_generalization_2024_to_2025 import (  # noqa: E4
     load_feature_sets_for_year,
 )
 
-OUTPUT_ROOT = ROOT / "outputs/cross_year_generalization_2024_to_2025/early_warning_feature_selection"
+OUTPUT_ROOT = (
+    ROOT / "outputs/cross_year_generalization_2024_to_2025/early_warning_feature_selection"
+)
 RESULTS_DIR = OUTPUT_ROOT / "results"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
 LOGS_DIR = ROOT / "outputs/logs"
@@ -92,8 +100,12 @@ def read_inputs() -> tuple[dict[str, object], dict[str, object]]:
     features_2025 = load_feature_sets_for_year(VZA_2025, RAA_2025)
     disease_2024 = load_2024_disease_with_fallback()
     disease_2025, _audit = load_2025_disease_with_fallback()
-    train_tables = {name: build_model_table(features_2024[name], disease_2024) for name in TARGET_FEATURE_SETS}
-    test_tables = {name: build_model_table(features_2025[name], disease_2025) for name in TARGET_FEATURE_SETS}
+    train_tables = {
+        name: build_model_table(features_2024[name], disease_2024) for name in TARGET_FEATURE_SETS
+    }
+    test_tables = {
+        name: build_model_table(features_2025[name], disease_2025) for name in TARGET_FEATURE_SETS
+    }
     log_phase("load features and disease tables", t0)
     return train_tables, test_tables
 
@@ -104,7 +116,9 @@ def stable_features_l1(train, cols: list[str], y: np.ndarray, groups: np.ndarray
     counts = {col: 0 for col in cols}
     total_fits = 0
     for repeat in range(STABILITY_REPEATS):
-        splitter = StratifiedGroupKFold(n_splits=STABILITY_SPLITS, shuffle=True, random_state=SEED + repeat)
+        splitter = StratifiedGroupKFold(
+            n_splits=STABILITY_SPLITS, shuffle=True, random_state=SEED + repeat
+        )
         for train_idx, _valid_idx in splitter.split(train[cols], y, groups=groups):
             if len(np.unique(y[train_idx])) < 2:
                 continue
@@ -133,15 +147,19 @@ def stable_features_l1(train, cols: list[str], y: np.ndarray, groups: np.ndarray
             total_fits += 1
     if total_fits == 0:
         raise RuntimeError("No valid stability-selection fits were completed.")
-    stability = pl.DataFrame(
-        {
-            "feature": list(counts),
-            "selected_fits": list(counts.values()),
-        }
-    ).with_columns(
-        (pl.col("selected_fits") / total_fits).alias("selection_frequency"),
-        pl.lit(total_fits).alias("total_fits"),
-    ).sort("selection_frequency", descending=True)
+    stability = (
+        pl.DataFrame(
+            {
+                "feature": list(counts),
+                "selected_fits": list(counts.values()),
+            }
+        )
+        .with_columns(
+            (pl.col("selected_fits") / total_fits).alias("selection_frequency"),
+            pl.lit(total_fits).alias("total_fits"),
+        )
+        .sort("selection_frequency", descending=True)
+    )
     log_phase("L1 stability selection", t0)
     return stability
 
@@ -213,7 +231,9 @@ def make_xgboost(y_train: np.ndarray) -> Pipeline:
     )
 
 
-def evaluate_model(model_name: str, train, test, cols: list[str], feature_set: str, selection_name: str) -> tuple[list[dict], pl.DataFrame]:
+def evaluate_model(
+    model_name: str, train, test, cols: list[str], feature_set: str, selection_name: str
+) -> tuple[list[dict], pl.DataFrame]:
     y_train = train[WARNING_TARGET].to_numpy(int)
     y_test = test[WARNING_TARGET].to_numpy(int)
     groups = train["plot_id"].to_numpy()
@@ -371,7 +391,9 @@ def main() -> None:
             if (model_name, feature_set) not in TARGET_MODEL_FEATURES:
                 continue
             for selection_name, selected_cols in selections.items():
-                rows, predictions = evaluate_model(model_name, train, test, selected_cols, feature_set, selection_name)
+                rows, predictions = evaluate_model(
+                    model_name, train, test, selected_cols, feature_set, selection_name
+                )
                 all_results.extend(rows)
                 all_predictions.append(predictions)
 

@@ -7,9 +7,9 @@ does not refit models, retune hyperparameters, or change feature-selection rules
 
 from __future__ import annotations
 
+import json
 import logging
 import math
-import json
 import shutil
 import time
 from datetime import datetime
@@ -18,7 +18,6 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 from scipy.stats import spearmanr
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
@@ -41,12 +40,8 @@ MULTI = "compact_anomaly_multiangular"
 COVARIATES = "spectral_plus_week_horizon"
 PIPELINE_ID = "multiangular_severity_residual_xgboost_v1"
 
-NADIR_PRED = SOURCE_PREDICTIONS / (
-    f"severity_predictions_{MODEL}_{NADIR}_{COVARIATES}.csv"
-)
-MULTI_PRED = SOURCE_PREDICTIONS / (
-    f"severity_predictions_{MODEL}_{MULTI}_{COVARIATES}.csv"
-)
+NADIR_PRED = SOURCE_PREDICTIONS / (f"severity_predictions_{MODEL}_{NADIR}_{COVARIATES}.csv")
+MULTI_PRED = SOURCE_PREDICTIONS / (f"severity_predictions_{MODEL}_{MULTI}_{COVARIATES}.csv")
 CANDIDATE_RESULTS = SOURCE_RESULTS / "candidate_model_comparison.csv"
 CANDIDATE_CI = SOURCE_RESULTS / "candidate_model_comparison_with_paired_ci.csv"
 LOO_SOURCE = SOURCE_RESULTS / "frozen_model_leave_one_plot_sensitivity.csv"
@@ -116,7 +111,9 @@ def regression_metrics(predictions: pl.DataFrame) -> dict[str, float]:
     ss_res = float(((y - yhat) ** 2).sum())
     ss_tot = float(((y - y_mean) ** 2).sum())
     rows["r2"] = 1 - ss_res / ss_tot if ss_tot else math.nan
-    rows["spearman"] = float(pl.DataFrame({"y": y, "yhat": yhat}).select(pl.corr("y", "yhat", method="spearman")).item())
+    rows["spearman"] = float(
+        pl.DataFrame({"y": y, "yhat": yhat}).select(pl.corr("y", "yhat", method="spearman")).item()
+    )
     return {k: float(v) if isinstance(v, (int, float)) else v for k, v in rows.items()}
 
 
@@ -197,14 +194,30 @@ def verified_feature_lists() -> tuple[list[str], list[str], list[str]]:
         .to_series()
         .to_list()
     )
-    logging.info("Verified retained nadir features (%d): %s", len(nadir_features), ", ".join(nadir_features))
-    logging.info("Verified retained multiangular features (%d): %s", len(multi_features), ", ".join(multi_features))
-    logging.info("Reliability-filtered removed multiangular features (%d): %s", len(removed_multi), ", ".join(removed_multi))
+    logging.info(
+        "Verified retained nadir features (%d): %s", len(nadir_features), ", ".join(nadir_features)
+    )
+    logging.info(
+        "Verified retained multiangular features (%d): %s",
+        len(multi_features),
+        ", ".join(multi_features),
+    )
+    logging.info(
+        "Reliability-filtered removed multiangular features (%d): %s",
+        len(removed_multi),
+        ", ".join(removed_multi),
+    )
     log_phase("verify retained feature lists from saved audits", t0)
     return nadir_features, multi_features, removed_multi
 
 
-def create_stage_frame(predictions: pl.DataFrame, feature_representation: str, stage: str, pred_col: str, n_features: int) -> pl.DataFrame:
+def create_stage_frame(
+    predictions: pl.DataFrame,
+    feature_representation: str,
+    stage: str,
+    pred_col: str,
+    n_features: int,
+) -> pl.DataFrame:
     return predictions.select(
         "plot_id",
         "predictor_week",
@@ -230,7 +243,9 @@ def paired_bootstrap_delta(
     )
     plot_ids = sorted(merged["plot_id"].unique().to_list())
     plot_to_idx = {
-        plot_id: np.asarray(merged.with_row_index().filter(pl.col("plot_id") == plot_id)["index"].to_list())
+        plot_id: np.asarray(
+            merged.with_row_index().filter(pl.col("plot_id") == plot_id)["index"].to_list()
+        )
         for plot_id in plot_ids
     }
     y = merged["y_true"].to_numpy()
@@ -301,12 +316,16 @@ def read_predictions() -> tuple[pl.DataFrame, pl.DataFrame]:
     logging.info("Formula: error = y_pred - y_true")
     logging.info("Formula: Ridge base stage uses base_pred from saved frozen prediction files")
     logging.info("Formula: final stage uses y_pred from saved frozen prediction files")
-    logging.info("Formula: XGBoost residual correction is xgb_residual_pred; final y_pred = base_pred + xgb_residual_pred")
+    logging.info(
+        "Formula: XGBoost residual correction is xgb_residual_pred; final y_pred = base_pred + xgb_residual_pred"
+    )
     logging.info("Formula: RMSE = sqrt(mean((prediction - y_true)^2))")
     logging.info("Formula: MAE = mean(abs(prediction - y_true))")
     logging.info("Formula: bias = mean(prediction - y_true)")
     logging.info("Formula: R2 = 1 - sum((y_true - prediction)^2) / sum((y_true - mean(y_true))^2)")
-    logging.info("Formula: reductions = baseline metric - candidate metric; positive means candidate improves")
+    logging.info(
+        "Formula: reductions = baseline metric - candidate metric; positive means candidate improves"
+    )
     log_phase("load frozen predictions", t0)
     return nadir, multi
 
@@ -360,12 +379,26 @@ def create_table_2a(nadir_features: list[str], multi_features: list[str]) -> pl.
     return table
 
 
-def create_stage_tables(nadir: pl.DataFrame, multi: pl.DataFrame, nadir_features: list[str], multi_features: list[str]) -> dict[str, pl.DataFrame]:
+def create_stage_tables(
+    nadir: pl.DataFrame, multi: pl.DataFrame, nadir_features: list[str], multi_features: list[str]
+) -> dict[str, pl.DataFrame]:
     return {
-        "ridge_nadir": create_stage_frame(nadir, "Nadir", "Frozen Ridge base", "base_pred", len(nadir_features)),
-        "ridge_multi": create_stage_frame(multi, "Multiangular", "Frozen Ridge base", "base_pred", len(multi_features)),
-        "final_nadir": create_stage_frame(nadir, "Nadir", "Frozen Ridge plus residual XGBoost", "y_pred", len(nadir_features)),
-        "final_multi": create_stage_frame(multi, "Multiangular", "Frozen Ridge plus residual XGBoost", "y_pred", len(multi_features)),
+        "ridge_nadir": create_stage_frame(
+            nadir, "Nadir", "Frozen Ridge base", "base_pred", len(nadir_features)
+        ),
+        "ridge_multi": create_stage_frame(
+            multi, "Multiangular", "Frozen Ridge base", "base_pred", len(multi_features)
+        ),
+        "final_nadir": create_stage_frame(
+            nadir, "Nadir", "Frozen Ridge plus residual XGBoost", "y_pred", len(nadir_features)
+        ),
+        "final_multi": create_stage_frame(
+            multi,
+            "Multiangular",
+            "Frozen Ridge plus residual XGBoost",
+            "y_pred",
+            len(multi_features),
+        ),
     }
 
 
@@ -384,18 +417,26 @@ def stage_metric_row(frame: pl.DataFrame, predictor_summary: str) -> dict:
     }
 
 
-def create_table_2b(stage_tables: dict[str, pl.DataFrame], comparisons: dict[str, dict]) -> pl.DataFrame:
+def create_table_2b(
+    stage_tables: dict[str, pl.DataFrame], comparisons: dict[str, dict]
+) -> pl.DataFrame:
     t0 = time.perf_counter()
     rows = [
         {
-            **stage_metric_row(stage_tables["ridge_nadir"], "Compact nadir reflectance features + predictor/target week"),
+            **stage_metric_row(
+                stage_tables["ridge_nadir"],
+                "Compact nadir reflectance features + predictor/target week",
+            ),
             "rmse_reduction_vs_matched_nadir": "Reference",
             "rmse_reduction_ci95": "Reference",
             "residual_correction_gain": "",
             "residual_correction_gain_ci95": "",
         },
         {
-            **stage_metric_row(stage_tables["ridge_multi"], "Reliability-filtered compact multiangular reflectance features + predictor/target week"),
+            **stage_metric_row(
+                stage_tables["ridge_multi"],
+                "Reliability-filtered compact multiangular reflectance features + predictor/target week",
+            ),
             "rmse_reduction_vs_matched_nadir": f"{comparisons['ridge_multi_vs_nadir']['rmse_reduction_observed']:.3f}",
             "rmse_reduction_ci95": format_ci(
                 comparisons["ridge_multi_vs_nadir"]["rmse_reduction_ci_low"],
@@ -405,7 +446,10 @@ def create_table_2b(stage_tables: dict[str, pl.DataFrame], comparisons: dict[str
             "residual_correction_gain_ci95": "",
         },
         {
-            **stage_metric_row(stage_tables["final_nadir"], "Compact nadir reflectance features + predictor/target week"),
+            **stage_metric_row(
+                stage_tables["final_nadir"],
+                "Compact nadir reflectance features + predictor/target week",
+            ),
             "rmse_reduction_vs_matched_nadir": "Reference",
             "rmse_reduction_ci95": "Reference",
             "residual_correction_gain": f"{comparisons['nadir_residual_vs_ridge']['rmse_reduction_observed']:.3f}",
@@ -415,7 +459,10 @@ def create_table_2b(stage_tables: dict[str, pl.DataFrame], comparisons: dict[str
             ),
         },
         {
-            **stage_metric_row(stage_tables["final_multi"], "Reliability-filtered compact multiangular reflectance features + predictor/target week"),
+            **stage_metric_row(
+                stage_tables["final_multi"],
+                "Reliability-filtered compact multiangular reflectance features + predictor/target week",
+            ),
             "rmse_reduction_vs_matched_nadir": f"{comparisons['final_multi_vs_nadir']['rmse_reduction_observed']:.3f}",
             "rmse_reduction_ci95": format_ci(
                 comparisons["final_multi_vs_nadir"]["rmse_reduction_ci_low"],
@@ -451,8 +498,12 @@ def create_table_3(nadir: pl.DataFrame, multi: pl.DataFrame) -> pl.DataFrame:
     table = (
         n.join(m, on="target_week")
         .with_columns(
-            (pl.col("nadir_rmse") - pl.col("multiangular_rmse")).alias("rmse_reduction_multiangular_vs_nadir"),
-            (pl.col("nadir_mae") - pl.col("multiangular_mae")).alias("mae_reduction_multiangular_vs_nadir"),
+            (pl.col("nadir_rmse") - pl.col("multiangular_rmse")).alias(
+                "rmse_reduction_multiangular_vs_nadir"
+            ),
+            (pl.col("nadir_mae") - pl.col("multiangular_mae")).alias(
+                "mae_reduction_multiangular_vs_nadir"
+            ),
             pl.when(pl.col("target_week") == 1)
             .then(pl.lit("All-zero target week; evaluates false-positive severity predictions"))
             .when(pl.col("target_week") == 5)
@@ -479,7 +530,9 @@ def create_table_3(nadir: pl.DataFrame, multi: pl.DataFrame) -> pl.DataFrame:
             "target_week_interpretation",
         )
         .sort("target_week")
-        .with_columns(pl.exclude("target_week", "n", "n_plots", "target_week_interpretation").round(3))
+        .with_columns(
+            pl.exclude("target_week", "n", "n_plots", "target_week_interpretation").round(3)
+        )
     )
     log_phase("create main table 3", t0)
     return table
@@ -499,11 +552,20 @@ def create_table_4() -> pl.DataFrame:
     table = pl.DataFrame(
         [
             {"diagnostic": "External plots", "result": str(total)},
-            {"diagnostic": "Exclusions with positive RMSE reduction", "result": f"{positive}/{total}"},
+            {
+                "diagnostic": "Exclusions with positive RMSE reduction",
+                "result": f"{positive}/{total}",
+            },
             {"diagnostic": "Full-sample RMSE reduction", "result": "1.207"},
-            {"diagnostic": "Leave-one-plot-out RMSE reduction range", "result": f"{rmse_min:.3f}-{rmse_max:.3f}"},
+            {
+                "diagnostic": "Leave-one-plot-out RMSE reduction range",
+                "result": f"{rmse_min:.3f}-{rmse_max:.3f}",
+            },
             {"diagnostic": "Median leave-one-plot-out RMSE reduction", "result": f"{rmse_med:.3f}"},
-            {"diagnostic": "Leave-one-plot-out MAE reduction range", "result": f"{mae_min:.3f}-{mae_max:.3f}"},
+            {
+                "diagnostic": "Leave-one-plot-out MAE reduction range",
+                "result": f"{mae_min:.3f}-{mae_max:.3f}",
+            },
             {"diagnostic": "Median leave-one-plot-out MAE reduction", "result": f"{mae_med:.3f}"},
         ]
     )
@@ -517,7 +579,10 @@ def create_incremental_gain_table(comparisons: dict[str, dict]) -> pl.DataFrame:
         ("Multiangular versus nadir at the Ridge stage", "ridge_multi_vs_nadir"),
         ("Residual correction versus Ridge base for nadir", "nadir_residual_vs_ridge"),
         ("Residual correction versus Ridge base for multiangular", "multi_residual_vs_ridge"),
-        ("Final multiangular residual model versus final nadir residual model", "final_multi_vs_nadir"),
+        (
+            "Final multiangular residual model versus final nadir residual model",
+            "final_multi_vs_nadir",
+        ),
     ]
     rows = []
     for label, key in specs:
@@ -526,7 +591,9 @@ def create_incremental_gain_table(comparisons: dict[str, dict]) -> pl.DataFrame:
             {
                 "comparison": label,
                 "rmse_reduction": round(item["rmse_reduction_observed"], 3),
-                "paired_ci95": format_ci(item["rmse_reduction_ci_low"], item["rmse_reduction_ci_high"]),
+                "paired_ci95": format_ci(
+                    item["rmse_reduction_ci_low"], item["rmse_reduction_ci_high"]
+                ),
                 "mae_reduction": round(item["mae_reduction_observed"], 3),
                 "delta_r2": round(item["delta_r2_observed"], 3),
                 "delta_spearman": round(item["delta_spearman_observed"], 3),
@@ -623,23 +690,38 @@ def write_report(
 ) -> Path:
     t0 = time.perf_counter()
     display2b = table2b.with_columns(
-        pl.when((pl.col("feature_representation") == "Multiangular") & (pl.col("model_stage").str.contains("residual XGBoost")))
+        pl.when(
+            (pl.col("feature_representation") == "Multiangular")
+            & (pl.col("model_stage").str.contains("residual XGBoost"))
+        )
         .then(pl.format("**{}**", pl.col("rmse").cast(pl.Utf8)))
         .otherwise(pl.col("rmse").cast(pl.Utf8))
         .alias("rmse"),
-        pl.when((pl.col("feature_representation") == "Multiangular") & (pl.col("model_stage").str.contains("residual XGBoost")))
+        pl.when(
+            (pl.col("feature_representation") == "Multiangular")
+            & (pl.col("model_stage").str.contains("residual XGBoost"))
+        )
         .then(pl.format("**{}**", pl.col("mae").cast(pl.Utf8)))
         .otherwise(pl.col("mae").cast(pl.Utf8))
         .alias("mae"),
-        pl.when((pl.col("feature_representation") == "Multiangular") & (pl.col("model_stage").str.contains("residual XGBoost")))
+        pl.when(
+            (pl.col("feature_representation") == "Multiangular")
+            & (pl.col("model_stage").str.contains("residual XGBoost"))
+        )
         .then(pl.format("**{}**", pl.col("r2").cast(pl.Utf8)))
         .otherwise(pl.col("r2").cast(pl.Utf8))
         .alias("r2"),
-        pl.when((pl.col("feature_representation") == "Multiangular") & (pl.col("model_stage").str.contains("residual XGBoost")))
+        pl.when(
+            (pl.col("feature_representation") == "Multiangular")
+            & (pl.col("model_stage").str.contains("residual XGBoost"))
+        )
         .then(pl.format("**{}**", pl.col("spearman").cast(pl.Utf8)))
         .otherwise(pl.col("spearman").cast(pl.Utf8))
         .alias("spearman"),
-        pl.when((pl.col("feature_representation") == "Multiangular") & (pl.col("model_stage").str.contains("residual XGBoost")))
+        pl.when(
+            (pl.col("feature_representation") == "Multiangular")
+            & (pl.col("model_stage").str.contains("residual XGBoost"))
+        )
         .then(pl.format("**{}**", pl.col("rmse_reduction_vs_matched_nadir")))
         .otherwise(pl.col("rmse_reduction_vs_matched_nadir"))
         .alias("rmse_reduction_vs_matched_nadir"),
@@ -742,22 +824,46 @@ def main() -> None:
     read_json(FROZEN_MANIFEST)
     nadir_features, multi_features, removed_multi = verified_feature_lists()
     nadir, multi = read_predictions()
-    if nadir.select(pl.col("base_pred").null_count()).item() or multi.select(pl.col("base_pred").null_count()).item():
-        raise RuntimeError("Frozen prediction files do not contain complete Ridge base predictions.")
+    if (
+        nadir.select(pl.col("base_pred").null_count()).item()
+        or multi.select(pl.col("base_pred").null_count()).item()
+    ):
+        raise RuntimeError(
+            "Frozen prediction files do not contain complete Ridge base predictions."
+        )
     stage_tables = create_stage_tables(nadir, multi, nadir_features, multi_features)
     plot_ids = sorted(nadir["plot_id"].unique().to_list())
     samples = bootstrap_samples(plot_ids)
     comparisons = {
-        "ridge_multi_vs_nadir": paired_bootstrap_delta(stage_tables["ridge_nadir"], stage_tables["ridge_multi"], samples),
-        "nadir_residual_vs_ridge": paired_bootstrap_delta(stage_tables["ridge_nadir"], stage_tables["final_nadir"], samples),
-        "multi_residual_vs_ridge": paired_bootstrap_delta(stage_tables["ridge_multi"], stage_tables["final_multi"], samples),
-        "final_multi_vs_nadir": paired_bootstrap_delta(stage_tables["final_nadir"], stage_tables["final_multi"], samples),
+        "ridge_multi_vs_nadir": paired_bootstrap_delta(
+            stage_tables["ridge_nadir"], stage_tables["ridge_multi"], samples
+        ),
+        "nadir_residual_vs_ridge": paired_bootstrap_delta(
+            stage_tables["ridge_nadir"], stage_tables["final_nadir"], samples
+        ),
+        "multi_residual_vs_ridge": paired_bootstrap_delta(
+            stage_tables["ridge_multi"], stage_tables["final_multi"], samples
+        ),
+        "final_multi_vs_nadir": paired_bootstrap_delta(
+            stage_tables["final_nadir"], stage_tables["final_multi"], samples
+        ),
     }
-    logging.info("Formula: paired bootstrap resamples plot_id values with replacement; the same %d sampled plot sets are used for every paired comparison", BOOTSTRAP_ITERATIONS)
-    logging.info("Formula: ridge_multi_vs_nadir = metrics(Frozen Ridge base Nadir) - metrics(Frozen Ridge base Multiangular)")
-    logging.info("Formula: nadir_residual_vs_ridge = metrics(Frozen Ridge base Nadir) - metrics(Frozen Ridge plus residual XGBoost Nadir)")
-    logging.info("Formula: multi_residual_vs_ridge = metrics(Frozen Ridge base Multiangular) - metrics(Frozen Ridge plus residual XGBoost Multiangular)")
-    logging.info("Formula: final_multi_vs_nadir = metrics(Frozen Ridge plus residual XGBoost Nadir) - metrics(Frozen Ridge plus residual XGBoost Multiangular)")
+    logging.info(
+        "Formula: paired bootstrap resamples plot_id values with replacement; the same %d sampled plot sets are used for every paired comparison",
+        BOOTSTRAP_ITERATIONS,
+    )
+    logging.info(
+        "Formula: ridge_multi_vs_nadir = metrics(Frozen Ridge base Nadir) - metrics(Frozen Ridge base Multiangular)"
+    )
+    logging.info(
+        "Formula: nadir_residual_vs_ridge = metrics(Frozen Ridge base Nadir) - metrics(Frozen Ridge plus residual XGBoost Nadir)"
+    )
+    logging.info(
+        "Formula: multi_residual_vs_ridge = metrics(Frozen Ridge base Multiangular) - metrics(Frozen Ridge plus residual XGBoost Multiangular)"
+    )
+    logging.info(
+        "Formula: final_multi_vs_nadir = metrics(Frozen Ridge plus residual XGBoost Nadir) - metrics(Frozen Ridge plus residual XGBoost Multiangular)"
+    )
     for name, values in comparisons.items():
         logging.info(
             "Comparison %s: RMSE reduction %.6f CI [%.6f, %.6f]; MAE reduction %.6f; delta R2 %.6f; delta Spearman %.6f",
@@ -781,8 +887,11 @@ def main() -> None:
         "main_table_2b": MAIN_DIR / "table_2b_frozen_model_component_performance_ladder.csv",
         "main_table_3": MAIN_DIR / "table_3_frozen_model_week_specific_performance.csv",
         "main_table_4": MAIN_DIR / "table_4_frozen_model_leave_one_plot_summary.csv",
-        "supplementary_table_s3_incremental_gain": SUPPLEMENT_DIR / "table_s3_incremental_model_component_gain.csv",
-        "supplementary_model_ladder": supplement_paths["table_s4_candidate_residual_model_ladder.csv"],
+        "supplementary_table_s3_incremental_gain": SUPPLEMENT_DIR
+        / "table_s3_incremental_model_component_gain.csv",
+        "supplementary_model_ladder": supplement_paths[
+            "table_s4_candidate_residual_model_ladder.csv"
+        ],
     }
     output_paths.update({name: path for name, path in supplement_paths.items()})
     table2a.write_csv(output_paths["main_table_2a"])

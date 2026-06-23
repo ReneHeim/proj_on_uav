@@ -33,7 +33,9 @@ from scripts.analyze_cross_year_generalization_2024_to_2025 import (  # noqa: E4
     load_2024_disease_with_fallback,
     load_2025_disease_with_fallback,
 )
-from scripts.analyze_multiangular_distribution_feature_family import STABILITY_MIN_FREQUENCY  # noqa: E402
+from scripts.analyze_multiangular_distribution_feature_family import (  # noqa: E402
+    STABILITY_MIN_FREQUENCY,
+)
 from scripts.debug_multiangular_rmse_bottleneck import (  # noqa: E402
     COVARIATES,
     fit_tuned_xgboost_residual_with_cols,
@@ -98,7 +100,11 @@ def classify_candidates(train, test) -> tuple[pl.DataFrame, list[str], list[str]
     reliability_pl = pl.from_pandas(reliability)
     candidates = (
         pl.DataFrame({"feature": cols})
-        .join(selection_pl.select(["feature", "selection_frequency", "mean_abs_elasticnet_coef"]), on="feature", how="left")
+        .join(
+            selection_pl.select(["feature", "selection_frequency", "mean_abs_elasticnet_coef"]),
+            on="feature",
+            how="left",
+        )
         .join(
             reliability_pl.select(
                 [
@@ -115,7 +121,9 @@ def classify_candidates(train, test) -> tuple[pl.DataFrame, list[str], list[str]
         .with_columns(
             [
                 pl.col("feature").str.starts_with("known__").alias("is_timing_covariate"),
-                (pl.col("selection_frequency") >= STABILITY_MIN_FREQUENCY).fill_null(False).alias("passes_stability_filter"),
+                (pl.col("selection_frequency") >= STABILITY_MIN_FREQUENCY)
+                .fill_null(False)
+                .alias("passes_stability_filter"),
                 pl.col("feature").is_in(selected_cols).alias("selected_by_current_stability_step"),
             ]
         )
@@ -167,7 +175,9 @@ def classify_candidates(train, test) -> tuple[pl.DataFrame, list[str], list[str]
     return candidates, timing, ranked_reflectance, train_aligned, test_aligned
 
 
-def evaluate_forced_topk(timing: list[str], ranked_reflectance: list[str], train_aligned, test_aligned) -> pl.DataFrame:
+def evaluate_forced_topk(
+    timing: list[str], ranked_reflectance: list[str], train_aligned, test_aligned
+) -> pl.DataFrame:
     t0 = time.perf_counter()
     rows: list[dict[str, object]] = []
     max_k = len(ranked_reflectance)
@@ -250,7 +260,13 @@ def plot_results(results: pl.DataFrame) -> Path:
     ax.scatter(x, y_base, s=8, color="#9a9a9a", alpha=0.48, zorder=2)
     ax.axvspan(1, 42, color="#1f6f5b", alpha=0.06, label="Selected feature region")
     ax.axvline(42, color="#b5453c", lw=1.5, ls="--", label="Selected count = 42")
-    ax.axhline(nadir_rmse, color="#c46d37", lw=1.5, ls=":", label=f"Nadir residual reference = {nadir_rmse:.2f}")
+    ax.axhline(
+        nadir_rmse,
+        color="#c46d37",
+        lw=1.5,
+        ls=":",
+        label=f"Nadir residual reference = {nadir_rmse:.2f}",
+    )
     ax.scatter([x[best_idx]], [y[best_idx]], s=95, color="#1f6f5b", edgecolor="white", zorder=6)
     ax.set_title("Exploratory forced feature inclusion: severity RMSE", fontsize=12)
     ax.set_xlabel("Forced compact multiangular reflectance features")
@@ -288,7 +304,13 @@ def format_value(value: object) -> str:
     return str(value)
 
 
-def write_report(candidates: pl.DataFrame, summary: pl.DataFrame, results: pl.DataFrame, figure_path: Path, log_path: Path) -> Path:
+def write_report(
+    candidates: pl.DataFrame,
+    summary: pl.DataFrame,
+    results: pl.DataFrame,
+    figure_path: Path,
+    log_path: Path,
+) -> Path:
     t0 = time.perf_counter()
     compact_results = (
         results.select(
@@ -317,7 +339,9 @@ def write_report(candidates: pl.DataFrame, summary: pl.DataFrame, results: pl.Da
     )
     accepted = candidates.filter(pl.col("decision") == "accepted").height
     discarded_stability = candidates.filter(pl.col("decision") == "discarded_by_stability").height
-    discarded_reliability = candidates.filter(pl.col("decision") == "discarded_by_reliability").height
+    discarded_reliability = candidates.filter(
+        pl.col("decision") == "discarded_by_reliability"
+    ).height
     best = results.sort("rmse").row(0, named=True)
     report = f"""## Results: Extra Compact Feature Inclusion Diagnostic
 
@@ -366,7 +390,9 @@ def main() -> None:
     log_path = setup_logging()
     started = time.perf_counter()
     train, test = load_tables()
-    candidates, timing, ranked_reflectance, train_aligned, test_aligned = classify_candidates(train, test)
+    candidates, timing, ranked_reflectance, train_aligned, test_aligned = classify_candidates(
+        train, test
+    )
     summary = summarize_candidates(candidates)
     candidates_path = RESULTS_DIR / "exploratory_extra_compact_feature_acceptance.csv"
     summary_path = RESULTS_DIR / "exploratory_extra_compact_feature_acceptance_summary.csv"

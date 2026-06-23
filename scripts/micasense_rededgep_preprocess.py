@@ -108,10 +108,7 @@ def compute_warps(
         # a band has too few valid SIFT matches and the calibrated fallback is used.
         alignment_method = "calibrated_fallback_after_sift_failure"
         alignment_warning = repr(exc)
-        print(
-            "SIFT alignment failed; using calibrated camera warp matrices "
-            f"for {seed}: {exc}"
-        )
+        print("SIFT alignment failed; using calibrated camera warp matrices " f"for {seed}: {exc}")
         warps = cap.get_warp_matrices(ref_index=5)
     meta = {
         "alignment_seed": str(seed),

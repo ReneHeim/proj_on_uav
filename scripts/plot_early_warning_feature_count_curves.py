@@ -45,7 +45,9 @@ from scripts.explore_early_warning_feature_selection import (  # noqa: E402
     stable_features_l1,
 )
 
-OUTPUT_ROOT = ROOT / "outputs/cross_year_generalization_2024_to_2025/early_warning_feature_selection"
+OUTPUT_ROOT = (
+    ROOT / "outputs/cross_year_generalization_2024_to_2025/early_warning_feature_selection"
+)
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
@@ -84,8 +86,12 @@ def load_tables() -> tuple[dict[str, object], dict[str, object]]:
     features_2025 = load_feature_sets_for_year(VZA_2025, RAA_2025)
     disease_2024 = load_2024_disease_with_fallback()
     disease_2025, _audit = load_2025_disease_with_fallback()
-    train_tables = {name: build_model_table(features_2024[name], disease_2024) for name in FEATURE_SETS}
-    test_tables = {name: build_model_table(features_2025[name], disease_2025) for name in FEATURE_SETS}
+    train_tables = {
+        name: build_model_table(features_2024[name], disease_2024) for name in FEATURE_SETS
+    }
+    test_tables = {
+        name: build_model_table(features_2025[name], disease_2025) for name in FEATURE_SETS
+    }
     log_phase("load and join feature/target tables", t0)
     return train_tables, test_tables
 
@@ -183,7 +189,9 @@ def plot_one_family(results: pl.DataFrame, feature_set: str) -> Path:
             label=model.capitalize(),
         )
         best = subset.sort("f1", descending=True).row(0, named=True)
-        ax.scatter(best["k_features"], best["f1"], s=92, color=colors[model], edgecolor="black", zorder=5)
+        ax.scatter(
+            best["k_features"], best["f1"], s=92, color=colors[model], edgecolor="black", zorder=5
+        )
         ax.annotate(
             f"best k={best['k_features']}\nF1={best['f1']:.3f}",
             xy=(best["k_features"], best["f1"]),
@@ -192,7 +200,9 @@ def plot_one_family(results: pl.DataFrame, feature_set: str) -> Path:
             fontsize=8,
             color="#242424",
         )
-    ax.set_title(f"Early-warning F1 versus selected features: {label}", fontsize=12, fontweight="bold")
+    ax.set_title(
+        f"Early-warning F1 versus selected features: {label}", fontsize=12, fontweight="bold"
+    )
     ax.set_xlabel("Number of top stability-ranked features")
     ax.set_ylabel("External 2025 F1 score")
     ax.set_ylim(0.15, 0.86)
@@ -218,14 +228,32 @@ def markdown_table(df: pl.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def write_report(results: pl.DataFrame, figure_paths: list[Path], results_path: Path, stability_paths: list[Path], log_path: Path) -> Path:
+def write_report(
+    results: pl.DataFrame,
+    figure_paths: list[Path],
+    results_path: Path,
+    stability_paths: list[Path],
+    log_path: Path,
+) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     best = (
         results.sort("f1", descending=True)
         .group_by(["feature_label", "model"])
         .head(1)
         .sort(["feature_label", "model"])
-        .select(["feature_label", "model", "k_features", "f1", "balanced_accuracy", "recall", "precision", "specificity", "threshold"])
+        .select(
+            [
+                "feature_label",
+                "model",
+                "k_features",
+                "f1",
+                "balanced_accuracy",
+                "recall",
+                "precision",
+                "specificity",
+                "threshold",
+            ]
+        )
         .with_columns(pl.selectors.numeric().round(3))
     )
     report_path = REPORTS_DIR / "early_warning_f1_by_feature_count_summary.md"

@@ -94,8 +94,12 @@ def load_tables() -> tuple[dict[str, object], dict[str, object]]:
     features_2025 = load_feature_sets_for_year(VZA_2025, RAA_2025)
     disease_2024 = load_2024_disease_with_fallback()
     disease_2025, _audit = load_2025_disease_with_fallback()
-    train_tables = {name: build_model_table(features_2024[name], disease_2024) for name in FEATURE_SETS}
-    test_tables = {name: build_model_table(features_2025[name], disease_2025) for name in FEATURE_SETS}
+    train_tables = {
+        name: build_model_table(features_2024[name], disease_2024) for name in FEATURE_SETS
+    }
+    test_tables = {
+        name: build_model_table(features_2025[name], disease_2025) for name in FEATURE_SETS
+    }
     log_phase("load and join feature/target tables", t0)
     return train_tables, test_tables
 
@@ -116,7 +120,9 @@ def ridge_stability_ranking(train, cols: list[str]) -> pl.DataFrame:
     for repeat in range(20):
         # GroupKFold itself is deterministic; shuffle group labels outside the splitter.
         rng = np.random.default_rng(SEED + repeat)
-        shuffled_group_labels = dict(zip(unique_groups, rng.permutation(unique_groups), strict=False))
+        shuffled_group_labels = dict(
+            zip(unique_groups, rng.permutation(unique_groups), strict=False)
+        )
         pseudo_groups = np.array([shuffled_group_labels[g] for g in groups])
         splitter = GroupKFold(n_splits=n_splits)
         for train_idx, _valid_idx in splitter.split(train[cols], y, groups=pseudo_groups):
@@ -201,7 +207,10 @@ def fit_xgboost(train, test, cols: list[str]) -> dict[str, float]:
     pred = model.predict(x_test)
     pred = np.clip(pred, float(np.nanmin(y_train)), float(np.nanmax(y_train)))
     predict_time = time.time() - pred_t0
-    return regression_metrics(y_test, pred) | {"fit_time_s": fit_time, "predict_time_s": predict_time}
+    return regression_metrics(y_test, pred) | {
+        "fit_time_s": fit_time,
+        "predict_time_s": predict_time,
+    }
 
 
 def regression_metrics(y: np.ndarray, pred: np.ndarray) -> dict[str, float]:
@@ -219,7 +228,9 @@ def run_curves() -> tuple[pl.DataFrame, list[Path], Path]:
     ranking_paths: list[Path] = []
 
     for feature_set, label in FEATURE_SETS.items():
-        angular_cols, train, test = align_train_test(train_tables[feature_set], test_tables[feature_set])
+        angular_cols, train, test = align_train_test(
+            train_tables[feature_set], test_tables[feature_set]
+        )
         ranking = ridge_stability_ranking(train, angular_cols)
         ranking_path = RESULTS_DIR / f"severity_feature_count_ranking_{feature_set}.csv"
         ranking.write_csv(ranking_path)
@@ -230,7 +241,9 @@ def run_curves() -> tuple[pl.DataFrame, list[Path], Path]:
             selected_angular = ranked_cols[:k]
             train_k = train.copy()
             test_k = test.copy()
-            train_k, test_k, model_cols = add_known_covariates(train_k, test_k, selected_angular, "spectral_plus_week_horizon")
+            train_k, test_k, model_cols = add_known_covariates(
+                train_k, test_k, selected_angular, "spectral_plus_week_horizon"
+            )
             for model_name in MODELS:
                 fit_fn = fit_ridge if model_name == "ridge" else fit_xgboost
                 metrics = fit_fn(train_k, test_k, model_cols)
@@ -270,7 +283,14 @@ def plot_one_family(results: pl.DataFrame, feature_set: str) -> Path:
             label="Ridge" if model == "ridge" else "XGBoost",
         )
         best = subset.sort("rmse").row(0, named=True)
-        ax.scatter(best["k_angular_features"], best["rmse"], s=92, color=colors[model], edgecolor="black", zorder=5)
+        ax.scatter(
+            best["k_angular_features"],
+            best["rmse"],
+            s=92,
+            color=colors[model],
+            edgecolor="black",
+            zorder=5,
+        )
         ax.annotate(
             f"best k={best['k_angular_features']}\nRMSE={best['rmse']:.2f}",
             xy=(best["k_angular_features"], best["rmse"]),
@@ -304,14 +324,31 @@ def markdown_table(df: pl.DataFrame) -> str:
     return "\n".join(lines)
 
 
-def write_report(results: pl.DataFrame, figure_paths: list[Path], results_path: Path, ranking_paths: list[Path], log_path: Path) -> Path:
+def write_report(
+    results: pl.DataFrame,
+    figure_paths: list[Path],
+    results_path: Path,
+    ranking_paths: list[Path],
+    log_path: Path,
+) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     best = (
         results.sort("rmse")
         .group_by(["feature_label", "model"])
         .head(1)
         .sort(["feature_label", "model"])
-        .select(["feature_label", "model", "k_angular_features", "n_total_features", "rmse", "mae", "r2", "spearman"])
+        .select(
+            [
+                "feature_label",
+                "model",
+                "k_angular_features",
+                "n_total_features",
+                "rmse",
+                "mae",
+                "r2",
+                "spearman",
+            ]
+        )
         .with_columns(pl.selectors.numeric().round(3))
     )
     report_path = REPORTS_DIR / "severity_rmse_by_feature_count_summary.md"
