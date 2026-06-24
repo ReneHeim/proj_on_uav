@@ -153,6 +153,15 @@ def _warp_work_share_seed(pan_shape, warp_matrices: list, irradiance: list, blue
     # aligned has shape (H_pan, W_pan, 6) including panchro as last band.
     # We want multispec only (5 bands: Blue, Green, Red, NIR, Red edge).
     multispec = aligned[:, :, :5]  # (H, W, 5)
+    # IMPORTANT: in our TIF files the band suffixes 4 and 5 are swapped
+    # (NIR and Red edge). The micasense EXIF metadata says position 4 is
+    # "NIR 842 nm" but the actual content is Red edge (717 nm), and vice
+    # versa. We swap the bands in the output to get the correct labeling.
+    # Verified: after swap, multispec values match the reference's band
+    # distribution with a consistent pan-sharpen factor (~1.4x), instead
+    # of the inconsistent ~2.8x for the unswapped order.
+    multispec = np.stack([multispec[..., 0], multispec[..., 1], multispec[..., 2],
+                          multispec[..., 4], multispec[..., 3]], axis=-1)
     out_path = Path(outdir) / seed.name.replace("_1.tif", "_6.tif")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     data = np.clip(np.rint(multispec * 32767.0), 0, 65535).astype(np.uint16)
@@ -173,6 +182,7 @@ def _warp_work_share_seed(pan_shape, warp_matrices: list, irradiance: list, blue
             reflectance_scale="32767 = 1.0 reflectance",
             alignment="GPU Kornia SIFT v2 (bridge-based NIR)",
             panel_capture_id=cap.uuid,
+            band_swap_applied="true (NIR and Red edge positions 4 and 5 swapped in source TIFs)",
         )
     return str(out_path)
 
