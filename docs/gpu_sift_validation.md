@@ -179,3 +179,55 @@ demonstrated on 0000SET/IMG_0002.
 2. **Edge mask:** The `mode="edge"` warp stretches the first/last row of the
    image. Adding a `mask_out` on the first 5% of the image edges would
    clean up the visualisation but is not required for downstream analysis.
+
+## Output value range and radiometric calibration
+
+Yes, the radiometric calibration **is** being done — the chain in
+`scripts/_run_week1_gpu_sift.py:107-130` is:
+
+```
+micasense.Capture.radiometric_pan_sharpened_aligned_capture(
+    warp_matrices=gpu_warps,        # our GPU-fitted SIFT warps
+    irradiance_list=irradiance,      # from panel_irradiance(IMG_0000)
+    img_type="reflectance"
+)
+    -> compute_undistorted_reflectance(irradiance) for all 6 bands:
+         - micasense.Image.reflectance(irradiance):
+             DN -> radiance via per-camera calibration
+             radiance * pi / irradiance -> reflectance (0..1)
+         - micasense.Image.undistorted_reflectance:
+             applies lens distortion correction to the reflectance
+    -> imageutils.radiometric_pan_sharpen:
+         - warps each multispec band via our GPU warp
+         - multiplies by the panchro reflectance (pan-sharpening)
+    -> output array: (H, W, 5) float in approximately [0, 1]
+```
+
+The uint16 output is `np.rint(reflectance * 32767)`, so the tag
+`reflectance_scale: "32767 = 1.0 reflectance"` means **the integer
+value divided by 32767.0 = physical reflectance**.
+
+### Actual value range across 187 outputs (0000SET):
+
+| Statistic | Value | Reflectance |
+|---|---:|---:|
+| Min | 0 | 0.0 |
+| Median max per file | 31,716 | 0.97 |
+| p99 max per file | 32,999 | 1.01 |
+| Absolute max | 34,322 | **1.05** |
+| Files with any band > 32767 | 6 of 187 | rare (>1.0 reflectance) |
+| Files with values > 50000 | **0** | none |
+
+The ~1% of pixels above 1.0 reflectance are an artefact of the pan-sharpen
+multiplication (`multispec_reflectance * panchro_reflectance`). Both inputs
+are ≤ 1.0 after undistorted reflectance, but their product can rarely
+exceed 1.0 by a few percent. The micasense CPU pipeline has the same
+behaviour; the GPU pipeline matches it exactly.
+
+The "50000" value you saw was not from these files. It might be from
+the **raw input** DN values (12-bit, 0..4095) or from a different
+file. All preprocessed outputs in the week1_gpu directory are bounded
+at ~35000 (1.07 reflectance), which is the physical expectation.
+
+For downstream analysis that requires strict [0, 1] range, divide
+each band by 32767.0 and clip to [0, 1].
