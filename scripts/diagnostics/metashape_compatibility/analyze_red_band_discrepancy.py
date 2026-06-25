@@ -165,7 +165,9 @@ def analyze_pair(
     custom_base = valid_mask(custom_crop, min_reflectance, max_reflectance)
     ref_veg = vegetation_mask(ref_crop, ref_base, ndre_min)
     custom_veg = vegetation_mask(custom_crop, custom_base, ndre_min)
-    ref_soil = soil_like_mask(ref_crop, ref_base, ndvi_soil_max, ndre_soil_max, nir_rededge_soil_max)
+    ref_soil = soil_like_mask(
+        ref_crop, ref_base, ndvi_soil_max, ndre_soil_max, nir_rededge_soil_max
+    )
     custom_soil = soil_like_mask(
         custom_crop,
         custom_base,
@@ -196,9 +198,11 @@ def analyze_pair(
                     "custom_pixels": int(custom_mask.sum()),
                     "reference_median": ref_summary["median"],
                     "custom_median": custom_summary["median"],
-                    "custom_over_reference_median": custom_summary["median"] / ref_summary["median"]
-                    if ref_summary["median"] and np.isfinite(ref_summary["median"])
-                    else math.nan,
+                    "custom_over_reference_median": (
+                        custom_summary["median"] / ref_summary["median"]
+                        if ref_summary["median"] and np.isfinite(ref_summary["median"])
+                        else math.nan
+                    ),
                     "reference_p25": ref_summary["p25"],
                     "reference_p75": ref_summary["p75"],
                     "custom_p25": custom_summary["p25"],
@@ -226,14 +230,35 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def plot_pair(path: Path, week: str, capture: str, arrays: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]) -> None:
+def plot_pair(
+    path: Path,
+    week: str,
+    capture: str,
+    arrays: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray],
+) -> None:
     ref, custom, ref_mask, custom_mask = arrays
     metrics = [
         ("Red", ref[2][ref_mask], custom[2][custom_mask]),
         ("Green", ref[1][ref_mask], custom[1][custom_mask]),
-        ("Red/Green", ref[2][ref_mask] / np.maximum(ref[1][ref_mask], 1e-6), custom[2][custom_mask] / np.maximum(custom[1][custom_mask], 1e-6)),
-        ("NDVI", (ref[4][ref_mask] - ref[2][ref_mask]) / np.maximum(ref[4][ref_mask] + ref[2][ref_mask], 1e-6), (custom[4][custom_mask] - custom[2][custom_mask]) / np.maximum(custom[4][custom_mask] + custom[2][custom_mask], 1e-6)),
-        ("NDRE", (ref[4][ref_mask] - ref[3][ref_mask]) / np.maximum(ref[4][ref_mask] + ref[3][ref_mask], 1e-6), (custom[4][custom_mask] - custom[3][custom_mask]) / np.maximum(custom[4][custom_mask] + custom[3][custom_mask], 1e-6)),
+        (
+            "Red/Green",
+            ref[2][ref_mask] / np.maximum(ref[1][ref_mask], 1e-6),
+            custom[2][custom_mask] / np.maximum(custom[1][custom_mask], 1e-6),
+        ),
+        (
+            "NDVI",
+            (ref[4][ref_mask] - ref[2][ref_mask])
+            / np.maximum(ref[4][ref_mask] + ref[2][ref_mask], 1e-6),
+            (custom[4][custom_mask] - custom[2][custom_mask])
+            / np.maximum(custom[4][custom_mask] + custom[2][custom_mask], 1e-6),
+        ),
+        (
+            "NDRE",
+            (ref[4][ref_mask] - ref[3][ref_mask])
+            / np.maximum(ref[4][ref_mask] + ref[3][ref_mask], 1e-6),
+            (custom[4][custom_mask] - custom[3][custom_mask])
+            / np.maximum(custom[4][custom_mask] + custom[3][custom_mask], 1e-6),
+        ),
     ]
     fig, axes = plt.subplots(1, len(metrics), figsize=(17, 3.6), constrained_layout=True)
     for ax, (label, ref_values, custom_values) in zip(axes, metrics):
@@ -264,7 +289,9 @@ def markdown_table(rows: list[dict]) -> str:
         "custom_median",
         "custom_over_reference_median",
     ]
-    selected = [row for row in rows if row["metric"] in {"Red", "Green", "Red/Green", "NDVI", "NDRE"}]
+    selected = [
+        row for row in rows if row["metric"] in {"Red", "Green", "Red/Green", "NDVI", "NDRE"}
+    ]
     lines = ["| " + " | ".join(columns) + " |", "| " + " | ".join(["---"] * len(columns)) + " |"]
     for row in selected:
         values = []
@@ -275,7 +302,9 @@ def markdown_table(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def write_report(path: Path, rows: list[dict], figures: list[Path], args: argparse.Namespace, log_path: Path) -> None:
+def write_report(
+    path: Path, rows: list[dict], figures: list[Path], args: argparse.Namespace, log_path: Path
+) -> None:
     text = f"""## Results: Red Band Discrepancy Diagnostic
 
 {markdown_table(rows)}
@@ -313,7 +342,9 @@ def main() -> int:
     parser.add_argument("--nir-rededge-soil-max", type=float, default=1.7)
     parser.add_argument("--min-reflectance", type=float, default=1e-6)
     parser.add_argument("--max-reflectance", type=float, default=1.5)
-    parser.add_argument("--out-prefix", type=Path, default=Path("outputs/results/red_band_discrepancy"))
+    parser.add_argument(
+        "--out-prefix", type=Path, default=Path("outputs/results/red_band_discrepancy")
+    )
     args = parser.parse_args()
     log_path = setup_logging()
     t0 = time.perf_counter()

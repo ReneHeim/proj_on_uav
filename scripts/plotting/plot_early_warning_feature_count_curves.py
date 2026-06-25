@@ -24,6 +24,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.analysis.early_warning.explore_early_warning_feature_selection import (  # noqa: E402
+    make_logistic,
+    make_xgboost,
+    stable_features_l1,
+)
 from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import (  # noqa: E402
     RAA_2024,
     RAA_2025,
@@ -38,11 +43,6 @@ from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 im
     load_2024_disease_with_fallback,
     load_2025_disease_with_fallback,
     load_feature_sets_for_year,
-)
-from scripts.analysis.early_warning.explore_early_warning_feature_selection import (  # noqa: E402
-    make_logistic,
-    make_xgboost,
-    stable_features_l1,
 )
 
 OUTPUT_ROOT = (

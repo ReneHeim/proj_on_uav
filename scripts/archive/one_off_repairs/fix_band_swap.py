@@ -39,12 +39,17 @@ log = logging.getLogger("band_swap_fix")
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--indir", type=Path, required=True,
-                        help="Directory of *_6.tif preprocessed stacks")
-    parser.add_argument("--in-place", action="store_true",
-                        help="Overwrite original files (default: write *_swapped.tif)")
-    parser.add_argument("--pattern", default="*_6.tif",
-                        help="Glob pattern for files to fix (default *_6.tif)")
+    parser.add_argument(
+        "--indir", type=Path, required=True, help="Directory of *_6.tif preprocessed stacks"
+    )
+    parser.add_argument(
+        "--in-place",
+        action="store_true",
+        help="Overwrite original files (default: write *_swapped.tif)",
+    )
+    parser.add_argument(
+        "--pattern", default="*_6.tif", help="Glob pattern for files to fix (default *_6.tif)"
+    )
     args = parser.parse_args()
 
     files = sorted(args.indir.glob(args.pattern))

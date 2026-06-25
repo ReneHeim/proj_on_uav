@@ -47,7 +47,8 @@ from typing import Iterable
 import numpy as np
 import rasterio
 from PIL import Image
-from skimage.transform import ProjectiveTransform, warp as _sk_warp, resize
+from skimage.transform import ProjectiveTransform, resize
+from skimage.transform import warp as _sk_warp
 
 # micasense (base env, python 3.13)
 sys.path.insert(0, "/home/davidem/miniforge3/lib/python3.13/site-packages")
@@ -134,8 +135,10 @@ def panel_irradiance(panel_folder: Path, panel_seed: str = "IMG_0000") -> tuple[
 
 def run_gpu_sift_worker(capture_seed: Path, ref_index: int = 5) -> dict:
     """Spawn the v2 worker, return its JSON output."""
-    band_paths = [str(capture_seed.with_name(
-        capture_seed.name.replace("_1.tif", f"_{i}.tif"))) for i in (1, 2, 3, 4, 5, 6)]
+    band_paths = [
+        str(capture_seed.with_name(capture_seed.name.replace("_1.tif", f"_{i}.tif")))
+        for i in (1, 2, 3, 4, 5, 6)
+    ]
     cmd = [TORCH_CUDA_PYTHON, str(GPU_WORKER), str(ref_index)] + band_paths
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     if proc.returncode != 0:
@@ -159,16 +162,20 @@ def _warp_work_share_seed(
     Returns the output path on success.
     """
     import sys
+
     sys.path.insert(0, "/home/davidem/miniforge3/lib/python3.13/site-packages")
     import numpy as np
+
     np.mat = np.asmatrix
-    from micasense.capture import Capture
     from pathlib import Path
+
+    from micasense.capture import Capture
     from skimage.transform import ProjectiveTransform
 
     seed = Path(blue_path)
-    band_paths = [str(seed.with_name(seed.name.replace("_1.tif", f"_{i}.tif")))
-                  for i in (1, 2, 3, 4, 5, 6)]
+    band_paths = [
+        str(seed.with_name(seed.name.replace("_1.tif", f"_{i}.tif"))) for i in (1, 2, 3, 4, 5, 6)
+    ]
     cap = Capture.from_filelist(band_paths)
     # micasense expects warp_matrices as a list of ProjectiveTransform objects,
     # NOT a list of lists. Convert.
@@ -196,10 +203,16 @@ def _warp_work_share_seed(
     data = np.moveaxis(data, -1, 0)  # (5, H, W)
     H, W = data.shape[1], data.shape[2]
     profile = {
-        "driver": "GTiff", "height": H, "width": W, "count": 5,
-        "dtype": "uint16", "compress": "deflate", "tiled": True,
+        "driver": "GTiff",
+        "height": H,
+        "width": W,
+        "count": 5,
+        "dtype": "uint16",
+        "compress": "deflate",
+        "tiled": True,
     }
     import rasterio
+
     with rasterio.open(out_path, "w", **profile) as dst:
         dst.write(data)
         for i, n in enumerate(["Blue", "Green", "Red", "Red edge", "NIR"], start=1):
@@ -214,7 +227,10 @@ def _warp_work_share_seed(
             radiometry_mode=radiometry_mode,
             metashape_correction_json=correction_source or "",
             metashape_correction_factors=json.dumps(
-                {name: float(correction.get(name, 1.0)) for name in ("Blue", "Green", "Red", "Red edge", "NIR")},
+                {
+                    name: float(correction.get(name, 1.0))
+                    for name in ("Blue", "Green", "Red", "Red edge", "NIR")
+                },
                 sort_keys=True,
             ),
         )
@@ -260,21 +276,36 @@ target_shape_for_dummy = None
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--set", required=True, help="SET name (e.g. 0000SET)")
-    parser.add_argument("--input-root", type=Path, required=True,
-                        help="Root directory containing <SET>/000/ folders")
-    parser.add_argument("--outdir", type=Path, required=True,
-                        help="Output root directory; per-SET subdir will be created")
-    parser.add_argument("--panel-seed", default="IMG_0000",
-                        help="Panel capture name (default IMG_0000)")
-    parser.add_argument("--workers", type=int, default=8,
-                        help="Number of parallel workers")
-    parser.add_argument("--limit", type=int, default=0,
-                        help="Limit number of captures (0 = all)")
-    parser.add_argument("--ref-index", type=int, default=0,
-                        help="SIFT reference band index. 0 = Blue band 1 (only valid "
-                             "option for the v2 worker which excludes panchro from SIFT).")
-    parser.add_argument("--capture-list", type=Path, default=None,
-                        help="Optional capture list file (one capture per line)")
+    parser.add_argument(
+        "--input-root",
+        type=Path,
+        required=True,
+        help="Root directory containing <SET>/000/ folders",
+    )
+    parser.add_argument(
+        "--outdir",
+        type=Path,
+        required=True,
+        help="Output root directory; per-SET subdir will be created",
+    )
+    parser.add_argument(
+        "--panel-seed", default="IMG_0000", help="Panel capture name (default IMG_0000)"
+    )
+    parser.add_argument("--workers", type=int, default=8, help="Number of parallel workers")
+    parser.add_argument("--limit", type=int, default=0, help="Limit number of captures (0 = all)")
+    parser.add_argument(
+        "--ref-index",
+        type=int,
+        default=0,
+        help="SIFT reference band index. 0 = Blue band 1 (only valid "
+        "option for the v2 worker which excludes panchro from SIFT).",
+    )
+    parser.add_argument(
+        "--capture-list",
+        type=Path,
+        default=None,
+        help="Optional capture list file (one capture per line)",
+    )
     parser.add_argument(
         "--radiometry-mode",
         choices=("micasense_panel", "metashape_compatible"),
@@ -313,10 +344,12 @@ def main() -> int:
     except Exception as e:
         log.error("[FAIL] panel calibration: %s", e)
         return 2
-    log.info("[PHASE] Panel: %d/6 bands detected, irradiance=%s (%.1fs)",
-             panel_meta["panel_detected_bands"],
-             [f"{v:.4f}" for v in irradiance],
-             time.perf_counter() - t0)
+    log.info(
+        "[PHASE] Panel: %d/6 bands detected, irradiance=%s (%.1fs)",
+        panel_meta["panel_detected_bands"],
+        [f"{v:.4f}" for v in irradiance],
+        time.perf_counter() - t0,
+    )
 
     # Step 2: list captures
     if args.capture_list:
@@ -336,8 +369,7 @@ def main() -> int:
     pool = mp.Pool(processes=max(1, args.workers - 1))
     results = []
     failures = []
-    log.info("[PHASE] Starting per-capture processing (workers=%d, GPU sequential)",
-             args.workers)
+    log.info("[PHASE] Starting per-capture processing (workers=%d, GPU sequential)", args.workers)
     t_first_done = None
     for i, capture_name in enumerate(capture_names, start=1):
         seed = set_dir / "000" / capture_name
@@ -369,7 +401,7 @@ def main() -> int:
                     args.radiometry_mode,
                     correction,
                     str(args.metashape_correction_json) if args.metashape_correction_json else None,
-                )
+                ),
             )
             t_apply0 = time.perf_counter()
             out_path = async_result.get(timeout=120)
@@ -379,14 +411,16 @@ def main() -> int:
             failures.append({"seed": str(seed), "error": str(e)})
             continue
         t_cap = time.perf_counter() - t_cap0
-        results.append({
-            "seed": str(seed),
-            "output": out_path,
-            "n_inliers_total": n_inliers,
-            "t_sift_s": t_sift,
-            "t_apply_s": t_apply,
-            "t_total_s": t_cap,
-        })
+        results.append(
+            {
+                "seed": str(seed),
+                "output": out_path,
+                "n_inliers_total": n_inliers,
+                "t_sift_s": t_sift,
+                "t_apply_s": t_apply,
+                "t_total_s": t_cap,
+            }
+        )
         # Live progress: every 10 captures or first 5
         if i <= 5 or i % 10 == 0 or i == len(capture_names):
             t_elapsed = time.perf_counter() - t0
@@ -396,16 +430,27 @@ def main() -> int:
             log.info(
                 "[%d/%d] (%.1f%%) %s: SIFT=%.2fs apply=%.2fs total=%.2fs | "
                 "throughput=%.2f cap/s  ETA=%.0fs (%.1f min)",
-                i, len(capture_names), 100.0 * i / len(capture_names),
-                capture_name, t_sift, t_apply, t_cap,
-                throughput, eta_s, eta_s / 60,
+                i,
+                len(capture_names),
+                100.0 * i / len(capture_names),
+                capture_name,
+                t_sift,
+                t_apply,
+                t_cap,
+                throughput,
+                eta_s,
+                eta_s / 60,
             )
     pool.close()
     pool.join()
     t_total = time.perf_counter() - t0
-    log.info("[PHASE] Processed %d captures in %.1fs (%.2fs/capture mean, %.2f cap/s)",
-             len(results), t_total, t_total / max(1, len(results)),
-             len(results) / max(0.001, t_total))
+    log.info(
+        "[PHASE] Processed %d captures in %.1fs (%.2fs/capture mean, %.2f cap/s)",
+        len(results),
+        t_total,
+        t_total / max(1, len(results)),
+        len(results) / max(0.001, t_total),
+    )
 
     # Step 4: write summary
     summary = {
@@ -416,9 +461,9 @@ def main() -> int:
         "raw_band_order": list(RAW_MS_BAND_NAMES) + ["Panchro"],
         "output_band_order": list(METASHAPE_MS_BAND_NAMES),
         "radiometry_mode": args.radiometry_mode,
-        "metashape_correction_json": str(args.metashape_correction_json)
-        if args.metashape_correction_json
-        else None,
+        "metashape_correction_json": (
+            str(args.metashape_correction_json) if args.metashape_correction_json else None
+        ),
         "metashape_correction_factors": correction,
         "n_captures": len(capture_names),
         "n_processed": len(results),

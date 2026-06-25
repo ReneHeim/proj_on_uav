@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -62,8 +63,7 @@ def load_stack(path: Path) -> tuple[np.ndarray, dict]:
         arr = src.read().astype(np.float32) / 32767.0
         profile = dict(src.profile)
         tags = dict(src.tags())
-    log.info("[LOAD] %s shape=%s took=%.2fs",
-             path.name, arr.shape, time.perf_counter() - t0)
+    log.info("[LOAD] %s shape=%s took=%.2fs", path.name, arr.shape, time.perf_counter() - t0)
     return arr, {"profile": profile, "tags": tags}
 
 
@@ -74,8 +74,9 @@ def central_crop_mask(shape: tuple[int, int], crop_frac: float = 0.9) -> tuple[s
     return slice(dh, h - dh), slice(dw, w - dw)
 
 
-def per_band_metrics(gpu: np.ndarray, cpu: np.ndarray, crop: tuple[slice, slice],
-                     names: list[str]) -> dict:
+def per_band_metrics(
+    gpu: np.ndarray, cpu: np.ndarray, crop: tuple[slice, slice], names: list[str]
+) -> dict:
     """Compute 5 metrics per band, restricted to the central crop.
 
     Metrics:
@@ -90,6 +91,7 @@ def per_band_metrics(gpu: np.ndarray, cpu: np.ndarray, crop: tuple[slice, slice]
     MAD, frac_off) are reported as secondary diagnostics.
     """
     from skimage.metrics import structural_similarity as _ssim
+
     metrics = {}
     for i, name in enumerate(names):
         t0 = time.perf_counter()
@@ -97,7 +99,7 @@ def per_band_metrics(gpu: np.ndarray, cpu: np.ndarray, crop: tuple[slice, slice]
         b = cpu[i][crop].astype(np.float32)
         diff = a - b
         absdiff = np.abs(diff)
-        mse = float(np.mean(diff ** 2))
+        mse = float(np.mean(diff**2))
         psnr = 100.0 if mse < 1e-12 else 10.0 * np.log10(1.0 / mse)
         mad = float(np.mean(absdiff))
         frac_off = float(np.mean(absdiff > 0.01))
@@ -111,10 +113,16 @@ def per_band_metrics(gpu: np.ndarray, cpu: np.ndarray, crop: tuple[slice, slice]
             "similarity_99": 1.0 - frac_off,
             "ssim_similarity_99": ssim_val,  # alias
         }
-        log.info("[METRIC] band %d (%s) PSNR=%.2f dB MAD=%.4f frac_off=%.4f "
-                 "SSIM=%.4f took=%.3fs",
-                 i, name, psnr, mad, frac_off, ssim_val,
-                 time.perf_counter() - t0)
+        log.info(
+            "[METRIC] band %d (%s) PSNR=%.2f dB MAD=%.4f frac_off=%.4f " "SSIM=%.4f took=%.3fs",
+            i,
+            name,
+            psnr,
+            mad,
+            frac_off,
+            ssim_val,
+            time.perf_counter() - t0,
+        )
     return metrics
 
 
@@ -133,6 +141,7 @@ def subpixel_shift_2d(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     if a.shape != b.shape:
         # resize to common shape
         from skimage.transform import resize
+
         if a.shape != b.shape:
             b = resize(b, a.shape, preserve_range=True).astype(np.float32)
     a_n = a - a.mean()
@@ -181,13 +190,13 @@ def per_band_shift(gpu: np.ndarray, cpu: np.ndarray, names: list[str]) -> dict:
     avg_cpu = np.mean(cpu, axis=0)
     log.info("[SHIFT] using average of 5 bands for sub-pixel shift estimation")
     dy, dx = subpixel_shift_2d(avg_gpu, avg_cpu)
-    out = {name: {"dy_px": dy, "dx_px": dx, "mag_px": float(np.hypot(dy, dx))}
-           for name in names}
+    out = {name: {"dy_px": dy, "dx_px": dx, "mag_px": float(np.hypot(dy, dx))} for name in names}
     return out
 
 
-def make_diff_mosaic(gpu: np.ndarray, cpu: np.ndarray, out_path: Path,
-                     title: str, names: list[str]) -> None:
+def make_diff_mosaic(
+    gpu: np.ndarray, cpu: np.ndarray, out_path: Path, title: str, names: list[str]
+) -> None:
     """Side-by-side: GPU band | CPU band | |GPU - CPU| heatmap, for non-ref bands."""
     non_ref = [i for i in range(5) if i != 3]  # exclude NIR as "ref" (for visualisation)
     fig, axes = plt.subplots(3, len(non_ref), figsize=(3.2 * len(non_ref), 9.0))
@@ -212,8 +221,9 @@ def make_diff_mosaic(gpu: np.ndarray, cpu: np.ndarray, out_path: Path,
     log.info("[PLOT] %s", out_path)
 
 
-def make_shift_heatmap(gpu: np.ndarray, cpu: np.ndarray, out_path: Path,
-                       title: str, names: list[str]) -> None:
+def make_shift_heatmap(
+    gpu: np.ndarray, cpu: np.ndarray, out_path: Path, title: str, names: list[str]
+) -> None:
     """Per-band |GPU - CPU| heatmaps with shared vmax, in a single row."""
     n = len(names)
     fig, axes = plt.subplots(1, n, figsize=(3.0 * n, 3.6))
@@ -224,8 +234,9 @@ def make_shift_heatmap(gpu: np.ndarray, cpu: np.ndarray, out_path: Path,
         ax.imshow(d, cmap="magma", vmin=0, vmax=vmax)
         ax.set_title(f"{name}", fontsize=10)
         ax.axis("off")
-    fig.colorbar(axes[-1].images[0], ax=axes.tolist(), shrink=0.7,
-                 label="|GPU - CPU| (reflectance)")
+    fig.colorbar(
+        axes[-1].images[0], ax=axes.tolist(), shrink=0.7, label="|GPU - CPU| (reflectance)"
+    )
     fig.suptitle(title, fontsize=11, fontweight="bold")
     fig.tight_layout()
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -234,8 +245,7 @@ def make_shift_heatmap(gpu: np.ndarray, cpu: np.ndarray, out_path: Path,
     log.info("[PLOT] %s", out_path)
 
 
-def write_markdown_summary(metrics: dict, shifts: dict, out_path: Path,
-                           args, target: dict) -> None:
+def write_markdown_summary(metrics: dict, shifts: dict, out_path: Path, args, target: dict) -> None:
     """Write paper-grade markdown table."""
     names = list(metrics.keys())
     lines = [
@@ -265,10 +275,16 @@ def write_markdown_summary(metrics: dict, shifts: dict, out_path: Path,
         mad_ok = "OK" if m["mad"] < target["mad"] else "FAIL"
         sim_ok = "OK" if m["similarity_99"] > target["similarity_99"] else "FAIL"
         shift_ok = "OK" if s["mag_px"] < target["shift_px"] else "FAIL"
-        verdict = "PASS" if (m["psnr_db"] > target["psnr_db"]
-                             and m["mad"] < target["mad"]
-                             and m["similarity_99"] > target["similarity_99"]
-                             and s["mag_px"] < target["shift_px"]) else "FAIL"
+        verdict = (
+            "PASS"
+            if (
+                m["psnr_db"] > target["psnr_db"]
+                and m["mad"] < target["mad"]
+                and m["similarity_99"] > target["similarity_99"]
+                and s["mag_px"] < target["shift_px"]
+            )
+            else "FAIL"
+        )
         lines.append(
             f"| {name} | {m['psnr_db']:.2f} {psnr_ok} | {m['mad']:.4f} {mad_ok} "
             f"| {m['frac_off']:.4f} | {m['similarity_99']:.4f} {sim_ok} "
@@ -279,25 +295,27 @@ def write_markdown_summary(metrics: dict, shifts: dict, out_path: Path,
     avg_psnr = float(np.mean([metrics[n]["psnr_db"] for n in names]))
     avg_mad = float(np.mean([metrics[n]["mad"] for n in names]))
     avg_shift = float(np.mean([shifts[n]["mag_px"] for n in names]))
-    lines.extend([
-        f"| **AVERAGE** | **{avg_psnr:.2f}** | **{avg_mad:.4f}** "
-        f"| **{float(np.mean([metrics[n]['frac_off'] for n in names])):.4f}** "
-        f"| **{avg_sim:.4f}** | -- | -- | **{avg_shift:.3f}** | -- |",
-        "",
-        "## Interpretation",
-        "",
-        f"- **Headline 99% similarity** (mean across bands): **{avg_sim * 100:.2f}%** of pixels "
-        f"are within 1% reflectance of the CPU ground truth (in the 90% central crop).",
-        f"- **PSNR** (mean): **{avg_psnr:.2f} dB** "
-        f"{'above' if avg_psnr > target['psnr_db'] else 'BELOW'} the {target['psnr_db']} dB target.",
-        f"- **MAD** (mean): **{avg_mad:.4f}** "
-        f"{'below' if avg_mad < target['mad'] else 'ABOVE'} the {target['mad']} target.",
-        f"- **Sub-pixel shift** (mean |dy,dx|): **{avg_shift:.3f} px** "
-        f"{'below' if avg_shift < target['shift_px'] else 'ABOVE'} the {target['shift_px']} px target.",
-        "",
-        "OK = metric meets target. FAIL = metric does not. PASS = all 4 metrics meet their target.",
-        "",
-    ])
+    lines.extend(
+        [
+            f"| **AVERAGE** | **{avg_psnr:.2f}** | **{avg_mad:.4f}** "
+            f"| **{float(np.mean([metrics[n]['frac_off'] for n in names])):.4f}** "
+            f"| **{avg_sim:.4f}** | -- | -- | **{avg_shift:.3f}** | -- |",
+            "",
+            "## Interpretation",
+            "",
+            f"- **Headline 99% similarity** (mean across bands): **{avg_sim * 100:.2f}%** of pixels "
+            f"are within 1% reflectance of the CPU ground truth (in the 90% central crop).",
+            f"- **PSNR** (mean): **{avg_psnr:.2f} dB** "
+            f"{'above' if avg_psnr > target['psnr_db'] else 'BELOW'} the {target['psnr_db']} dB target.",
+            f"- **MAD** (mean): **{avg_mad:.4f}** "
+            f"{'below' if avg_mad < target['mad'] else 'ABOVE'} the {target['mad']} target.",
+            f"- **Sub-pixel shift** (mean |dy,dx|): **{avg_shift:.3f} px** "
+            f"{'below' if avg_shift < target['shift_px'] else 'ABOVE'} the {target['shift_px']} px target.",
+            "",
+            "OK = metric meets target. FAIL = metric does not. PASS = all 4 metrics meet their target.",
+            "",
+        ]
+    )
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log.info("[WRITE] %s", out_path)
     return avg_sim, avg_psnr, avg_mad, avg_shift
@@ -309,8 +327,9 @@ def main() -> int:
     parser.add_argument("--cpu-stack", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--label", required=True)
-    parser.add_argument("--crop-frac", type=float, default=0.9,
-                        help="Central crop fraction (default 0.9)")
+    parser.add_argument(
+        "--crop-frac", type=float, default=0.9, help="Central crop fraction (default 0.9)"
+    )
     parser.add_argument("--psnr-target", type=float, default=35.0)
     parser.add_argument("--mad-target", type=float, default=0.05)
     parser.add_argument("--similarity-target", type=float, default=0.99)
@@ -337,8 +356,15 @@ def main() -> int:
 
     h, w = gpu.shape[1], gpu.shape[2]
     crop = central_crop_mask((h, w), args.crop_frac)
-    log.info("Central crop: y=%d:%d  x=%d:%d  (of %dx%d)",
-             crop[0].start, crop[0].stop, crop[1].start, crop[1].stop, h, w)
+    log.info(
+        "Central crop: y=%d:%d  x=%d:%d  (of %dx%d)",
+        crop[0].start,
+        crop[0].stop,
+        crop[1].start,
+        crop[1].stop,
+        h,
+        w,
+    )
 
     names = ["Blue", "Green", "Red", "NIR", "Red edge"]
     metrics = per_band_metrics(gpu, cpu, crop, names)
@@ -356,34 +382,47 @@ def main() -> int:
 
     # JSON dump
     json_path = args.out / "gpu_vs_cpu_similarity.json"
-    json_path.write_text(json.dumps({
-        "label": args.label,
-        "crop_frac": args.crop_frac,
-        "targets": target,
-        "metrics": metrics,
-        "shifts": shifts,
-        "summary": {
-            "avg_similarity_99": avg_sim,
-            "avg_psnr_db": avg_psnr,
-            "avg_mad": avg_mad,
-            "avg_shift_px": avg_shift,
-        },
-        "log_file": str(log_file),
-    }, indent=2), encoding="utf-8")
+    json_path.write_text(
+        json.dumps(
+            {
+                "label": args.label,
+                "crop_frac": args.crop_frac,
+                "targets": target,
+                "metrics": metrics,
+                "shifts": shifts,
+                "summary": {
+                    "avg_similarity_99": avg_sim,
+                    "avg_psnr_db": avg_psnr,
+                    "avg_mad": avg_mad,
+                    "avg_shift_px": avg_shift,
+                },
+                "log_file": str(log_file),
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     log.info("[WRITE] %s", json_path)
 
     # Plots
-    make_diff_mosaic(gpu, cpu, args.out / "gpu_vs_cpu_mosaic.png",
-                     f"GPU vs CPU per band: {args.label}", names)
-    make_shift_heatmap(gpu, cpu, args.out / "gpu_vs_cpu_absdiff.png",
-                       f"|GPU - CPU| per band: {args.label}", names)
+    make_diff_mosaic(
+        gpu, cpu, args.out / "gpu_vs_cpu_mosaic.png", f"GPU vs CPU per band: {args.label}", names
+    )
+    make_shift_heatmap(
+        gpu, cpu, args.out / "gpu_vs_cpu_absdiff.png", f"|GPU - CPU| per band: {args.label}", names
+    )
 
     log.info("[PHASE] total: %.2fs", time.perf_counter() - t_total0)
-    log.info("[SUMMARY] avg 99%% similarity = %.4f  (target %.2f)",
-             avg_sim, target["similarity_99"])
+    log.info(
+        "[SUMMARY] avg 99%% similarity = %.4f  (target %.2f)", avg_sim, target["similarity_99"]
+    )
     log.info("=" * 70)
-    if avg_sim < target["similarity_99"] or avg_psnr < target["psnr_db"] or \
-       avg_mad > target["mad"] or avg_shift > target["shift_px"]:
+    if (
+        avg_sim < target["similarity_99"]
+        or avg_psnr < target["psnr_db"]
+        or avg_mad > target["mad"]
+        or avg_shift > target["shift_px"]
+    ):
         log.info("RESULT: 99%% similarity target NOT met for %s", args.label)
         return 1
     log.info("RESULT: 99%% similarity target met for %s", args.label)

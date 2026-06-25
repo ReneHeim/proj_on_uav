@@ -56,12 +56,16 @@ def capture_id(path: Path) -> str | None:
 
 
 def capture_files(seed: Path) -> list[str]:
-    return [str(seed.with_name(seed.name.replace("_1.tif", f"_{index}.tif"))) for index in range(1, 7)]
+    return [
+        str(seed.with_name(seed.name.replace("_1.tif", f"_{index}.tif"))) for index in range(1, 7)
+    ]
 
 
 def find_reference_dir(processed_root: Path, week: str) -> Path:
     candidates = sorted(processed_root.glob(f"{week}/metashape/*/orthophotos"))
-    candidates = [path for path in candidates if " copy" not in str(path) and any(path.glob("IMG_*_6.tif"))]
+    candidates = [
+        path for path in candidates if " copy" not in str(path) and any(path.glob("IMG_*_6.tif"))
+    ]
     if not candidates:
         raise FileNotFoundError(f"no Metashape orthophoto directory for {week}")
     return candidates[0]
@@ -153,7 +157,11 @@ def compute_custom_stack(seed: Path, panel_state: dict, mode: str) -> np.ndarray
     cap = Capture.from_filelist(capture_files(seed))
     warps = cap.get_warp_matrices(ref_index=5)
     warp_objs = [
-        ProjectiveTransform(matrix=np.array(warp)) if not isinstance(warp, ProjectiveTransform) else warp
+        (
+            ProjectiveTransform(matrix=np.array(warp))
+            if not isinstance(warp, ProjectiveTransform)
+            else warp
+        )
         for warp in warps
     ]
     irradiance = irradiance_for_mode(cap, panel_state, mode)
@@ -201,7 +209,9 @@ def compare_capture(
 ) -> list[dict]:
     reference = read_reference(reference_path)
     ref_medians = [
-        median_or_nan(central_valid_values(reference, i, trim_fraction, min_reflectance, max_reflectance))
+        median_or_nan(
+            central_valid_values(reference, i, trim_fraction, min_reflectance, max_reflectance)
+        )
         for i in range(len(BAND_NAMES))
     ]
     panel_state = panel_state_for_seed(seed, panel_cache)
@@ -209,10 +219,14 @@ def compare_capture(
     for mode in modes:
         started = time.perf_counter()
         custom = compute_custom_stack(seed, panel_state, mode)
-        logging.info("[CAPTURE] %s IMG_%s mode=%s %.1fs", week, cid, mode, time.perf_counter() - started)
+        logging.info(
+            "[CAPTURE] %s IMG_%s mode=%s %.1fs", week, cid, mode, time.perf_counter() - started
+        )
         for band_index, band in enumerate(BAND_NAMES):
             custom_median = median_or_nan(
-                central_valid_values(custom, band_index, trim_fraction, min_reflectance, max_reflectance)
+                central_valid_values(
+                    custom, band_index, trim_fraction, min_reflectance, max_reflectance
+                )
             )
             ratio = ref_medians[band_index] / custom_median if custom_median > 0 else float("nan")
             rows.append(
@@ -226,7 +240,9 @@ def compare_capture(
                     "reference_median": ref_medians[band_index],
                     "custom_median": custom_median,
                     "ratio_reference_over_custom": ratio,
-                    "abs_percent_error": abs(ratio - 1.0) * 100.0 if np.isfinite(ratio) else float("nan"),
+                    "abs_percent_error": (
+                        abs(ratio - 1.0) * 100.0 if np.isfinite(ratio) else float("nan")
+                    ),
                 }
             )
     return rows
@@ -237,8 +253,14 @@ def summarize(rows: list[dict]) -> list[dict]:
     for mode in RADIOMETRY_MODES:
         for week in sorted({row["week"] for row in rows}):
             for band in BAND_NAMES:
-                subset = [row for row in rows if row["mode"] == mode and row["week"] == week and row["band"] == band]
-                ratios = np.array([row["ratio_reference_over_custom"] for row in subset], dtype="float64")
+                subset = [
+                    row
+                    for row in rows
+                    if row["mode"] == mode and row["week"] == week and row["band"] == band
+                ]
+                ratios = np.array(
+                    [row["ratio_reference_over_custom"] for row in subset], dtype="float64"
+                )
                 ratios = ratios[np.isfinite(ratios)]
                 if ratios.size == 0:
                     continue
@@ -266,7 +288,15 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def markdown_table(rows: list[dict]) -> str:
-    cols = ["mode", "week", "band", "n_captures", "ratio_median", "median_abs_percent_error", "passes_20pct"]
+    cols = [
+        "mode",
+        "week",
+        "band",
+        "n_captures",
+        "ratio_median",
+        "median_abs_percent_error",
+        "passes_20pct",
+    ]
     lines = [
         "| " + " | ".join(cols) + " |",
         "| " + " | ".join(["---"] * len(cols)) + " |",
@@ -280,7 +310,9 @@ def markdown_table(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def write_report(path: Path, summary: list[dict], outputs: list[Path], args: argparse.Namespace, log_path: Path) -> None:
+def write_report(
+    path: Path, summary: list[dict], outputs: list[Path], args: argparse.Namespace, log_path: Path
+) -> None:
     by_mode: dict[str, list[float]] = {}
     for row in summary:
         by_mode.setdefault(row["mode"], []).append(float(row["median_abs_percent_error"]))
@@ -319,9 +351,13 @@ def write_report(path: Path, summary: list[dict], outputs: list[Path], args: arg
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--raw-root", type=Path, default=Path("/mnt/data/ONCERCO/data/raw/2025"))
-    parser.add_argument("--processed-root", type=Path, default=Path("/mnt/data/ONCERCO/data/processed/2025"))
+    parser.add_argument(
+        "--processed-root", type=Path, default=Path("/mnt/data/ONCERCO/data/processed/2025")
+    )
     parser.add_argument("--weeks", nargs="+", default=list(DEFAULT_WEEKS))
-    parser.add_argument("--modes", nargs="+", choices=RADIOMETRY_MODES, default=list(RADIOMETRY_MODES))
+    parser.add_argument(
+        "--modes", nargs="+", choices=RADIOMETRY_MODES, default=list(RADIOMETRY_MODES)
+    )
     parser.add_argument("--samples-per-week", type=int, default=3)
     parser.add_argument("--trim-fraction", type=float, default=0.05)
     parser.add_argument("--min-reflectance", type=float, default=1e-6)
@@ -344,7 +380,13 @@ def main() -> int:
         raws = map_raw_seeds(args.raw_root, week)
         common = sorted(set(refs) & set(raws))
         selected = sample_ids(common, args.samples_per_week)
-        logging.info("[WEEK] %s reference_dir=%s common=%s selected=%s", week, reference_dir, len(common), selected)
+        logging.info(
+            "[WEEK] %s reference_dir=%s common=%s selected=%s",
+            week,
+            reference_dir,
+            len(common),
+            selected,
+        )
         for cid in selected:
             try:
                 rows.extend(

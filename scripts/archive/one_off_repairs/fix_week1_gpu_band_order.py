@@ -19,11 +19,9 @@ from pathlib import Path
 import numpy as np
 import rasterio
 
-
 EXPECTED_DESCRIPTIONS = ("Blue", "Green", "Red", "Red edge", "NIR")
 DEFAULT_ROOT = Path(
-    "/mnt/data/ONCERCO/processing/local_odm_projects/"
-    "2025_rededgep_no_correction_v3/week1_gpu"
+    "/mnt/data/ONCERCO/processing/local_odm_projects/" "2025_rededgep_no_correction_v3/week1_gpu"
 )
 
 

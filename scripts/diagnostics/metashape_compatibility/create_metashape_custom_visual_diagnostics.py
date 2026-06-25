@@ -73,7 +73,9 @@ def robust_rgb(stack: np.ndarray) -> np.ndarray:
     return out
 
 
-def gray_panel(ax, arr: np.ndarray, title: str, cmap: str, vmin: float | None = None, vmax: float | None = None):
+def gray_panel(
+    ax, arr: np.ndarray, title: str, cmap: str, vmin: float | None = None, vmax: float | None = None
+):
     valid = arr[np.isfinite(arr)]
     if vmin is None and valid.size:
         vmin = float(np.percentile(valid, 2))
@@ -85,7 +87,15 @@ def gray_panel(ax, arr: np.ndarray, title: str, cmap: str, vmin: float | None = 
     return im
 
 
-def make_figure(path: Path, week: str, capture: str, ref: np.ndarray, custom: np.ndarray, ref_meta: dict, custom_meta: dict) -> None:
+def make_figure(
+    path: Path,
+    week: str,
+    capture: str,
+    ref: np.ndarray,
+    custom: np.ndarray,
+    ref_meta: dict,
+    custom_meta: dict,
+) -> None:
     ref_ndvi = (ref[4] - ref[2]) / np.maximum(ref[4] + ref[2], 1e-6)
     custom_ndvi = (custom[4] - custom[2]) / np.maximum(custom[4] + custom[2], 1e-6)
     ref_rg = ref[2] / np.maximum(ref[1], 1e-6)
@@ -110,7 +120,9 @@ def make_figure(path: Path, week: str, capture: str, ref: np.ndarray, custom: np
     for row, col, arr, title, cmap, vmin, vmax in panels:
         im = gray_panel(axes[row, col], arr, title, cmap, vmin, vmax)
         fig.colorbar(im, ax=axes[row, col], fraction=0.046, pad=0.04)
-    fig.suptitle(f"{week} {capture}: Metashape orthophoto vs custom camera-frame stack", fontsize=14)
+    fig.suptitle(
+        f"{week} {capture}: Metashape orthophoto vs custom camera-frame stack", fontsize=14
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=160)
     plt.close(fig)
@@ -118,7 +130,9 @@ def make_figure(path: Path, week: str, capture: str, ref: np.ndarray, custom: np
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out-dir", type=Path, default=Path("outputs/figures/metashape_custom_visual_diagnostics"))
+    parser.add_argument(
+        "--out-dir", type=Path, default=Path("outputs/figures/metashape_custom_visual_diagnostics")
+    )
     args = parser.parse_args()
     log_path = setup_logging()
     t0 = time.perf_counter()

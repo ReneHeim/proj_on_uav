@@ -73,8 +73,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=2,
         help="Metashape alignment downscale. Use 1 for highest quality, 2 for draft/repro tests.",
     )
-    parser.add_argument("--skip-dense", action="store_true", help="Use sparse/depth defaults where possible.")
-    parser.add_argument("--crs", default="EPSG::4326", help="Output CRS string for exported rasters.")
+    parser.add_argument(
+        "--skip-dense", action="store_true", help="Use sparse/depth defaults where possible."
+    )
+    parser.add_argument(
+        "--crs", default="EPSG::4326", help="Output CRS string for exported rasters."
+    )
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args(argv)
 
@@ -124,7 +128,9 @@ def set_normalize_band_sensitivity(Metashape, chunk) -> None:
             calib = sensor.calibration
             if hasattr(calib, "normalize_bands"):
                 calib.normalize_bands = True
-                logging.info("[CAL] set calibration.normalize_bands=True on sensor %s", sensor.label)
+                logging.info(
+                    "[CAL] set calibration.normalize_bands=True on sensor %s", sensor.label
+                )
         except Exception:
             pass
 
@@ -189,7 +195,12 @@ def export_per_camera_orthophotos(Metashape, chunk, out_dir: Path, crs: str) -> 
         except Exception as exc:
             logging.exception("[EXPORT] failed %s: %s", camera.label, exc)
             records.append(
-                {"camera": camera.label, "output": str(out_path), "status": "error", "error": repr(exc)}
+                {
+                    "camera": camera.label,
+                    "output": str(out_path),
+                    "status": "error",
+                    "error": repr(exc),
+                }
             )
     return records
 

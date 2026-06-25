@@ -57,7 +57,9 @@ def matched_files(reference_dir: Path, custom_dir: Path) -> list[tuple[str, Path
         if (cid := capture_id(path)) is not None
     }
     customs = {
-        cid: path for path in custom_dir.glob("IMG_*_6.tif") if (cid := capture_id(path)) is not None
+        cid: path
+        for path in custom_dir.glob("IMG_*_6.tif")
+        if (cid := capture_id(path)) is not None
     }
     common = sorted(set(references) & set(customs))
     return [(cid, references[cid], customs[cid]) for cid in common]
@@ -183,11 +185,11 @@ def compare_pair(
                 "custom_p99": custom_stats["p99"],
                 "median_ratio_reference_over_custom": median_ratio,
                 "mean_ratio_reference_over_custom": mean_ratio,
-                "median_abs_error_after_identity": abs(
-                    float(ref_stats["median"]) - float(custom_stats["median"])
-                )
-                if ref_stats["n"] and custom_stats["n"]
-                else np.nan,
+                "median_abs_error_after_identity": (
+                    abs(float(ref_stats["median"]) - float(custom_stats["median"]))
+                    if ref_stats["n"] and custom_stats["n"]
+                    else np.nan
+                ),
             }
         )
     return rows
@@ -211,7 +213,9 @@ def aggregate_factors(rows: list[dict[str, float | int | str]]) -> dict[str, flo
     return factors
 
 
-def summarize_rows(rows: list[dict[str, float | int | str]], factors: dict[str, float]) -> list[dict]:
+def summarize_rows(
+    rows: list[dict[str, float | int | str]], factors: dict[str, float]
+) -> list[dict]:
     summary = []
     for band_name in BAND_NAMES:
         band_rows = [row for row in rows if row["band"] == band_name]
@@ -412,7 +416,10 @@ def main() -> int:
         log_path,
     )
     phase("write markdown report", t0)
-    logging.info("[DONE] outputs=%s", [str(detail_csv), str(summary_csv), str(args.write_correction_json), str(report_md)])
+    logging.info(
+        "[DONE] outputs=%s",
+        [str(detail_csv), str(summary_csv), str(args.write_correction_json), str(report_md)],
+    )
     return 0
 
 

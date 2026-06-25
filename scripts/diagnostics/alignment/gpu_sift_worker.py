@@ -19,22 +19,22 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from skimage.measure import ransac as _sk_ransac
-from skimage.transform import ProjectiveTransform, resize
 from kornia.feature import SIFTFeature, match_smnn
 from kornia.feature.laf import get_laf_center
+from skimage.measure import ransac as _sk_ransac
+from skimage.transform import ProjectiveTransform, resize
 
 
 def main():
     if len(sys.argv) != 8:
-        print("usage: _gpu_sift_worker.py <ref_index> <band1> ... <band6>",
-              file=sys.stderr)
+        print("usage: _gpu_sift_worker.py <ref_index> <band1> ... <band6>", file=sys.stderr)
         sys.exit(2)
     ref = int(sys.argv[1])
     paths = [Path(p) for p in sys.argv[2:8]]
     bands = []
     for p in paths:
         import rasterio
+
         with rasterio.open(p) as src:
             bands.append(src.read(1).astype(np.float32))
     sizes = sorted(set(b.shape for b in bands), key=lambda s: s[0] * s[1])
@@ -75,7 +75,7 @@ def main():
         if n_match >= 8:
             idx_ix = idxs[:, 0].cpu().numpy()
             idx_ref = idxs[:, 1].cpu().numpy()
-            kp_ix = ix_centers[idx_ix, :]   # (K, 2) in (x, y)
+            kp_ix = ix_centers[idx_ix, :]  # (K, 2) in (x, y)
             kp_ref = ref_centers[idx_ref, :] * scale[None, :]
             # micasense uses (y, x) order, Kornia returns (x, y)
             kp_ix_yx = kp_ix[:, ::-1]
@@ -87,6 +87,7 @@ def main():
                 # absorb noise into a spurious scale, so we constrain to rigid
                 # motion which is what the physics actually predicts.
                 from skimage.transform import EuclideanTransform
+
                 model, inliers = _sk_ransac(
                     (kp_ref_yx, kp_ix_yx),
                     EuclideanTransform,
@@ -126,14 +127,18 @@ def main():
     torch.cuda.synchronize()
     t_match = time.perf_counter() - t_match0
 
-    print(json.dumps({
-        "t_sift_s": t_sift,
-        "t_match_s": t_match,
-        "t_total_s": time.perf_counter() - t0,
-        "image_shape": [target_h, target_w],
-        "matches_per_band": matches_per_band,
-        "warps": warps_out,
-    }))
+    print(
+        json.dumps(
+            {
+                "t_sift_s": t_sift,
+                "t_match_s": t_match,
+                "t_total_s": time.perf_counter() - t0,
+                "image_shape": [target_h, target_w],
+                "matches_per_band": matches_per_band,
+                "warps": warps_out,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

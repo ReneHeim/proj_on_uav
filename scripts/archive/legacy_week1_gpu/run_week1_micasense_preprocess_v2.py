@@ -12,7 +12,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 RAW_ROOT = Path("/mnt/data/ONCERCO/data/raw/2025/week1/rededgep")
 ORTHORITY_ROOT = Path("/mnt/data/ONCERCO/processing/local_odm_projects/week1_orthority_per_image")
 DEFAULT_OUTPUT_ROOT = Path(

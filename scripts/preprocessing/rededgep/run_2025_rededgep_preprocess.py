@@ -12,7 +12,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 DEFAULT_ONCERCO_ROOT = Path("/run/media/davidem/data/ONCERCO")
 DEFAULT_OUTPUT_NAME = "2025_rededgep_no_correction_v3"
 
@@ -169,7 +168,9 @@ def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> d
 def write_outputs(summary: dict, manifest_root: Path) -> tuple[Path, Path]:
     manifest_root.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_root / f"{summary['week']}_rededgep_preprocess_manifest.json"
-    report_path = Path("outputs/reports") / f"run_2025_rededgep_preprocess_{summary['week']}_summary.md"
+    report_path = (
+        Path("outputs/reports") / f"run_2025_rededgep_preprocess_{summary['week']}_summary.md"
+    )
     report_path.parent.mkdir(parents=True, exist_ok=True)
 
     manifest_path.write_text(json.dumps(summary, indent=2))
@@ -315,9 +316,9 @@ def main() -> int:
         "allow_calibrated_fallback": args.allow_calibrated_fallback,
         "include_panchro": args.include_panchro,
         "radiometry_mode": args.radiometry_mode,
-        "metashape_correction_json": str(args.metashape_correction_json)
-        if args.metashape_correction_json
-        else None,
+        "metashape_correction_json": (
+            str(args.metashape_correction_json) if args.metashape_correction_json else None
+        ),
         "dry_run": args.dry_run,
         "sets": run_records,
     }

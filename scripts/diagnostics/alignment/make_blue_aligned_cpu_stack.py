@@ -26,7 +26,8 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
-from skimage.transform import ProjectiveTransform, warp as _sk_warp, resize
+from skimage.transform import ProjectiveTransform, resize
+from skimage.transform import warp as _sk_warp
 
 
 def setup_logging() -> None:
@@ -43,14 +44,21 @@ log = logging.getLogger("blue_stack")
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--capture", type=Path, required=True,
-                        help="Blue-band path (e.g. .../IMG_0002_1.tif)")
-    parser.add_argument("--warp-cache", type=Path, required=True,
-                        help="Path to the warp cache .npz from the micasense SIFT run")
-    parser.add_argument("--out", type=Path, required=True,
-                        help="Output 5-band uint16 Blue-aligned stack")
-    parser.add_argument("--rgb-out", type=Path, default=None,
-                        help="Optional path for RGB preview PNG")
+    parser.add_argument(
+        "--capture", type=Path, required=True, help="Blue-band path (e.g. .../IMG_0002_1.tif)"
+    )
+    parser.add_argument(
+        "--warp-cache",
+        type=Path,
+        required=True,
+        help="Path to the warp cache .npz from the micasense SIFT run",
+    )
+    parser.add_argument(
+        "--out", type=Path, required=True, help="Output 5-band uint16 Blue-aligned stack"
+    )
+    parser.add_argument(
+        "--rgb-out", type=Path, default=None, help="Optional path for RGB preview PNG"
+    )
     args = parser.parse_args()
     setup_logging()
 
@@ -89,8 +97,10 @@ def main() -> int:
 
     # Load 6 bands at their native resolution
     band_suffixes = ("1", "2", "3", "4", "5", "6")
-    band_paths = [args.capture.with_name(args.capture.name.replace("_1.tif", f"_{s}.tif"))
-                  for s in band_suffixes]
+    band_paths = [
+        args.capture.with_name(args.capture.name.replace("_1.tif", f"_{s}.tif"))
+        for s in band_suffixes
+    ]
     bands = []
     for p in band_paths:
         with rasterio.open(p) as src:
@@ -118,22 +128,38 @@ def main() -> int:
             continue
         if i == 5:
             # Panchro: we need to resize it to multispec res first, then warp
-            b_resized = resize(b, (target_h, target_w),
-                               preserve_range=True).astype(np.float32)
+            b_resized = resize(b, (target_h, target_w), preserve_range=True).astype(np.float32)
             # For panchro, P_5 is identity. So Q_5 = P0 . I = P0.
             # Micasense stores P_i such that P_i maps moving -> ref. So to apply
             # (output=ref, input=moving), we use inverse_map = P_i.inverse.
             # For panchro with P5=I, inverse_map = I.inverse = I.
             # The Q = P0 composition is applied via Q.inverse to undo the band->ref transform.
-            warped = _sk_warp(b_resized, inverse_map=P0.inverse, mode="constant", cval=0.0,
-                              preserve_range=True, output_shape=(target_h, target_w))
-            valid = _sk_warp(np.ones_like(b_resized, dtype=np.float32),
-                             inverse_map=P0.inverse, mode="constant", cval=0.0,
-                             preserve_range=True, output_shape=(target_h, target_w)) > 0.999
+            warped = _sk_warp(
+                b_resized,
+                inverse_map=P0.inverse,
+                mode="constant",
+                cval=0.0,
+                preserve_range=True,
+                output_shape=(target_h, target_w),
+            )
+            valid = (
+                _sk_warp(
+                    np.ones_like(b_resized, dtype=np.float32),
+                    inverse_map=P0.inverse,
+                    mode="constant",
+                    cval=0.0,
+                    preserve_range=True,
+                    output_shape=(target_h, target_w),
+                )
+                > 0.999
+            )
             aligned.append(warped.astype(np.float32))
             valid_masks.append(valid)
-            log.info("  band 5 (Panchro): warped, mean before=%.3f after=%.3f",
-                     b_resized.mean(), warped.mean())
+            log.info(
+                "  band 5 (Panchro): warped, mean before=%.3f after=%.3f",
+                b_resized.mean(),
+                warped.mean(),
+            )
             continue
         Pi = ProjectiveTransform(matrix=warps[i])
         # Q_i = P0 . P_i^{-1}  (micasense-style right-to-left matrix composition)
@@ -148,15 +174,28 @@ def main() -> int:
         # Resize band to multispec res if needed
         if b.shape != (target_h, target_w):
             b = resize(b, (target_h, target_w), preserve_range=True).astype(np.float32)
-        warped = _sk_warp(b, inverse_map=Q.inverse, mode="constant", cval=0.0,
-                          preserve_range=True, output_shape=(target_h, target_w))
-        valid = _sk_warp(np.ones_like(b, dtype=np.float32), inverse_map=Q.inverse,
-                         mode="constant", cval=0.0,
-                         preserve_range=True, output_shape=(target_h, target_w)) > 0.999
+        warped = _sk_warp(
+            b,
+            inverse_map=Q.inverse,
+            mode="constant",
+            cval=0.0,
+            preserve_range=True,
+            output_shape=(target_h, target_w),
+        )
+        valid = (
+            _sk_warp(
+                np.ones_like(b, dtype=np.float32),
+                inverse_map=Q.inverse,
+                mode="constant",
+                cval=0.0,
+                preserve_range=True,
+                output_shape=(target_h, target_w),
+            )
+            > 0.999
+        )
         aligned.append(warped.astype(np.float32))
         valid_masks.append(valid)
-        log.info("  band %d: warped, mean before=%.3f after=%.3f",
-                 i, b.mean(), warped.mean())
+        log.info("  band %d: warped, mean before=%.3f after=%.3f", i, b.mean(), warped.mean())
 
     aligned_5 = np.stack(aligned[:5])  # (5, H, W)
     valid_overlap = np.logical_and.reduce(valid_masks[:5])
@@ -174,9 +213,13 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     data = np.rint(aligned_5 * 32767.0).astype(np.uint16)
     profile = {
-        "driver": "GTiff", "height": data.shape[1], "width": data.shape[2],
-        "count": data.shape[0], "dtype": "uint16",
-        "compress": "deflate", "tiled": True,
+        "driver": "GTiff",
+        "height": data.shape[1],
+        "width": data.shape[2],
+        "count": data.shape[0],
+        "dtype": "uint16",
+        "compress": "deflate",
+        "tiled": True,
     }
     with rasterio.open(args.out, "w", **profile) as dst:
         dst.write(data)
@@ -192,6 +235,7 @@ def main() -> int:
     # RGB preview
     if args.rgb_out:
         from PIL import Image
+
         rgb = aligned_5[[2, 1, 0]]
         rgb = np.transpose(rgb, (1, 2, 0))
         lo, hi = float(np.nanpercentile(rgb, 1)), float(np.nanpercentile(rgb, 99))

@@ -15,6 +15,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,8 +36,9 @@ def load_stack(path: Path) -> np.ndarray:
         return src.read().astype(np.float32) / 32767.0
 
 
-def compute_metrics(stack_a: np.ndarray, stack_b: np.ndarray, ref_idx: int = 3,
-                   names: list[str] = None) -> dict:
+def compute_metrics(
+    stack_a: np.ndarray, stack_b: np.ndarray, ref_idx: int = 3, names: list[str] = None
+) -> dict:
     """Per-band quality vs ref band. Both stacks must be same shape."""
     if names is None:
         names = ["Blue", "Green", "Red", "NIR", "Red edge"]
@@ -48,20 +50,30 @@ def compute_metrics(stack_a: np.ndarray, stack_b: np.ndarray, ref_idx: int = 3,
         a, b = stack_a[i], stack_b[i]
         mad_a = float(np.mean(np.abs(a - ref)))
         mad_b = float(np.mean(np.abs(b - ref)))
+
         def psnr(x, y):
             mse = float(np.mean((x - y) ** 2))
             return 100.0 if mse < 1e-12 else 10.0 * np.log10(1.0 / mse)
+
         psnr_a, psnr_b = psnr(a, ref), psnr(b, ref)
+
         def grad_corr(x, y):
             gx, gy = np.diff(x, axis=1), np.diff(y, axis=1)
             gx = (gx - gx.mean()) / (gx.std() + 1e-6)
             gy = (gy - gy.mean()) / (gy.std() + 1e-6)
             return float(np.mean(gx * gy))
+
         gc_a, gc_b = grad_corr(a, ref), grad_corr(b, ref)
         metrics[name] = {
-            "mad_a": mad_a, "mad_b": mad_b, "mad_diff": mad_b - mad_a,
-            "psnr_a": psnr_a, "psnr_b": psnr_b, "psnr_diff": psnr_b - psnr_a,
-            "grad_corr_a": gc_a, "grad_corr_b": gc_b, "grad_corr_diff": gc_b - gc_a,
+            "mad_a": mad_a,
+            "mad_b": mad_b,
+            "mad_diff": mad_b - mad_a,
+            "psnr_a": psnr_a,
+            "psnr_b": psnr_b,
+            "psnr_diff": psnr_b - psnr_a,
+            "grad_corr_a": gc_a,
+            "grad_corr_b": gc_b,
+            "grad_corr_diff": gc_b - gc_a,
         }
     return metrics
 
@@ -70,10 +82,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gpu-stack", type=Path, required=True)
     parser.add_argument("--cpu-stack", type=Path, required=True)
-    parser.add_argument("--out", type=Path, required=True,
-                        help="Output directory for comparison artifacts")
-    parser.add_argument("--label", default="SIFT alignment quality",
-                        help="Title for the comparison")
+    parser.add_argument(
+        "--out", type=Path, required=True, help="Output directory for comparison artifacts"
+    )
+    parser.add_argument(
+        "--label", default="SIFT alignment quality", help="Title for the comparison"
+    )
     parser.add_argument("--gpu-name", default="GPU Kornia SIFT (num_features=2000)")
     parser.add_argument("--cpu-name", default="CPU skimage SIFT")
     args = parser.parse_args()
@@ -85,8 +99,10 @@ def main():
     log.info("GPU stack: shape=%s mean=%.4f", gpu.shape, gpu.mean())
     log.info("CPU stack: shape=%s mean=%.4f", cpu.shape, cpu.mean())
     assert gpu.shape == cpu.shape, f"Shape mismatch: GPU {gpu.shape} vs CPU {cpu.shape}"
-    assert gpu.shape[1:] == (1088, 1456), (
-        f"Expected multispec resolution (1088, 1456), got {gpu.shape[1:]}")
+    assert gpu.shape[1:] == (
+        1088,
+        1456,
+    ), f"Expected multispec resolution (1088, 1456), got {gpu.shape[1:]}"
 
     # Quality metrics
     metrics = compute_metrics(gpu, cpu, ref_idx=3)
@@ -113,17 +129,19 @@ def main():
             f"| {m['psnr_a']:.2f} | {m['psnr_b']:.2f} | {m['psnr_diff']:+.2f} "
             f"| {m['grad_corr_a']:.4f} | {m['grad_corr_b']:.4f} | {m['grad_corr_diff']:+.4f} |"
         )
-    lines.extend([
-        "",
-        "## Interpretation",
-        "",
-        f"- **A** is `{args.gpu_name}` (GPU, num_features=2000, smnn matching)",
-        f"- **B** is `{args.cpu_name}` (CPU, skimage, no keypoint limit)",
-        "- A lower MAD means the band is more tightly aligned with the NIR reference.",
-        "- A higher PSNR means smaller per-pixel error vs the reference.",
-        "- A higher gradient correlation means edges are better co-registered.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## Interpretation",
+            "",
+            f"- **A** is `{args.gpu_name}` (GPU, num_features=2000, smnn matching)",
+            f"- **B** is `{args.cpu_name}` (CPU, skimage, no keypoint limit)",
+            "- A lower MAD means the band is more tightly aligned with the NIR reference.",
+            "- A higher PSNR means smaller per-pixel error vs the reference.",
+            "- A higher gradient correlation means edges are better co-registered.",
+            "",
+        ]
+    )
     table_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     log.info("Wrote table: %s", table_path)
 
@@ -137,8 +155,11 @@ def main():
         ax.imshow(rgb)
         ax.set_title(name, fontsize=11, fontweight="bold")
         ax.axis("off")
-    fig.suptitle(f"RGB preview at multispec native resolution (1088×1456): {args.label}",
-                 fontsize=12, fontweight="bold")
+    fig.suptitle(
+        f"RGB preview at multispec native resolution (1088×1456): {args.label}",
+        fontsize=12,
+        fontweight="bold",
+    )
     fig.tight_layout()
     rgb_path = args.out / "rgb_side_by_side.png"
     fig.savefig(rgb_path, dpi=150, bbox_inches="tight")
@@ -151,9 +172,11 @@ def main():
     band_names = ["Blue", "Green", "Red", "NIR", "Red edge"]
     vmax = 0
     for i in non_ref:
-        vmax = max(vmax,
-                   float(np.percentile(np.abs(gpu[i] - gpu[3]), 99)),
-                   float(np.percentile(np.abs(cpu[i] - cpu[3]), 99)))
+        vmax = max(
+            vmax,
+            float(np.percentile(np.abs(gpu[i] - gpu[3]), 99)),
+            float(np.percentile(np.abs(cpu[i] - cpu[3]), 99)),
+        )
     for col, i in enumerate(non_ref):
         ax = axes[0, col]
         d = np.abs(gpu[i] - gpu[3])
@@ -165,10 +188,14 @@ def main():
         ax.imshow(d, cmap="magma", vmin=0, vmax=vmax)
         ax.set_title(f"CPU: |{band_names[i]}−NIR|", fontsize=10)
         ax.axis("off")
-    fig.colorbar(axes[0, 0].images[0], ax=axes.ravel().tolist(),
-                 shrink=0.5, label="|residual| (reflectance)")
-    fig.suptitle(f"Per-band residual vs NIR at multispec native resolution: {args.label}",
-                 fontsize=12, fontweight="bold")
+    fig.colorbar(
+        axes[0, 0].images[0], ax=axes.ravel().tolist(), shrink=0.5, label="|residual| (reflectance)"
+    )
+    fig.suptitle(
+        f"Per-band residual vs NIR at multispec native resolution: {args.label}",
+        fontsize=12,
+        fontweight="bold",
+    )
     fig.tight_layout()
     res_path = args.out / "residual_map.png"
     fig.savefig(res_path, dpi=150, bbox_inches="tight")

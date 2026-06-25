@@ -22,11 +22,13 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import numpy as np
 import rasterio
 from PIL import Image
-from skimage.transform import ProjectiveTransform, warp as _sk_warp, resize
+from skimage.transform import ProjectiveTransform, resize
+from skimage.transform import warp as _sk_warp
 
 # Set up logging + micasense path
 sys.path.insert(0, "/home/davidem/miniforge3/lib/python3.13/site-packages")
@@ -43,14 +45,19 @@ log = logging.getLogger("cpu_warps")
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--capture", type=Path, required=True,
-                        help="Blue-band path (e.g. .../IMG_0002_1.tif)")
-    parser.add_argument("--warp-cache", type=Path, required=True,
-                        help="Path to the warp cache .npz from the SIFT run")
-    parser.add_argument("--out", type=Path, required=True,
-                        help="Output 5-band uint16 stack path")
-    parser.add_argument("--rgb-out", type=Path, default=None,
-                        help="Optional path for RGB preview PNG")
+    parser.add_argument(
+        "--capture", type=Path, required=True, help="Blue-band path (e.g. .../IMG_0002_1.tif)"
+    )
+    parser.add_argument(
+        "--warp-cache",
+        type=Path,
+        required=True,
+        help="Path to the warp cache .npz from the SIFT run",
+    )
+    parser.add_argument("--out", type=Path, required=True, help="Output 5-band uint16 stack path")
+    parser.add_argument(
+        "--rgb-out", type=Path, default=None, help="Optional path for RGB preview PNG"
+    )
     args = parser.parse_args()
 
     log.info("Capture: %s", args.capture)
@@ -64,6 +71,7 @@ def main():
     raw_meta = warp_data["metadata"].item() if "metadata" in warp_data.files else {}
     if isinstance(raw_meta, str):
         import json as _json
+
         try:
             meta = _json.loads(raw_meta)
         except Exception:
@@ -74,8 +82,10 @@ def main():
 
     # Load 6 bands
     band_suffixes = ("1", "2", "3", "4", "5", "6")
-    band_paths = [args.capture.with_name(args.capture.name.replace("_1.tif", f"_{s}.tif"))
-                  for s in band_suffixes]
+    band_paths = [
+        args.capture.with_name(args.capture.name.replace("_1.tif", f"_{s}.tif"))
+        for s in band_suffixes
+    ]
     bands = []
     for p in band_paths:
         with rasterio.open(p) as src:
@@ -111,15 +121,34 @@ def main():
         P = ProjectiveTransform(matrix=warps[i])
         if b.shape != (target_h, target_w):
             b = resize(b, (target_h, target_w), preserve_range=True).astype(np.float32)
-        warped = _sk_warp(b, inverse_map=P.inverse, mode="constant", cval=0.0,
-                          preserve_range=True, output_shape=(target_h, target_w))
-        valid = _sk_warp(np.ones_like(b, dtype=np.float32), inverse_map=P.inverse,
-                         mode="constant", cval=0.0,
-                         preserve_range=True, output_shape=(target_h, target_w)) > 0.999
+        warped = _sk_warp(
+            b,
+            inverse_map=P.inverse,
+            mode="constant",
+            cval=0.0,
+            preserve_range=True,
+            output_shape=(target_h, target_w),
+        )
+        valid = (
+            _sk_warp(
+                np.ones_like(b, dtype=np.float32),
+                inverse_map=P.inverse,
+                mode="constant",
+                cval=0.0,
+                preserve_range=True,
+                output_shape=(target_h, target_w),
+            )
+            > 0.999
+        )
         aligned.append(warped.astype(np.float32))
         valid_masks.append(valid)
-        log.info("  band %d (%s) warped, mean before=%.3f after=%.3f",
-                 i, band_suffixes[i], b.mean(), warped.mean())
+        log.info(
+            "  band %d (%s) warped, mean before=%.3f after=%.3f",
+            i,
+            band_suffixes[i],
+            b.mean(),
+            warped.mean(),
+        )
 
     # Stack 5 multispec bands (exclude panchro band 6)
     aligned_5 = np.stack(aligned[:5])  # (5, H, W)
@@ -138,9 +167,13 @@ def main():
     args.out.parent.mkdir(parents=True, exist_ok=True)
     data = np.rint(aligned_5 * 32767.0).astype(np.uint16)
     profile = {
-        "driver": "GTiff", "height": data.shape[1], "width": data.shape[2],
-        "count": data.shape[0], "dtype": "uint16",
-        "compress": "deflate", "tiled": True,
+        "driver": "GTiff",
+        "height": data.shape[1],
+        "width": data.shape[2],
+        "count": data.shape[0],
+        "dtype": "uint16",
+        "compress": "deflate",
+        "tiled": True,
     }
     with rasterio.open(args.out, "w", **profile) as dst:
         dst.write(data)

@@ -75,11 +75,19 @@ def evaluate(rows: list[dict], modes: list[str]) -> tuple[list[dict], list[dict]
                         "abs_percent_error_after_correction": abs(corrected_ratio - 1.0) * 100.0,
                     }
                 )
-            for band in sorted({row["band"] for row in detail if row["mode"] == mode and row["heldout_week"] == heldout_week}):
+            for band in sorted(
+                {
+                    row["band"]
+                    for row in detail
+                    if row["mode"] == mode and row["heldout_week"] == heldout_week
+                }
+            ):
                 subset = [
                     row
                     for row in detail
-                    if row["mode"] == mode and row["heldout_week"] == heldout_week and row["band"] == band
+                    if row["mode"] == mode
+                    and row["heldout_week"] == heldout_week
+                    and row["band"] == band
                 ]
                 errors = [float(row["abs_percent_error_after_correction"]) for row in subset]
                 corrected = [float(row["corrected_ratio_reference_over_custom"]) for row in subset]
@@ -106,7 +114,9 @@ def write_csv(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
-def write_report(path: Path, summary: list[dict], outputs: list[Path], args: argparse.Namespace, log_path: Path) -> None:
+def write_report(
+    path: Path, summary: list[dict], outputs: list[Path], args: argparse.Namespace, log_path: Path
+) -> None:
     mode_errors: dict[str, list[float]] = defaultdict(list)
     mode_passes: dict[str, int] = defaultdict(int)
     mode_counts: dict[str, int] = defaultdict(int)
@@ -147,7 +157,9 @@ def main() -> int:
         type=Path,
         default=Path("outputs/results/micasense_radiometry_mode_transferability_detail.csv"),
     )
-    parser.add_argument("--modes", nargs="+", default=["micasense_dls", "micasense_panel", "panel_dls_tie"])
+    parser.add_argument(
+        "--modes", nargs="+", default=["micasense_dls", "micasense_panel", "panel_dls_tie"]
+    )
     parser.add_argument(
         "--out-prefix",
         type=Path,

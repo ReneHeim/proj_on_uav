@@ -42,17 +42,16 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from skimage.measure import ransac as _sk_ransac
-from skimage.transform import ProjectiveTransform, SimilarityTransform
 from kornia.feature import SIFTFeature, match_smnn
 from kornia.feature.laf import get_laf_center
-
+from skimage.measure import ransac as _sk_ransac
+from skimage.transform import ProjectiveTransform, SimilarityTransform
 
 # --- Configurable worker parameters ---
-NUM_FEATURES = 4096          # Kornia SIFT features per band
-UPSCALE = 1.0                # No upscale; work at multispec native res
-MATCH_TH = 0.95              # match_smnn distance ratio threshold
-RANSAC_RESIDUAL = 2.0        # px
+NUM_FEATURES = 4096  # Kornia SIFT features per band
+UPSCALE = 1.0  # No upscale; work at multispec native res
+MATCH_TH = 0.95  # match_smnn distance ratio threshold
+RANSAC_RESIDUAL = 2.0  # px
 RANSAC_TRIALS = 5000
 # Use ProjectiveTransform to match the micasense CPU SIFT. The CPU uses
 # ProjectiveTransform with full 8-DOF (so does this worker). Add a projective
@@ -60,19 +59,18 @@ RANSAC_TRIALS = 5000
 # (RedEdge-P bands are physically near-rigid). A loose guard allows the
 # full projective flexibility the CPU uses, while rejecting degenerate fits.
 MODEL_CLS = "ProjectiveTransform"
-SCALE_GUARD = 0.01           # |scale - 1| must be < 1% (RedEdge-P physical co-registration)
-PROJ_GUARD = 0.05            # |a - d|, |b + c| must be < 0.05; very loose to allow CPU-like fits
-TRANS_FRAC_GUARD = 0.15      # |tx|, |ty| must be < this * image_dim; else reject fit
-MIN_INLIERS = 8              # minimum real inliers to accept a fit
-MIN_MATCHES = 6              # minimum matches to attempt a fit
-MAX_RESIDUAL_STD = 1.5       # px; reject unstable low-consensus fits
-NIR_BAND = 3                 # 0-based: band 4, NIR
-RED_BAND = 2                 # 0-based: band 3, Red
-RED_EDGE_BAND = 4            # 0-based: band 5, Red edge
+SCALE_GUARD = 0.01  # |scale - 1| must be < 1% (RedEdge-P physical co-registration)
+PROJ_GUARD = 0.05  # |a - d|, |b + c| must be < 0.05; very loose to allow CPU-like fits
+TRANS_FRAC_GUARD = 0.15  # |tx|, |ty| must be < this * image_dim; else reject fit
+MIN_INLIERS = 8  # minimum real inliers to accept a fit
+MIN_MATCHES = 6  # minimum matches to attempt a fit
+MAX_RESIDUAL_STD = 1.5  # px; reject unstable low-consensus fits
+NIR_BAND = 3  # 0-based: band 4, NIR
+RED_BAND = 2  # 0-based: band 3, Red
+RED_EDGE_BAND = 4  # 0-based: band 5, Red edge
 
 
-def detect_sift(sift: SIFTFeature, band_t: torch.Tensor
-                ) -> tuple[np.ndarray, torch.Tensor]:
+def detect_sift(sift: SIFTFeature, band_t: torch.Tensor) -> tuple[np.ndarray, torch.Tensor]:
     """Run SIFT on a single band, return (keypoint_xy Nx2, descriptors Nx128)."""
     with torch.no_grad():
         lafs_i, _, descs_i = sift(band_t.unsqueeze(0))
@@ -101,8 +99,7 @@ def gradient_for_sift(bands_t: torch.Tensor) -> torch.Tensor:
 
 def main() -> None:
     if len(sys.argv) != 8:
-        print("usage: _gpu_sift_worker_v2.py <ref_index 0..5> <band1> ... <band6>",
-              file=sys.stderr)
+        print("usage: _gpu_sift_worker_v2.py <ref_index 0..5> <band1> ... <band6>", file=sys.stderr)
         sys.exit(2)
     ref = int(sys.argv[1])
     paths = [Path(p) for p in sys.argv[2:8]]
@@ -111,20 +108,26 @@ def main() -> None:
     # --- Phase 1: Load bands ---
     t0 = time.perf_counter()
     import rasterio
+
     bands = []
     for p in paths:
         with rasterio.open(p) as src:
             bands.append(src.read(1).astype(np.float32))
-    print(f"[WORKER-V2] band shapes = {[b.shape for b in bands]}  load={time.perf_counter() - t0:.2f}s",
-          flush=True)
+    print(
+        f"[WORKER-V2] band shapes = {[b.shape for b in bands]}  load={time.perf_counter() - t0:.2f}s",
+        flush=True,
+    )
 
     # We work at multispec native res (1088x1456). The multispec bands
     # (1-5) are already at this res. The panchro band (6) is at 2056x2464
     # and is excluded from SIFT alignment.
     target_h, target_w = bands[ref].shape
     if (target_h, target_w) != (1088, 1456):
-        print(f"[WORKER-V2] WARNING: ref band at {target_h}x{target_w}, "
-              f"expected multispec 1088x1456", flush=True)
+        print(
+            f"[WORKER-V2] WARNING: ref band at {target_h}x{target_w}, "
+            f"expected multispec 1088x1456",
+            flush=True,
+        )
     print(f"[WORKER-V2] working at multispec native res ({target_h}, {target_w})", flush=True)
 
     # SIFT alignment indices: all multispec bands except the ref
@@ -159,15 +162,23 @@ def main() -> None:
             feature_cache[key] = (centers_up / UPSCALE, descs)
         return feature_cache[key]
 
-    def validate_model(model, inliers, kp_ref: np.ndarray, kp_mov: np.ndarray,
-                       ref_i: int, mov_i: int, mode: str) -> dict:
+    def validate_model(
+        model, inliers, kp_ref: np.ndarray, kp_mov: np.ndarray, ref_i: int, mov_i: int, mode: str
+    ) -> dict:
         if model is None or inliers is None:
             return {
-                "valid": False, "reject_reason": "ransac returned no model",
-                "ref_band": ref_i, "moving_band": mov_i, "mode": mode,
+                "valid": False,
+                "reject_reason": "ransac returned no model",
+                "ref_band": ref_i,
+                "moving_band": mov_i,
+                "mode": mode,
             }
-        a, b_, c, d = (model.params[0, 0], model.params[0, 1],
-                       model.params[1, 0], model.params[1, 1])
+        a, b_, c, d = (
+            model.params[0, 0],
+            model.params[0, 1],
+            model.params[1, 0],
+            model.params[1, 1],
+        )
         if MODEL_CLS == "ProjectiveTransform":
             _, s_vals, _ = np.linalg.svd(np.array([[a, b_], [c, d]]))
             scale = float(np.exp(np.mean(np.log(s_vals))))
@@ -195,9 +206,7 @@ def main() -> None:
             )
         if MODEL_CLS == "ProjectiveTransform" and PROJ_GUARD > 0:
             if proj_asym > PROJ_GUARD or proj_shear > PROJ_GUARD:
-                reasons.append(
-                    f"asym={proj_asym:.4f} or shear={proj_shear:.4f} > {PROJ_GUARD}"
-                )
+                reasons.append(f"asym={proj_asym:.4f} or shear={proj_shear:.4f} > {PROJ_GUARD}")
         return {
             "valid": not reasons,
             "reject_reason": "; ".join(reasons) if reasons else None,
@@ -307,13 +316,19 @@ def main() -> None:
         if fit.get("valid", False):
             warps_out[band_i] = fit["params"].tolist()
             n_inliers_total += int(fit["n_inliers"])
-            print(f"[WORKER-V2] band {band_i+1}: raw Blue candidate OK "
-                  f"n_match={fit['n_matches']} n_inliers={fit['n_inliers']} "
-                  f"trans=({fit['fitted_trans'][0]:+.2f},{fit['fitted_trans'][1]:+.2f}) "
-                  f"resid_std={fit['residual_std']:.2f}", flush=True)
+            print(
+                f"[WORKER-V2] band {band_i+1}: raw Blue candidate OK "
+                f"n_match={fit['n_matches']} n_inliers={fit['n_inliers']} "
+                f"trans=({fit['fitted_trans'][0]:+.2f},{fit['fitted_trans'][1]:+.2f}) "
+                f"resid_std={fit['residual_std']:.2f}",
+                flush=True,
+            )
         else:
-            print(f"[WORKER-V2] band {band_i+1}: raw Blue candidate REJECT "
-                  f"({fit.get('reject_reason')})", flush=True)
+            print(
+                f"[WORKER-V2] band {band_i+1}: raw Blue candidate REJECT "
+                f"({fit.get('reject_reason')})",
+                flush=True,
+            )
         matches_per_band.append(record)
 
     if NIR_BAND in work_indices:
@@ -345,9 +360,12 @@ def main() -> None:
         if selected is not None:
             warps_out[NIR_BAND] = selected["params"].tolist()
             n_inliers_total += int(selected["n_inliers"])
-            print(f"[WORKER-V2] band {NIR_BAND+1}: selected {selected['candidate_name']} "
-                  f"n_match={selected['n_matches']} n_inliers={selected['n_inliers']} "
-                  f"resid_std={selected['residual_std']:.2f}", flush=True)
+            print(
+                f"[WORKER-V2] band {NIR_BAND+1}: selected {selected['candidate_name']} "
+                f"n_match={selected['n_matches']} n_inliers={selected['n_inliers']} "
+                f"resid_std={selected['residual_std']:.2f}",
+                flush=True,
+            )
         else:
             print(f"[WORKER-V2] band {NIR_BAND+1}: all NIR candidates rejected", flush=True)
 
@@ -367,8 +385,7 @@ def main() -> None:
             "candidate_mode": selected.get("mode") if selected else "raw",
             "selected_candidate": selected.get("candidate_name") if selected else None,
             "nir_candidates": [
-                {k: v for k, v in c.items() if k != "params"}
-                for c in nir_candidates
+                {k: v for k, v in c.items() if k != "params"} for c in nir_candidates
             ],
         }
         matches_per_band.append(record)

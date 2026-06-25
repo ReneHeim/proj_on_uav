@@ -58,7 +58,9 @@ def capture_id(path: Path) -> str | None:
 
 
 def capture_files(seed: Path) -> list[str]:
-    return [str(seed.with_name(seed.name.replace("_1.tif", f"_{index}.tif"))) for index in range(1, 7)]
+    return [
+        str(seed.with_name(seed.name.replace("_1.tif", f"_{index}.tif"))) for index in range(1, 7)
+    ]
 
 
 def find_reference_dir(processed_root: Path, week: str) -> Path:
@@ -107,7 +109,9 @@ def load_factors(path: Path) -> dict[str, float]:
     return {band: float(factors[band]) for band in BAND_NAMES}
 
 
-def panel_irradiance_for_seed(seed: Path, cache: dict[Path, tuple[list[float], dict]]) -> list[float]:
+def panel_irradiance_for_seed(
+    seed: Path, cache: dict[Path, tuple[list[float], dict]]
+) -> list[float]:
     set_dir = next(parent for parent in seed.parents if parent.name.endswith("SET"))
     if set_dir in cache:
         return cache[set_dir][0]
@@ -135,7 +139,11 @@ def compute_custom_stack(seed: Path, irradiance: list[float]) -> np.ndarray:
     cap = Capture.from_filelist(capture_files(seed))
     warps = cap.get_warp_matrices(ref_index=5)
     warp_objs = [
-        ProjectiveTransform(matrix=np.array(warp)) if not isinstance(warp, ProjectiveTransform) else warp
+        (
+            ProjectiveTransform(matrix=np.array(warp))
+            if not isinstance(warp, ProjectiveTransform)
+            else warp
+        )
         for warp in warps
     ]
     cap.radiometric_pan_sharpened_aligned_capture(
@@ -197,10 +205,14 @@ def compare_capture(
     rows = []
     for band_index, band in enumerate(BAND_NAMES):
         ref_median = median_or_nan(
-            central_valid_values(reference, band_index, trim_fraction, min_reflectance, max_reflectance)
+            central_valid_values(
+                reference, band_index, trim_fraction, min_reflectance, max_reflectance
+            )
         )
         custom_median = median_or_nan(
-            central_valid_values(custom, band_index, trim_fraction, min_reflectance, max_reflectance)
+            central_valid_values(
+                custom, band_index, trim_fraction, min_reflectance, max_reflectance
+            )
         )
         corrected_median = custom_median * factors[band]
         raw_ratio = ref_median / custom_median if custom_median > 0 else float("nan")
@@ -218,9 +230,9 @@ def compare_capture(
                 "custom_median_corrected": corrected_median,
                 "raw_ratio_reference_over_custom": raw_ratio,
                 "corrected_ratio_reference_over_custom": corrected_ratio,
-                "abs_log_corrected_ratio": abs(float(np.log(corrected_ratio)))
-                if corrected_ratio > 0
-                else float("nan"),
+                "abs_log_corrected_ratio": (
+                    abs(float(np.log(corrected_ratio))) if corrected_ratio > 0 else float("nan")
+                ),
             }
         )
     return rows
@@ -231,7 +243,9 @@ def summarize(rows: list[dict]) -> list[dict]:
     for week in sorted({row["week"] for row in rows}):
         for band in BAND_NAMES:
             subset = [row for row in rows if row["week"] == week and row["band"] == band]
-            raw_ratios = np.array([row["raw_ratio_reference_over_custom"] for row in subset], dtype="float64")
+            raw_ratios = np.array(
+                [row["raw_ratio_reference_over_custom"] for row in subset], dtype="float64"
+            )
             corrected = np.array(
                 [row["corrected_ratio_reference_over_custom"] for row in subset], dtype="float64"
             )
@@ -294,11 +308,7 @@ def write_report(
     args: argparse.Namespace,
     log_path: Path,
 ) -> None:
-    failing = [
-        f"{row['week']} {row['band']}"
-        for row in summary
-        if not bool(row["passes_20pct"])
-    ]
+    failing = [f"{row['week']} {row['band']}" for row in summary if not bool(row["passes_20pct"])]
     interpretation = (
         "Frozen factors are considered transferable only where the corrected "
         "Metashape/custom median ratio remains near 1.0. Bands or weeks failing "

@@ -23,20 +23,25 @@ logging.basicConfig(
 log = logging.getLogger("diag")
 
 import numpy as np
-from skimage.feature import SIFT
-from skimage.transform import ProjectiveTransform, estimate_transform
-
-from micasense.capture import Capture
 
 # Patch skimage.measure.ransac for NumPy 2 compat
 import skimage.measure as _skm
+from micasense.capture import Capture
+from skimage.feature import SIFT
+from skimage.transform import ProjectiveTransform, estimate_transform
+
 _orig_ransac = _skm.ransac
+
+
 def _compat_ransac(*args, **kwargs):
     if "random_state" in kwargs and "rng" not in kwargs:
         kwargs["rng"] = kwargs.pop("random_state")
     return _orig_ransac(*args, **kwargs)
+
+
 _skm.ransac = _compat_ransac
 import micasense.capture as _cap
+
 _cap.ransac = _compat_ransac
 
 
@@ -46,12 +51,16 @@ def _timed(label):
             self.t0 = time.perf_counter()
             log.info("  >> %s: start", label)
             return self
+
         def __exit__(self, *a):
             log.info("  << %s: %.2fs", label, time.perf_counter() - self.t0)
+
     return _T()
 
 
-def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, err_blue=12.0, err_LWIR=12.0):
+def _patched_sift_align(
+    self, ref=5, min_matches=10, verbose=0, err_red=10.0, err_blue=12.0, err_LWIR=12.0
+):
     log.info("SIFT_align_capture: enter  ref=%d  min_matches=%d", ref, min_matches)
     t_total = time.perf_counter()
     descriptor_extractor = SIFT()
@@ -62,7 +71,13 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
     ref_shape = self.images[ref].raw().shape
     rest_shape = self.images[img_index[0]].raw().shape
     scale = np.array(ref_shape) / np.array(rest_shape)
-    log.info("  ref_shape=%s  rest_shape=%s  scale=%s  non_ref_bands=%s", ref_shape, rest_shape, scale, img_index)
+    log.info(
+        "  ref_shape=%s  rest_shape=%s  scale=%s  non_ref_bands=%s",
+        ref_shape,
+        rest_shape,
+        scale,
+        img_index,
+    )
 
     with _timed("get_warp_matrices (calibrated)"):
         warp_matrices_calibrated = self.get_warp_matrices(ref_index=ref)
@@ -71,6 +86,7 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
         with _timed("load+undistort+resize ref image"):
             ref_image_SIFT = self.images[ref].undistorted(self.images[ref].raw())
             from skimage.transform import resize
+
             ref_image_SIFT = resize(ref_image_SIFT, rest_shape)
             ref_image_SIFT = (ref_image_SIFT / ref_image_SIFT.max() * 65535).astype(np.uint16)
     else:
@@ -81,7 +97,11 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
         descriptor_extractor.detect_and_extract(ref_image_SIFT)
     keypoints_ref = descriptor_extractor.keypoints
     descriptor_ref = descriptor_extractor.descriptors
-    log.info("  ref keypoints=%d  descriptors.shape=%s", len(keypoints_ref), descriptor_ref.shape if descriptor_ref is not None else None)
+    log.info(
+        "  ref keypoints=%d  descriptors.shape=%s",
+        len(keypoints_ref),
+        descriptor_ref.shape if descriptor_ref is not None else None,
+    )
 
     match_images = []
     ratio = []
@@ -94,6 +114,7 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
             img = self.images[ix].undistorted(self.images[ix].raw())
         if img.shape != rest_shape:
             from skimage.transform import resize
+
             with _timed(f"resize band {ix}"):
                 img_base = self.images[ix].raw()[self.images[ix].raw() > 0].min()
                 img = img.astype(float)
@@ -118,7 +139,10 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
 
     with _timed("match_descriptors for all bands"):
         from skimage.feature import match_descriptors
-        matches = [match_descriptors(d, descriptor_ref, max_ratio=r) for d, r in zip(descriptors, ratio)]
+
+        matches = [
+            match_descriptors(d, descriptor_ref, max_ratio=r) for d, r in zip(descriptors, ratio)
+        ]
 
     # Find inliers per band
     models = []
@@ -128,13 +152,18 @@ def _patched_sift_align(self, ref=5, min_matches=10, verbose=0, err_red=10.0, er
         scale_i = np.array(self.images[ix].raw().shape) / np.array(rest_shape)
         with _timed(f"filter_keypoints band {ix}"):
             filtered_kpi, filtered_kpr, filtered_match, err = self.filter_keypoints(
-                k, keypoints_ref, m, warp_matrices_calibrated[ix], scale, scale_i, threshold=t)
+                k, keypoints_ref, m, warp_matrices_calibrated[ix], scale, scale_i, threshold=t
+            )
         log.info("  band %d filtered_match=%d (min=%d)", ix, len(filtered_match), min_matches)
         if len(filtered_match) > min_matches:
             with _timed(f"find_inliers band {ix}"):
-                kpi, kpr, imatch, model = self.find_inliers(filtered_kpi, filtered_kpr, filtered_match)
+                kpi, kpr, imatch, model = self.find_inliers(
+                    filtered_kpi, filtered_kpr, filtered_match
+                )
             with _timed(f"estimate_transform band {ix}"):
-                P = estimate_transform('projective', (scale * kpr)[:, ::-1], (scale_i * kpi)[:, ::-1])
+                P = estimate_transform(
+                    "projective", (scale * kpr)[:, ::-1], (scale_i * kpi)[:, ::-1]
+                )
         else:
             log.info("  band %d: < min_matches, using calibrated", ix)
             P = ProjectiveTransform(matrix=warp_matrices_calibrated[ix])
@@ -157,7 +186,10 @@ log.info("Patched Capture.SIFT_align_capture")
 
 # Now run the pre-cache logic
 import importlib.util
-_spec = importlib.util.spec_from_file_location("mpp", Path(__file__).parent / "micasense_rededgep_preprocess.py")
+
+_spec = importlib.util.spec_from_file_location(
+    "mpp", Path(__file__).parent / "micasense_rededgep_preprocess.py"
+)
 mpp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(mpp)
 load_capture = mpp.load_capture
@@ -172,6 +204,7 @@ mpp.capture_mod.ransac = mpp.compat_ransac
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-set", type=Path, required=True)
     parser.add_argument("--panel-set", type=Path, required=True)
@@ -191,7 +224,9 @@ if __name__ == "__main__":
     seeds = resolve_capture_list(read_capture_list(args.capture_list), all_seeds)
     log.info("Resolved %d seeds from capture list", len(seeds))
 
-    seed_matches = [s for s in all_seeds if s.stem == args.alignment_seed or s.name == args.alignment_seed]
+    seed_matches = [
+        s for s in all_seeds if s.stem == args.alignment_seed or s.name == args.alignment_seed
+    ]
     if not seed_matches:
         log.error("Alignment seed not found: %s", args.alignment_seed)
         sys.exit(1)
@@ -207,5 +242,7 @@ if __name__ == "__main__":
     cap = load_capture(alignment_seed)
     warps = cap.SIFT_align_capture(ref=5, min_matches=args.min_matches, verbose=2)
     log.info("SIFT done in %.2fs, warps=%d matrices", time.perf_counter() - t0, len(warps))
-    save_warp_cache(args.warp_cache, warps, {"alignment_seed": str(alignment_seed), "alignment_method": "sift"})
+    save_warp_cache(
+        args.warp_cache, warps, {"alignment_seed": str(alignment_seed), "alignment_method": "sift"}
+    )
     log.info("Saved warp cache to %s", args.warp_cache)

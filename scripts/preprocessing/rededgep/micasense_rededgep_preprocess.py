@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import argparse
 import cProfile
-import logging
 import json
+import logging
 import pstats
 import signal
 import time
@@ -163,7 +163,9 @@ def capture_detected_panel_bands(seed: Path) -> int:
         return int(cap.detect_panels())
 
 
-def exclude_detected_panels(seeds: list[Path], min_detected_bands: int) -> tuple[list[Path], list[dict]]:
+def exclude_detected_panels(
+    seeds: list[Path], min_detected_bands: int
+) -> tuple[list[Path], list[dict]]:
     kept = []
     excluded = []
     for seed in seeds:
@@ -341,8 +343,7 @@ def compute_warps(
             resolved_alignment_method = "calibrated_fallback_after_sift_failure"
             alignment_warning = repr(exc)
             logging.warning(
-                "SIFT alignment failed; using calibrated camera warp matrices "
-                "for %s: %s",
+                "SIFT alignment failed; using calibrated camera warp matrices " "for %s: %s",
                 seed,
                 exc,
             )
@@ -807,7 +808,9 @@ def main() -> int:
     )
     args = parser.parse_args()
     setup_logging(args.log_file)
-    logging.info("[START] input_set=%s panel_set=%s outdir=%s", args.input_set, args.panel_set, args.outdir)
+    logging.info(
+        "[START] input_set=%s panel_set=%s outdir=%s", args.input_set, args.panel_set, args.outdir
+    )
     correction = load_metashape_correction(args.metashape_correction_json, args.radiometry_mode)
 
     with timed_phase("input list seeds"):
@@ -827,9 +830,7 @@ def main() -> int:
     panel_strategy = "full" if args.auto_exclude_panels else args.panel_strategy
     if panel_strategy == "full":
         with timed_phase("auto exclude detected panels"):
-            seeds, excluded_captures = exclude_detected_panels(
-                seeds, args.panel_detect_min_bands
-            )
+            seeds, excluded_captures = exclude_detected_panels(seeds, args.panel_detect_min_bands)
     if not seeds:
         raise FileNotFoundError("no captures left to process after filtering")
     processing_seeds = seeds[: args.limit] if args.limit else seeds
@@ -870,7 +871,9 @@ def main() -> int:
     with timed_phase("alignment warp computation"):
         if args.warp_cache and args.warp_cache.exists() and not args.refresh_warps:
             warps, alignment_meta = load_warp_cache(args.warp_cache)
-            alignment_meta["alignment_method"] = f"cached_{alignment_meta.get('alignment_method', 'unknown')}"
+            alignment_meta["alignment_method"] = (
+                f"cached_{alignment_meta.get('alignment_method', 'unknown')}"
+            )
             alignment_meta["warp_cache"] = str(args.warp_cache)
         else:
             warps, alignment_meta = compute_warps(
@@ -992,9 +995,9 @@ def main() -> int:
         "raw_band_order": list(RAW_MS_BAND_NAMES) + [PANCHRO_BAND_NAME],
         "output_band_order": list(output_indexes_and_names(args.include_panchro)[1]),
         "radiometry_mode": args.radiometry_mode,
-        "metashape_correction_json": str(args.metashape_correction_json)
-        if args.metashape_correction_json
-        else None,
+        "metashape_correction_json": (
+            str(args.metashape_correction_json) if args.metashape_correction_json else None
+        ),
         "metashape_correction_factors": correction,
         "workers": workers,
         "panel": panel_meta,

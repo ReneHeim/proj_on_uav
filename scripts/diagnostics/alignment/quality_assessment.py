@@ -26,6 +26,7 @@ from datetime import datetime
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -69,8 +70,13 @@ def write_uint16_stack(path: Path, aligned_bands: np.ndarray, descriptions: list
     data = np.rint(data * 32767.0).astype(np.uint16)
     H, W = data.shape[1], data.shape[2]
     profile = {
-        "driver": "GTiff", "height": H, "width": W, "count": data.shape[0],
-        "dtype": "uint16", "compress": "deflate", "tiled": True,
+        "driver": "GTiff",
+        "height": H,
+        "width": W,
+        "count": data.shape[0],
+        "dtype": "uint16",
+        "compress": "deflate",
+        "tiled": True,
     }
     with rasterio.open(path, "w", **profile) as dst:
         dst.write(data)
@@ -109,9 +115,13 @@ def run_gpu_sift_worker(capture_seed: Path, outdir: Path) -> dict:
         log.error("[GPU] worker failed:\n%s", proc.stderr[-1000:])
         raise RuntimeError(f"GPU worker failed: {proc.stderr[-500:]}")
     gpu_data = json.loads(proc.stdout)
-    log.info("[GPU] worker: sift=%.2fs match=%.2fs total=%.2fs matches=%s",
-             gpu_data["t_sift_s"], gpu_data["t_match_s"], gpu_data["t_total_s"],
-             [m["n_matches"] for m in gpu_data["matches_per_band"]])
+    log.info(
+        "[GPU] worker: sift=%.2fs match=%.2fs total=%.2fs matches=%s",
+        gpu_data["t_sift_s"],
+        gpu_data["t_match_s"],
+        gpu_data["t_total_s"],
+        [m["n_matches"] for m in gpu_data["matches_per_band"]],
+    )
     return gpu_data
 
 
@@ -119,21 +129,29 @@ def estimate_warp_from_match_indices(capture_seed: Path, gpu_data: dict) -> list
     """Extract the warps that the GPU worker already estimated (RANSAC in worker)."""
     warps = [np.array(w) for w in gpu_data["warps"]]
     for i, m in enumerate(gpu_data["matches_per_band"]):
-        log.info("[GPU] band %d: n_matches=%d  n_inliers=%d",
-                 m["band"], m["n_matches"], m.get("n_inliers", 0))
+        log.info(
+            "[GPU] band %d: n_matches=%d  n_inliers=%d",
+            m["band"],
+            m["n_matches"],
+            m.get("n_inliers", 0),
+        )
     return warps
 
 
-def apply_warps_and_save(capture_seed: Path, warps: list[np.ndarray], outdir: Path,
-                          label: str) -> tuple[Path, Path]:
+def apply_warps_and_save(
+    capture_seed: Path, warps: list[np.ndarray], outdir: Path, label: str
+) -> tuple[Path, Path]:
     """Apply warps to align bands, save stack + RGB preview."""
     from skimage.transform import warp as _sk_warp
+
     log.info("[%s] applying warps and saving stack", label)
     out_stack = outdir / f"{label}_aligned_stack.tif"
     out_png = outdir / f"{label}_rgb.png"
     band_suffixes = ("1", "2", "3", "4", "5", "6")
-    band_paths = [capture_seed.with_name(capture_seed.name.replace("_1.tif", f"_{s}.tif"))
-                  for s in band_suffixes]
+    band_paths = [
+        capture_seed.with_name(capture_seed.name.replace("_1.tif", f"_{s}.tif"))
+        for s in band_suffixes
+    ]
     bands = [load_band(p) for p in band_paths]
     target_h, target_w = bands[0].shape
     for i, b in enumerate(bands):
@@ -152,11 +170,25 @@ def apply_warps_and_save(capture_seed: Path, warps: list[np.ndarray], outdir: Pa
         # skimage.transform.warp applies the inverse_map to image coordinates
         # to produce output coordinates, i.e. output = inverse(P)(image)
         # We want image warped into ref frame: output[y,x] = P^{-1}(image[y,x])
-        warped = _sk_warp(b, inverse_map=P.inverse, mode="constant", cval=0.0,
-                          preserve_range=True, output_shape=(target_h, target_w))
-        valid = _sk_warp(np.ones_like(b, dtype=np.float32), inverse_map=P.inverse,
-                         mode="constant", cval=0.0,
-                         preserve_range=True, output_shape=(target_h, target_w)) > 0.999
+        warped = _sk_warp(
+            b,
+            inverse_map=P.inverse,
+            mode="constant",
+            cval=0.0,
+            preserve_range=True,
+            output_shape=(target_h, target_w),
+        )
+        valid = (
+            _sk_warp(
+                np.ones_like(b, dtype=np.float32),
+                inverse_map=P.inverse,
+                mode="constant",
+                cval=0.0,
+                preserve_range=True,
+                output_shape=(target_h, target_w),
+            )
+            > 0.999
+        )
         aligned.append(warped.astype(np.float32))
         valid_masks.append(valid)
     aligned_5 = np.stack(aligned[:5])  # (5, H, W) — exclude panchro
@@ -189,11 +221,19 @@ def compute_quality_metrics(stack_a: np.ndarray, stack_b: np.ndarray, ref_idx: i
     target_h = max(stack_a.shape[1], stack_b.shape[1])
     target_w = max(stack_a.shape[2], stack_b.shape[2])
     if stack_a.shape[1:] != (target_h, target_w):
-        stack_a = np.stack([resize(stack_a[i], (target_h, target_w), preserve_range=True)
-                            for i in range(stack_a.shape[0])])
+        stack_a = np.stack(
+            [
+                resize(stack_a[i], (target_h, target_w), preserve_range=True)
+                for i in range(stack_a.shape[0])
+            ]
+        )
     if stack_b.shape[1:] != (target_h, target_w):
-        stack_b = np.stack([resize(stack_b[i], (target_h, target_w), preserve_range=True)
-                            for i in range(stack_b.shape[0])])
+        stack_b = np.stack(
+            [
+                resize(stack_b[i], (target_h, target_w), preserve_range=True)
+                for i in range(stack_b.shape[0])
+            ]
+        )
     ref = stack_a[ref_idx].astype(np.float32)
     metrics = {}
     for i, name in enumerate(names):
@@ -203,25 +243,35 @@ def compute_quality_metrics(stack_a: np.ndarray, stack_b: np.ndarray, ref_idx: i
         b = stack_b[i].astype(np.float32)
         mad_a = float(np.mean(np.abs(a - ref)))
         mad_b = float(np.mean(np.abs(b - ref)))
+
         def psnr(x, y, max_val=1.0):
             mse = float(np.mean((x - y) ** 2))
             if mse < 1e-12:
                 return 100.0
-            return 10.0 * np.log10(max_val ** 2 / mse)
+            return 10.0 * np.log10(max_val**2 / mse)
+
         psnr_a = psnr(a, ref)
         psnr_b = psnr(b, ref)
+
         def grad_corr(x, y):
             gx = np.diff(x, axis=1)
             gy = np.diff(y, axis=1)
             gx = (gx - gx.mean()) / (gx.std() + 1e-6)
             gy = (gy - gy.mean()) / (gy.std() + 1e-6)
             return float(np.mean(gx * gy))
+
         gc_a = grad_corr(a, ref)
         gc_b = grad_corr(b, ref)
         metrics[name] = {
-            "mad_a": mad_a, "mad_b": mad_b, "mad_diff": mad_b - mad_a,
-            "psnr_a": psnr_a, "psnr_b": psnr_b, "psnr_diff": psnr_b - psnr_a,
-            "grad_corr_a": gc_a, "grad_corr_b": gc_b, "grad_corr_diff": gc_b - gc_a,
+            "mad_a": mad_a,
+            "mad_b": mad_b,
+            "mad_diff": mad_b - mad_a,
+            "psnr_a": psnr_a,
+            "psnr_b": psnr_b,
+            "psnr_diff": psnr_b - psnr_a,
+            "grad_corr_a": gc_a,
+            "grad_corr_b": gc_b,
+            "grad_corr_diff": gc_b - gc_a,
         }
     return metrics
 
@@ -248,8 +298,9 @@ def make_mosaic(stack_paths: dict, out_path: Path, title: str) -> None:
     plt.close(fig)
 
 
-def make_diff_mosaic(stack_a_path: Path, stack_b_path: Path, out_path: Path,
-                     title: str, ref_band_idx: int = 3) -> None:
+def make_diff_mosaic(
+    stack_a_path: Path, stack_b_path: Path, out_path: Path, title: str, ref_band_idx: int = 3
+) -> None:
     """Show per-band residual vs ref for two methods side-by-side."""
     with rasterio.open(stack_a_path) as src:
         sa = src.read().astype(np.float32) / 32767.0
@@ -310,14 +361,24 @@ def write_quality_table(metrics: dict, out_path: Path, labels: tuple[str, str]) 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--capture", type=Path, required=True,
-                        help="Blue-band path (e.g. .../IMG_0002_1.tif)")
-    parser.add_argument("--cpu-stack", type=Path, required=True,
-                        help="Path to CPU SIFT aligned stack (5-band uint16)")
-    parser.add_argument("--calibrated-stack", type=Path, default=None,
-                        help="Optional path to calibrated fallback aligned stack")
-    parser.add_argument("--out", type=Path, required=True,
-                        help="Output directory for all artifacts")
+    parser.add_argument(
+        "--capture", type=Path, required=True, help="Blue-band path (e.g. .../IMG_0002_1.tif)"
+    )
+    parser.add_argument(
+        "--cpu-stack",
+        type=Path,
+        required=True,
+        help="Path to CPU SIFT aligned stack (5-band uint16)",
+    )
+    parser.add_argument(
+        "--calibrated-stack",
+        type=Path,
+        default=None,
+        help="Optional path to calibrated fallback aligned stack",
+    )
+    parser.add_argument(
+        "--out", type=Path, required=True, help="Output directory for all artifacts"
+    )
     parser.add_argument("--label", required=True, help="Human-readable label for the capture")
     args = parser.parse_args()
 
@@ -350,7 +411,8 @@ def main():
         gpu01 = src.read().astype(np.float32) / 32767.0
     metrics_gpu_cpu = compute_quality_metrics(gpu01, cpu01, ref_idx=3)
     write_quality_table(
-        metrics_gpu_cpu, args.out / "quality_table_gpu_vs_cpu.md",
+        metrics_gpu_cpu,
+        args.out / "quality_table_gpu_vs_cpu.md",
         ("GPU Kornia SIFT", "CPU skimage SIFT (ground truth)"),
     )
 
@@ -360,7 +422,8 @@ def main():
             cal_stack = src.read().astype(np.float32) / 32767.0
         metrics_gpu_cal = compute_quality_metrics(gpu01, cal_stack, ref_idx=3)
         write_quality_table(
-            metrics_gpu_cal, args.out / "quality_table_gpu_vs_calibrated.md",
+            metrics_gpu_cal,
+            args.out / "quality_table_gpu_vs_calibrated.md",
             ("GPU Kornia SIFT", "Calibrated fallback"),
         )
         # 3-way mosaic
@@ -369,22 +432,26 @@ def main():
             "CPU SIFT (limit_kp_5000)": args.cpu_stack,
             "Calibrated fallback": args.calibrated_stack,
         }
-        make_mosaic(stack_paths, args.out / "rgb_mosaic_3way.png",
-                    f"RGB preview: {args.label}")
+        make_mosaic(stack_paths, args.out / "rgb_mosaic_3way.png", f"RGB preview: {args.label}")
         # Diff mosaic: GPU vs CPU
-        make_diff_mosaic(gpu_stack_path, args.cpu_stack,
-                         args.out / "residual_mosaic_gpu_vs_cpu.png",
-                         f"Per-band residual vs NIR: {args.label}  (GPU vs CPU)")
+        make_diff_mosaic(
+            gpu_stack_path,
+            args.cpu_stack,
+            args.out / "residual_mosaic_gpu_vs_cpu.png",
+            f"Per-band residual vs NIR: {args.label}  (GPU vs CPU)",
+        )
     else:
         stack_paths = {
             "GPU SIFT (Kornia)": gpu_stack_path,
             "CPU SIFT (limit_kp_5000)": args.cpu_stack,
         }
-        make_mosaic(stack_paths, args.out / "rgb_mosaic.png",
-                    f"RGB preview: {args.label}")
-        make_diff_mosaic(gpu_stack_path, args.cpu_stack,
-                         args.out / "residual_mosaic.png",
-                         f"Per-band residual vs NIR: {args.label}  (GPU vs CPU)")
+        make_mosaic(stack_paths, args.out / "rgb_mosaic.png", f"RGB preview: {args.label}")
+        make_diff_mosaic(
+            gpu_stack_path,
+            args.cpu_stack,
+            args.out / "residual_mosaic.png",
+            f"Per-band residual vs NIR: {args.label}  (GPU vs CPU)",
+        )
 
     # 7. Also save a "v2 calibrated" stack via GPU warps for reference
     log.info("Done. Artifacts in %s", args.out)

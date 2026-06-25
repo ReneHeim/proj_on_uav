@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,8 +24,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tiff", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
-    parser.add_argument("--bands", default="2,1,0",
-                        help="Comma-separated band indices for RGB (default: Red,Green,Blue)")
+    parser.add_argument(
+        "--bands",
+        default="2,1,0",
+        help="Comma-separated band indices for RGB (default: Red,Green,Blue)",
+    )
     args = parser.parse_args()
 
     with rasterio.open(args.tiff) as src:
@@ -36,8 +40,10 @@ def main() -> int:
     print(f"Stack: {stack.shape}  bands={b}  size={h}x{w}")
     print(f"Tags: {tags}")
     for i, name in enumerate(["Blue", "Green", "Red", "NIR", "Red edge"]):
-        print(f"  band {i} ({name}): mean={stack[i].mean():.4f}  "
-              f"p1={np.percentile(stack[i], 1):.4f}  p99={np.percentile(stack[i], 99):.4f}")
+        print(
+            f"  band {i} ({name}): mean={stack[i].mean():.4f}  "
+            f"p1={np.percentile(stack[i], 1):.4f}  p99={np.percentile(stack[i], 99):.4f}"
+        )
     # Auto-stretch each channel
     rgb_stretched = np.zeros_like(rgb)
     for i in range(3):
