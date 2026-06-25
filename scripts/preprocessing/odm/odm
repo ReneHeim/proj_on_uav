@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 || ${1:-} == "-h" || ${1:-} == "--help" ]]; then
+  cat <<'USAGE'
+Usage:
+  odm PROJECT_ROOT PROJECT_NAME [ODM_ARGS...]
+
+PROJECT_ROOT must contain PROJECT_NAME/images/ with the source photos.
+
+Example:
+  odm /run/media/davidem/Heim/odm_projects 2025_week0_altum \
+    --radiometric-calibration camera --dsm --orthophoto-resolution 0.03
+
+Outputs:
+  PROJECT_ROOT/PROJECT_NAME/odm_orthophoto/odm_orthophoto.tif
+  PROJECT_ROOT/PROJECT_NAME/odm_dem/dsm.tif
+  PROJECT_ROOT/PROJECT_NAME/odm_report/report.pdf
+USAGE
+  exit 0
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is not installed or not on PATH." >&2
+  exit 127
+fi
+
+project_root=$(realpath "$1")
+project_name=$2
+shift 2
+
+if [[ ! -d "$project_root/$project_name/images" ]]; then
+  echo "ERROR: missing image directory: $project_root/$project_name/images" >&2
+  exit 2
+fi
+
+docker run --rm \
+  -u "$(id -u):$(id -g)" \
+  -v "$project_root:/datasets" \
+  opendronemap/odm:latest \
+  "$project_name" \
+  --project-path /datasets \
+  "$@"

@@ -105,6 +105,37 @@ Can multiangular MicaSense drone imagery improve early sugar beet disease predic
 
 ## Agent Instructions
 
+### Repository organization rules
+
+The `scripts/` folder is organized by purpose. Root-level Python scripts should be
+compatibility wrappers only. New implementation code belongs in one of:
+
+* `scripts/preprocessing/`
+* `scripts/analysis/`
+* `scripts/diagnostics/`
+* `scripts/metadata/`
+* `scripts/plotting/`
+* `scripts/archive/`
+
+Do not add new one-off scripts directly under `scripts/`. If a script is superseded
+but still useful for provenance, move it to `scripts/archive/` rather than deleting it.
+
+New outputs should follow the layout documented in `outputs/README.md`. Every new
+script should make it easy to trace which Python file created which outputs by writing
+a markdown summary, a structured log, and, for preprocessing, a manifest.
+
+For MicaSense RedEdge-P stacks, the required output band order is:
+
+```text
+Blue, Green, Red, Red edge, NIR
+```
+
+Reflectance stack values are stored as `uint16` with:
+
+```text
+reflectance = pixel_value / 32767
+```
+
 ### Mandatory rules for all processing/analysis scripts
 
 **Rule 1 — Function-level profiling and log files**

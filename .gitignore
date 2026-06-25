@@ -140,6 +140,12 @@ output/
 
 # Analysis outputs / paper results (keep out of public repository)
 outputs/
+!outputs/
+outputs/*
+!outputs/README.md
+!outputs/provenance/
+outputs/provenance/*
+!outputs/provenance/script_output_index.csv
 polygon_filtering_rect*.png
 
 # Local agent state and large geospatial/Metashape artifacts
