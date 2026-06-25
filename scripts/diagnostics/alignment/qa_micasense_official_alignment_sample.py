@@ -24,7 +24,6 @@ from rasterio.transform import Affine
 from skimage.filters import sobel
 from skimage.registration import phase_cross_correlation
 
-
 MS_BAND_NAMES = ("Blue", "Green", "Red", "NIR", "Red edge")
 MS_BAND_INDEXES = (0, 1, 2, 3, 4)
 
@@ -99,9 +98,7 @@ def write_previews(stack_dir: Path, preview_dir: Path) -> list[dict[str, float |
             if index == 2:
                 continue
             moving = sobel(stretch(stack[index]))
-            shift, _error, _phase = phase_cross_correlation(
-                reference, moving, upsample_factor=10
-            )
+            shift, _error, _phase = phase_cross_correlation(reference, moving, upsample_factor=10)
             metrics.append(
                 {
                     "file": path.name,

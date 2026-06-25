@@ -19,7 +19,7 @@ import polars as pl
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import LeaveOneGroupOut, GroupKFold
+from sklearn.model_selection import GroupKFold, LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -62,7 +62,11 @@ def make_pipeline(numeric_cols: list[str], categorical_cols: list[str]) -> Pipel
     preprocess = ColumnTransformer(
         [
             ("num", Pipeline([("scaler", StandardScaler())]), numeric_cols),
-            ("cat", OneHotEncoder(drop="first", handle_unknown="ignore", sparse_output=False), categorical_cols),
+            (
+                "cat",
+                OneHotEncoder(drop="first", handle_unknown="ignore", sparse_output=False),
+                categorical_cols,
+            ),
         ],
         remainder="drop",
     )
@@ -74,7 +78,9 @@ def make_pipeline(numeric_cols: list[str], categorical_cols: list[str]) -> Pipel
     )
 
 
-def oof_predictions(df: pl.DataFrame, numeric_cols: list[str], categorical_cols: list[str], name: str) -> pl.DataFrame:
+def oof_predictions(
+    df: pl.DataFrame, numeric_cols: list[str], categorical_cols: list[str], name: str
+) -> pl.DataFrame:
     t0 = time.perf_counter()
     import pandas as pd
 
@@ -90,7 +96,9 @@ def oof_predictions(df: pl.DataFrame, numeric_cols: list[str], categorical_cols:
         pred[test_idx] = model.predict(pdf.iloc[test_idx])
     pred = np.clip(pred, 0.0, float(np.nanmax(y)))
     metrics = regression_metrics(y, pred)
-    out = df.select(["plot_id", "cult", "trt", "predictor_week", "target_week", "y_true", "y_pred_multiangular"]).with_columns(
+    out = df.select(
+        ["plot_id", "cult", "trt", "predictor_week", "target_week", "y_true", "y_pred_multiangular"]
+    ).with_columns(
         [
             pl.Series(name="y_pred_corrected", values=pred),
             pl.lit(name).alias("metadata_model"),
@@ -106,7 +114,9 @@ def oof_predictions(df: pl.DataFrame, numeric_cols: list[str], categorical_cols:
     )
 
 
-def coefficient_table(df: pl.DataFrame, numeric_cols: list[str], categorical_cols: list[str], name: str) -> pl.DataFrame:
+def coefficient_table(
+    df: pl.DataFrame, numeric_cols: list[str], categorical_cols: list[str], name: str
+) -> pl.DataFrame:
     import pandas as pd
 
     pdf = df.to_pandas()
@@ -153,8 +163,12 @@ def grouped_summary(predictions: pl.DataFrame) -> pl.DataFrame:
         )
         .with_columns(
             [
-                (pl.col("rmse_original") - pl.col("rmse_corrected")).alias("rmse_reduction_after_metadata_correction"),
-                (pl.col("mae_original") - pl.col("mae_corrected")).alias("mae_reduction_after_metadata_correction"),
+                (pl.col("rmse_original") - pl.col("rmse_corrected")).alias(
+                    "rmse_reduction_after_metadata_correction"
+                ),
+                (pl.col("mae_original") - pl.col("mae_corrected")).alias(
+                    "mae_reduction_after_metadata_correction"
+                ),
             ]
         )
         .sort(["metadata_model", "cult", "trt"])
@@ -172,14 +186,19 @@ def main() -> None:
             pl.col("predictor_week").cast(pl.Utf8).alias("predictor_week_cat"),
         ]
     )
-    baseline_metrics = regression_metrics(df.get_column("y_true").to_numpy(), df.get_column("y_pred_multiangular").to_numpy())
+    baseline_metrics = regression_metrics(
+        df.get_column("y_true").to_numpy(), df.get_column("y_pred_multiangular").to_numpy()
+    )
     specs = {
         "prediction_only": (["y_pred_multiangular"], []),
         "prediction_cultivar": (["y_pred_multiangular"], ["cult"]),
         "prediction_week_only": (["y_pred_multiangular"], ["target_week_cat"]),
         "prediction_week_trt": (["y_pred_multiangular"], ["target_week_cat", "trt"]),
         "prediction_week_cultivar": (["y_pred_multiangular"], ["target_week_cat", "cult"]),
-        "prediction_week_trt_cultivar": (["y_pred_multiangular"], ["target_week_cat", "trt", "cult"]),
+        "prediction_week_trt_cultivar": (
+            ["y_pred_multiangular"],
+            ["target_week_cat", "trt", "cult"],
+        ),
         "prediction_week_trt_cultivar_interactions": (
             ["y_pred_multiangular"],
             ["target_week_cat", "trt", "cult"],
@@ -210,9 +229,15 @@ def main() -> None:
         )
         .with_columns(
             [
-                (pl.col("original_rmse") - pl.col("corrected_rmse")).alias("rmse_reduction_from_metadata_correction"),
-                (pl.col("original_mae") - pl.col("corrected_mae")).alias("mae_reduction_from_metadata_correction"),
-                (pl.col("corrected_r2") - pl.col("original_r2")).alias("delta_r2_from_metadata_correction"),
+                (pl.col("original_rmse") - pl.col("corrected_rmse")).alias(
+                    "rmse_reduction_from_metadata_correction"
+                ),
+                (pl.col("original_mae") - pl.col("corrected_mae")).alias(
+                    "mae_reduction_from_metadata_correction"
+                ),
+                (pl.col("corrected_r2") - pl.col("original_r2")).alias(
+                    "delta_r2_from_metadata_correction"
+                ),
             ]
         )
         .sort("corrected_rmse")
@@ -232,7 +257,16 @@ def main() -> None:
 
     report_path = REPORTS_DIR / "cultivar_metadata_correction_summary.md"
     report_path.write_text(
-        build_report(summary, by_group, coef_all, summary_path, by_group_path, coef_path, predictions_path, log_path),
+        build_report(
+            summary,
+            by_group,
+            coef_all,
+            summary_path,
+            by_group_path,
+            coef_path,
+            predictions_path,
+            log_path,
+        ),
         encoding="utf-8",
     )
     logging.info("Report: %s", report_path)
@@ -272,9 +306,11 @@ def build_report(
     log_path: Path,
 ) -> str:
     summary_view = summary.with_columns(pl.all().exclude("metadata_model").round(3))
-    coef_view = coefs.filter(pl.col("feature").str.contains("cult")).select(
-        ["metadata_model", "feature", "coefficient", "abs_coefficient", "ridge_alpha"]
-    ).with_columns(pl.all().exclude(["metadata_model", "feature"]).round(3))
+    coef_view = (
+        coefs.filter(pl.col("feature").str.contains("cult"))
+        .select(["metadata_model", "feature", "coefficient", "abs_coefficient", "ridge_alpha"])
+        .with_columns(pl.all().exclude(["metadata_model", "feature"]).round(3))
+    )
     return f"""## Results: Does Cultivar Metadata Help?
 
 ### Out-of-fold correction performance

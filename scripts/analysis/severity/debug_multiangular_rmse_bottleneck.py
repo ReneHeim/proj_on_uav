@@ -9,9 +9,9 @@ plot-level bootstrap CIs.
 
 from __future__ import annotations
 
-import logging
 import hashlib
 import json
+import logging
 import math
 import sys
 import time
@@ -27,14 +27,19 @@ import numpy as np
 import pandas as pd
 import polars as pl
 from scipy.stats import spearmanr
+from sklearn.compose import ColumnTransformer
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
-from sklearn.linear_model import ElasticNetCV, HuberRegressor, LogisticRegressionCV, RidgeCV
+from sklearn.linear_model import (
+    ElasticNetCV,
+    HuberRegressor,
+    LogisticRegressionCV,
+    RidgeCV,
+)
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.compose import ColumnTransformer
 from xgboost import XGBRegressor
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -68,7 +73,6 @@ from scripts.analysis.severity.analyze_multiangular_distribution_feature_family 
     markdown_table,
     regression_metric_values,
 )
-
 
 INPUT_RESULTS_DIR = ROOT / "outputs/multiangular_distribution_feature_family/results"
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
@@ -201,7 +205,9 @@ def prediction_path(model: str, feature_set: str, covariates: str) -> Path:
     )
 
 
-def save_predictions(predictions: pd.DataFrame, model: str, feature_set: str, covariates: str) -> None:
+def save_predictions(
+    predictions: pd.DataFrame, model: str, feature_set: str, covariates: str
+) -> None:
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     predictions.to_csv(prediction_path(model, feature_set, covariates), index=False)
 
@@ -215,14 +221,20 @@ def load_cached_features() -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
     return {name: features[name] for name in FEATURE_SETS}
 
 
-def select_stable_features(train_aligned: pd.DataFrame, cols: list[str]) -> tuple[list[str], pd.DataFrame]:
+def select_stable_features(
+    train_aligned: pd.DataFrame, cols: list[str]
+) -> tuple[list[str], pd.DataFrame]:
     t0 = time.perf_counter()
-    splitter = GroupShuffleSplit(n_splits=STABILITY_REPEATS, test_size=STABILITY_TEST_SIZE, random_state=SEED)
+    splitter = GroupShuffleSplit(
+        n_splits=STABILITY_REPEATS, test_size=STABILITY_TEST_SIZE, random_state=SEED
+    )
     groups = train_aligned["plot_id"].to_numpy()
     counts = pd.Series(0.0, index=cols)
     abs_coef_sum = pd.Series(0.0, index=cols)
     fit_rows = []
-    for repeat, (fit_idx, _) in enumerate(splitter.split(train_aligned, train_aligned[TARGET], groups=groups)):
+    for repeat, (fit_idx, _) in enumerate(
+        splitter.split(train_aligned, train_aligned[TARGET], groups=groups)
+    ):
         fit_part = train_aligned.iloc[fit_idx].copy()
         pipeline = Pipeline(
             [
@@ -262,7 +274,9 @@ def select_stable_features(train_aligned: pd.DataFrame, cols: list[str]) -> tupl
             "mean_abs_elasticnet_coef": (abs_coef_sum / STABILITY_REPEATS).to_numpy(float),
         }
     ).sort_values(["selection_frequency", "mean_abs_elasticnet_coef"], ascending=[False, False])
-    selection["meets_stability_threshold"] = selection["selection_frequency"] >= STABILITY_MIN_FREQUENCY
+    selection["meets_stability_threshold"] = (
+        selection["selection_frequency"] >= STABILITY_MIN_FREQUENCY
+    )
     selected_cols = selection.loc[selection["meets_stability_threshold"], "feature"].tolist()
     selection_mode = "threshold"
     if not selected_cols:
@@ -270,16 +284,31 @@ def select_stable_features(train_aligned: pd.DataFrame, cols: list[str]) -> tupl
         selected_cols = list(cols)
     audit = pd.DataFrame(fit_rows)
     selection["selection_mode"] = selection_mode
-    selection["mean_selected_features_per_repeat"] = float(audit["selected_features"].mean()) if not audit.empty else math.nan
-    selection["mean_elasticnet_alpha"] = float(audit["alpha"].mean()) if not audit.empty else math.nan
-    selection["mean_elasticnet_l1_ratio"] = float(audit["l1_ratio"].mean()) if not audit.empty else math.nan
-    logging.info("Stable feature selection: %s selected from %s in %.1fs", len(selected_cols), len(cols), time.perf_counter() - t0)
+    selection["mean_selected_features_per_repeat"] = (
+        float(audit["selected_features"].mean()) if not audit.empty else math.nan
+    )
+    selection["mean_elasticnet_alpha"] = (
+        float(audit["alpha"].mean()) if not audit.empty else math.nan
+    )
+    selection["mean_elasticnet_l1_ratio"] = (
+        float(audit["l1_ratio"].mean()) if not audit.empty else math.nan
+    )
+    logging.info(
+        "Stable feature selection: %s selected from %s in %.1fs",
+        len(selected_cols),
+        len(cols),
+        time.perf_counter() - t0,
+    )
     return selected_cols, selection
 
 
-def prepare_aligned(train: pd.DataFrame, test: pd.DataFrame) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
+def prepare_aligned(
+    train: pd.DataFrame, test: pd.DataFrame
+) -> tuple[list[str], pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = align_train_test(train, test)
-    train_aligned, test_aligned, cols = add_known_covariates(train_aligned, test_aligned, cols, COVARIATES)
+    train_aligned, test_aligned, cols = add_known_covariates(
+        train_aligned, test_aligned, cols, COVARIATES
+    )
     return cols, train_aligned, test_aligned
 
 
@@ -287,7 +316,9 @@ def clip_predictions(pred: np.ndarray, train_y: np.ndarray) -> np.ndarray:
     return np.clip(pred, float(np.nanmin(train_y)), float(np.nanmax(train_y)))
 
 
-def prediction_frame(test_aligned: pd.DataFrame, pred: np.ndarray, model: str, feature_set: str) -> pd.DataFrame:
+def prediction_frame(
+    test_aligned: pd.DataFrame, pred: np.ndarray, model: str, feature_set: str
+) -> pd.DataFrame:
     out = test_aligned[["plot_id", "predictor_week", "target_week"]].copy()
     out["model"] = model
     out["feature_set"] = feature_set
@@ -297,7 +328,9 @@ def prediction_frame(test_aligned: pd.DataFrame, pred: np.ndarray, model: str, f
     return out
 
 
-def score_predictions(predictions: pd.DataFrame, n_train: int, n_features: int, model: str, feature_set: str) -> dict:
+def score_predictions(
+    predictions: pd.DataFrame, n_train: int, n_features: int, model: str, feature_set: str
+) -> dict:
     y = predictions["y_true"].to_numpy(float)
     pred = predictions["y_pred"].to_numpy(float)
     metrics = regression_metric_values(y, pred)
@@ -315,7 +348,9 @@ def score_predictions(predictions: pd.DataFrame, n_train: int, n_features: int, 
     }
 
 
-def fit_direct_stability_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+def fit_direct_stability_ridge(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, selection = select_stable_features(train_aligned, cols)
     pipeline = Pipeline(
@@ -333,7 +368,9 @@ def fit_direct_stability_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_
     model = "direct_stability_ridge"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(selected_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(selected_cols), model, feature_set
+    )
     result["fit_time_s"] = fit_time
     selection["feature_set"] = feature_set
     selection["model"] = model
@@ -341,7 +378,9 @@ def fit_direct_stability_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_
     return result, predictions, selection
 
 
-def fit_phenology_floor_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_phenology_floor_ridge(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     pipeline = Pipeline(
@@ -359,8 +398,7 @@ def fit_phenology_floor_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_s
         train_aligned.groupby("target_week")[TARGET]
         .max()
         .loc[lambda s: s <= DISEASE_PRESENT_THRESHOLD]
-        .index
-        .to_numpy()
+        .index.to_numpy()
     )
     if zero_weeks.size:
         pred[np.isin(test_aligned["target_week"].to_numpy(), zero_weeks)] = 0.0
@@ -368,13 +406,17 @@ def fit_phenology_floor_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_s
     model = "phenology_floor_stability_ridge"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(selected_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(selected_cols), model, feature_set
+    )
     result["zero_target_weeks_from_2024"] = ",".join(map(str, zero_weeks.tolist()))
     result["fit_time_s"] = time.perf_counter() - fit_t0
     return result, predictions
 
 
-def fit_hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_hurdle_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     y_train = train_aligned[TARGET].to_numpy(float)
@@ -420,12 +462,16 @@ def fit_hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) 
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     predictions["disease_probability"] = disease_prob
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(selected_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(selected_cols), model, feature_set
+    )
     result["fit_time_s"] = time.perf_counter() - fit_t0
     return result, predictions
 
 
-def fit_huber_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_huber_stability(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     y_train = train_aligned[TARGET].to_numpy(float)
@@ -442,7 +488,9 @@ def fit_huber_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: st
     model = "huber_stability_regression"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(selected_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(selected_cols), model, feature_set
+    )
     result["fit_time_s"] = time.perf_counter() - fit_t0
     return result, predictions
 
@@ -467,8 +515,16 @@ def stable_distribution_shift(
             continue
         x = pd.to_numeric(train_aligned[col], errors="coerce").replace([np.inf, -np.inf], np.nan)
         y = pd.to_numeric(test_aligned[col], errors="coerce").replace([np.inf, -np.inf], np.nan)
-        pooled = math.sqrt((float(x.var(skipna=True)) + float(y.var(skipna=True))) / 2) if x.notna().sum() > 1 and y.notna().sum() > 1 else math.nan
-        smd = (float(y.mean(skipna=True)) - float(x.mean(skipna=True))) / pooled if pooled and np.isfinite(pooled) else math.nan
+        pooled = (
+            math.sqrt((float(x.var(skipna=True)) + float(y.var(skipna=True))) / 2)
+            if x.notna().sum() > 1 and y.notna().sum() > 1
+            else math.nan
+        )
+        smd = (
+            (float(y.mean(skipna=True)) - float(x.mean(skipna=True))) / pooled
+            if pooled and np.isfinite(pooled)
+            else math.nan
+        )
         train_non_null = float(x.notna().mean())
         test_non_null = float(y.notna().mean())
         rows.append(
@@ -531,8 +587,12 @@ def fit_xgboost_with_cols(
     save_predictions(predictions, model, feature_set, COVARIATES)
     result = score_predictions(predictions, len(train_aligned), len(cols), model, feature_set)
     result["fit_time_s"] = time.perf_counter() - fit_t0
-    result["best_iteration"] = int(getattr(regressor, "best_iteration", XGBOOST_PARAMS["n_estimators"]))
-    result["eval_rmse_2024"] = float(regressor.evals_result()["validation_0"]["rmse"][result["best_iteration"]])
+    result["best_iteration"] = int(
+        getattr(regressor, "best_iteration", XGBOOST_PARAMS["n_estimators"])
+    )
+    result["eval_rmse_2024"] = float(
+        regressor.evals_result()["validation_0"]["rmse"][result["best_iteration"]]
+    )
     return result, predictions
 
 
@@ -575,7 +635,18 @@ def tune_xgboost_params(
             "eval_rmse_2024": eval_rmse,
             "best_iteration": best_iteration,
             "fit_time_s": time.perf_counter() - started,
-            **{f"xgb__{k}": v for k, v in params.items() if k not in {"objective", "eval_metric", "random_state", "n_jobs", "early_stopping_rounds"}},
+            **{
+                f"xgb__{k}": v
+                for k, v in params.items()
+                if k
+                not in {
+                    "objective",
+                    "eval_metric",
+                    "random_state",
+                    "n_jobs",
+                    "early_stopping_rounds",
+                }
+            },
         }
         rows.append(row)
         if best is None or eval_rmse < best["eval_rmse_2024"]:
@@ -667,13 +738,19 @@ def fit_tuned_xgboost_residual_with_cols(
     return result, predictions, tuning
 
 
-def fit_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_xgboost_stability(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
-    return fit_xgboost_with_cols(train_aligned, test_aligned, selected_cols, "xgboost_stability_regularized", feature_set)
+    return fit_xgboost_with_cols(
+        train_aligned, test_aligned, selected_cols, "xgboost_stability_regularized", feature_set
+    )
 
 
-def fit_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_reliability_filtered_xgboost(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     filtered_cols, _ = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
@@ -689,7 +766,9 @@ def fit_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFrame, fe
     return result, predictions
 
 
-def fit_tuned_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+def fit_tuned_xgboost_stability(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     result, predictions, tuning = fit_tuned_xgboost_with_cols(
@@ -705,7 +784,9 @@ def fit_tuned_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feature
     return result, predictions, tuning
 
 
-def fit_tuned_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+def fit_tuned_reliability_filtered_xgboost(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     filtered_cols, _ = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
@@ -724,7 +805,9 @@ def fit_tuned_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFra
     return result, predictions, tuning
 
 
-def fit_residual_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+def fit_residual_xgboost_stability(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     result, predictions, tuning = fit_tuned_xgboost_residual_with_cols(
@@ -740,7 +823,9 @@ def fit_residual_xgboost_stability(train: pd.DataFrame, test: pd.DataFrame, feat
     return result, predictions, tuning
 
 
-def fit_residual_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
+def fit_residual_reliability_filtered_xgboost(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     filtered_cols, _ = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
@@ -759,7 +844,9 @@ def fit_residual_reliability_filtered_xgboost(train: pd.DataFrame, test: pd.Data
     return result, predictions, tuning
 
 
-def fit_reliability_filtered_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_reliability_filtered_ridge(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     filtered_cols, shift = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
@@ -777,14 +864,18 @@ def fit_reliability_filtered_ridge(train: pd.DataFrame, test: pd.DataFrame, feat
     model = "reliability_filtered_stability_ridge"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(filtered_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(filtered_cols), model, feature_set
+    )
     result["fit_time_s"] = time.perf_counter() - fit_t0
     result["n_stability_features_before_reliability"] = len(selected_cols)
     result["n_features_removed_by_reliability"] = len(selected_cols) - len(filtered_cols)
     return result, predictions
 
 
-def fit_reliability_filtered_huber(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_reliability_filtered_huber(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     filtered_cols, shift = reliability_filtered_cols(train_aligned, test_aligned, selected_cols)
@@ -802,7 +893,9 @@ def fit_reliability_filtered_huber(train: pd.DataFrame, test: pd.DataFrame, feat
     model = "reliability_filtered_huber"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(filtered_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(filtered_cols), model, feature_set
+    )
     result["fit_time_s"] = time.perf_counter() - fit_t0
     result["n_stability_features_before_reliability"] = len(selected_cols)
     result["n_features_removed_by_reliability"] = len(selected_cols) - len(filtered_cols)
@@ -814,7 +907,9 @@ def oof_base_predictions(train_aligned: pd.DataFrame, selected_cols: list[str]) 
     n_splits = min(5, len(np.unique(groups)))
     splitter = GroupKFold(n_splits=n_splits)
     out = np.full(len(train_aligned), np.nan, dtype=float)
-    for fold, (fit_idx, pred_idx) in enumerate(splitter.split(train_aligned, train_aligned[TARGET], groups=groups)):
+    for fold, (fit_idx, pred_idx) in enumerate(
+        splitter.split(train_aligned, train_aligned[TARGET], groups=groups)
+    ):
         fold_train = train_aligned.iloc[fit_idx]
         fold_pred = train_aligned.iloc[pred_idx]
         pipeline = Pipeline(
@@ -831,7 +926,9 @@ def oof_base_predictions(train_aligned: pd.DataFrame, selected_cols: list[str]) 
     return out
 
 
-def fit_residual_calibrated(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def fit_residual_calibrated(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train_aligned, test_aligned = prepare_aligned(train, test)
     selected_cols, _ = select_stable_features(train_aligned, cols)
     fit_t0 = time.perf_counter()
@@ -862,13 +959,19 @@ def fit_residual_calibrated(train: pd.DataFrame, test: pd.DataFrame, feature_set
         ]
     )
     valid = np.isfinite(train_cal["residual"].to_numpy(float))
-    residual_model.fit(train_cal.loc[valid, numeric_cols], train_cal.loc[valid, "residual"].to_numpy(float))
-    pred = clip_predictions(test_base_pred + residual_model.predict(test_cal[numeric_cols]), y_train)
+    residual_model.fit(
+        train_cal.loc[valid, numeric_cols], train_cal.loc[valid, "residual"].to_numpy(float)
+    )
+    pred = clip_predictions(
+        test_base_pred + residual_model.predict(test_cal[numeric_cols]), y_train
+    )
     model = "oof_residual_calibrated_ridge"
     predictions = prediction_frame(test_aligned, pred, model, feature_set)
     predictions["base_pred"] = test_base_pred
     save_predictions(predictions, model, feature_set, COVARIATES)
-    result = score_predictions(predictions, len(train_aligned), len(selected_cols), model, feature_set)
+    result = score_predictions(
+        predictions, len(train_aligned), len(selected_cols), model, feature_set
+    )
     result["fit_time_s"] = time.perf_counter() - fit_t0
     return result, predictions
 
@@ -876,8 +979,12 @@ def fit_residual_calibrated(train: pd.DataFrame, test: pd.DataFrame, feature_set
 def candidate_delta_ci(results: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for model in sorted(results["model"].unique()):
-        baseline = results[(results["model"] == model) & (results["feature_set"] == "compact_anomaly_nadir")]
-        candidate = results[(results["model"] == model) & (results["feature_set"] == "compact_anomaly_multiangular")]
+        baseline = results[
+            (results["model"] == model) & (results["feature_set"] == "compact_anomaly_nadir")
+        ]
+        candidate = results[
+            (results["model"] == model) & (results["feature_set"] == "compact_anomaly_multiangular")
+        ]
         if baseline.empty or candidate.empty:
             continue
         rows.append(
@@ -918,11 +1025,14 @@ def paired_bootstrap_delta_ci(
     )
     plot_ids = np.asarray(sorted(merged["plot_id"].unique()))
     plot_to_indices = {
-        plot_id: merged.index[merged["plot_id"] == plot_id].to_numpy()
-        for plot_id in plot_ids
+        plot_id: merged.index[merged["plot_id"] == plot_id].to_numpy() for plot_id in plot_ids
     }
-    base_obs = regression_metric_values(merged["y_true"].to_numpy(float), merged["y_pred_baseline"].to_numpy(float))
-    cand_obs = regression_metric_values(merged["y_true"].to_numpy(float), merged["y_pred_candidate"].to_numpy(float))
+    base_obs = regression_metric_values(
+        merged["y_true"].to_numpy(float), merged["y_pred_baseline"].to_numpy(float)
+    )
+    cand_obs = regression_metric_values(
+        merged["y_true"].to_numpy(float), merged["y_pred_candidate"].to_numpy(float)
+    )
     observed = {
         "rmse_reduction": base_obs["rmse"] - cand_obs["rmse"],
         "mae_reduction": base_obs["mae"] - cand_obs["mae"],
@@ -943,7 +1053,11 @@ def paired_bootstrap_delta_ci(
         samples["delta_spearman"].append(cand["spearman"] - base["spearman"])
     ci_low = 100 * PAIRED_BOOTSTRAP_ALPHA / 2
     ci_high = 100 * (1 - PAIRED_BOOTSTRAP_ALPHA / 2)
-    out: dict[str, float] = {"n_test_rows": len(merged), "n_plots": len(plot_ids), "n_bootstrap": BOOTSTRAP_ITERATIONS}
+    out: dict[str, float] = {
+        "n_test_rows": len(merged),
+        "n_plots": len(plot_ids),
+        "n_bootstrap": BOOTSTRAP_ITERATIONS,
+    }
     for metric, values in samples.items():
         arr = np.asarray(values, dtype=float)
         out[f"{metric}_observed"] = observed[metric]
@@ -959,13 +1073,19 @@ def residual_debug(
     model: str = SELECTED_MODEL,
 ) -> pd.DataFrame:
     base = predictions[(model, "compact_anomaly_nadir")].rename(columns={"y_pred": "y_pred_nadir"})
-    cand = predictions[(model, "compact_anomaly_multiangular")].rename(columns={"y_pred": "y_pred_multiangular"})
+    cand = predictions[(model, "compact_anomaly_multiangular")].rename(
+        columns={"y_pred": "y_pred_multiangular"}
+    )
     meta = features_2025[["plot_id", "cult", "trt"]].drop_duplicates()
-    merged = base[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_nadir"]].merge(
-        cand[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_multiangular"]],
-        on=["plot_id", "predictor_week", "target_week", "y_true"],
-        how="inner",
-    ).merge(meta, on="plot_id", how="left")
+    merged = (
+        base[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_nadir"]]
+        .merge(
+            cand[["plot_id", "predictor_week", "target_week", "y_true", "y_pred_multiangular"]],
+            on=["plot_id", "predictor_week", "target_week", "y_true"],
+            how="inner",
+        )
+        .merge(meta, on="plot_id", how="left")
+    )
     merged["diagnostic_model"] = model
     merged["err_nadir"] = merged["y_pred_nadir"] - merged["y_true"]
     merged["err_multiangular"] = merged["y_pred_multiangular"] - merged["y_true"]
@@ -1034,7 +1154,9 @@ def leave_one_plot_sensitivity(residuals: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("rmse_reduction_after_exclusion")
 
 
-def feature_shift_table(train: pd.DataFrame, test: pd.DataFrame, selected: pd.DataFrame) -> pd.DataFrame:
+def feature_shift_table(
+    train: pd.DataFrame, test: pd.DataFrame, selected: pd.DataFrame
+) -> pd.DataFrame:
     selected_features = selected.loc[
         (selected["feature_set"] == "compact_anomaly_multiangular")
         & (selected["selected_for_final_model"])
@@ -1047,7 +1169,11 @@ def feature_shift_table(train: pd.DataFrame, test: pd.DataFrame, selected: pd.Da
             continue
         x = pd.to_numeric(train[feature], errors="coerce").replace([np.inf, -np.inf], np.nan)
         y = pd.to_numeric(test[feature], errors="coerce").replace([np.inf, -np.inf], np.nan)
-        pooled = math.sqrt((float(x.var(skipna=True)) + float(y.var(skipna=True))) / 2) if x.notna().sum() > 1 and y.notna().sum() > 1 else math.nan
+        pooled = (
+            math.sqrt((float(x.var(skipna=True)) + float(y.var(skipna=True))) / 2)
+            if x.notna().sum() > 1 and y.notna().sum() > 1
+            else math.nan
+        )
         rows.append(
             {
                 "feature": feature,
@@ -1055,17 +1181,25 @@ def feature_shift_table(train: pd.DataFrame, test: pd.DataFrame, selected: pd.Da
                 "test_non_null": float(y.notna().mean()),
                 "train_mean": float(x.mean(skipna=True)),
                 "test_mean": float(y.mean(skipna=True)),
-                "standardized_mean_difference": (float(y.mean(skipna=True)) - float(x.mean(skipna=True))) / pooled if pooled and np.isfinite(pooled) else math.nan,
+                "standardized_mean_difference": (
+                    (float(y.mean(skipna=True)) - float(x.mean(skipna=True))) / pooled
+                    if pooled and np.isfinite(pooled)
+                    else math.nan
+                ),
                 "train_p10": float(x.quantile(0.10)),
                 "test_p10": float(y.quantile(0.10)),
                 "train_p90": float(x.quantile(0.90)),
                 "test_p90": float(y.quantile(0.90)),
             }
         )
-    return pd.DataFrame(rows).sort_values("standardized_mean_difference", key=lambda s: s.abs(), ascending=False)
+    return pd.DataFrame(rows).sort_values(
+        "standardized_mean_difference", key=lambda s: s.abs(), ascending=False
+    )
 
 
-def plot_observed_predicted(predictions: dict[tuple[str, str], pd.DataFrame], model: str = SELECTED_MODEL) -> Path:
+def plot_observed_predicted(
+    predictions: dict[tuple[str, str], pd.DataFrame], model: str = SELECTED_MODEL
+) -> Path:
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), sharex=True, sharey=True)
     specs = [
@@ -1100,7 +1234,9 @@ def plot_residual_by_week(residuals: pd.DataFrame) -> Path:
         week_df = residuals[residuals["target_week"] == week]
         positions.extend([idx * 3, idx * 3 + 1])
         labels.extend([f"W{week}\nNadir", f"W{week}\nMulti"])
-        data.extend([week_df["err_nadir"].to_numpy(float), week_df["err_multiangular"].to_numpy(float)])
+        data.extend(
+            [week_df["err_nadir"].to_numpy(float), week_df["err_multiangular"].to_numpy(float)]
+        )
     ax.boxplot(data, positions=positions, widths=0.7, showfliers=True)
     ax.axhline(0, color="black", linewidth=1)
     ax.set_xticks(positions)
@@ -1132,7 +1268,9 @@ def plot_plot_level_delta(by_plot: pd.DataFrame) -> Path:
     return path
 
 
-def write_frozen_pipeline_config(results: pd.DataFrame, ci: pd.DataFrame, log_path: Path) -> tuple[Path, Path]:
+def write_frozen_pipeline_config(
+    results: pd.DataFrame, ci: pd.DataFrame, log_path: Path
+) -> tuple[Path, Path]:
     FROZEN_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     selected_results = results[results["model"] == SELECTED_MODEL].copy()
@@ -1222,7 +1360,9 @@ def write_frozen_pipeline_config(results: pd.DataFrame, ci: pd.DataFrame, log_pa
         "report_path": str(REPORTS_DIR / "model_bottleneck_debug_summary.md"),
         "log_path": str(log_path),
     }
-    FROZEN_MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    FROZEN_MANIFEST_PATH.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
     logging.info("Frozen config: %s sha256=%s", FROZEN_CONFIG_PATH, config_hash)
     return FROZEN_CONFIG_PATH, FROZEN_MANIFEST_PATH
 
@@ -1268,9 +1408,7 @@ def write_report(
     top_mae = float(top.get("mae_reduction_observed", math.nan))
     top_r2 = float(top.get("delta_r2_observed", math.nan))
     top_spearman = float(top.get("delta_spearman_observed", math.nan))
-    direct_week_text = (
-        "The direct stability Ridge bottleneck is week-dependent: multiangular helps target week 5, but it creates false positives in week 1 and does not improve week 6."
-    )
+    direct_week_text = "The direct stability Ridge bottleneck is week-dependent: multiangular helps target week 5, but it creates false positives in week 1 and does not improve week 6."
     if not by_week.empty:
         week_parts = []
         for _, row in by_week.iterrows():
@@ -1487,11 +1625,17 @@ def main() -> None:
     ci_df = candidate_delta_ci(results_df)
     log_phase("paired plot bootstrap CI", ci_t0)
 
-    residuals = residual_debug(predictions, features["compact_anomaly_multiangular"][1], SELECTED_MODEL)
+    residuals = residual_debug(
+        predictions, features["compact_anomaly_multiangular"][1], SELECTED_MODEL
+    )
     by_week, by_group, by_plot = group_debug_tables(residuals)
     loo_plot = leave_one_plot_sensitivity(residuals)
     selections = pd.concat(selection_tables, ignore_index=True)
-    xgboost_tuning = pd.concat(xgboost_tuning_tables, ignore_index=True) if xgboost_tuning_tables else pd.DataFrame()
+    xgboost_tuning = (
+        pd.concat(xgboost_tuning_tables, ignore_index=True)
+        if xgboost_tuning_tables
+        else pd.DataFrame()
+    )
     feature_shift = feature_shift_table(
         features["compact_anomaly_multiangular"][0],
         features["compact_anomaly_multiangular"][1],
@@ -1503,18 +1647,22 @@ def main() -> None:
         plot_residual_by_week(residuals),
         plot_plot_level_delta(by_plot),
     ]
-    frozen_config_path, frozen_manifest_path = write_frozen_pipeline_config(results_df, ci_df, log_path)
+    frozen_config_path, frozen_manifest_path = write_frozen_pipeline_config(
+        results_df, ci_df, log_path
+    )
 
     paths = {
         "candidate_results": RESULTS_DIR / "candidate_model_comparison.csv",
         "candidate_delta_ci": RESULTS_DIR / "candidate_model_comparison_with_paired_ci.csv",
         "residuals": RESULTS_DIR / "residual_debug_by_week_plot.csv",
         "candidate_week_breakdown": RESULTS_DIR / "candidate_model_week_breakdown.csv",
-        "candidate_group_breakdown": RESULTS_DIR / "candidate_model_cultivar_treatment_breakdown.csv",
+        "candidate_group_breakdown": RESULTS_DIR
+        / "candidate_model_cultivar_treatment_breakdown.csv",
         "candidate_plot_drivers": RESULTS_DIR / "candidate_model_plot_drivers.csv",
         "leave_one_plot_sensitivity": RESULTS_DIR / "frozen_model_leave_one_plot_sensitivity.csv",
         "feature_shift": RESULTS_DIR / "feature_shift_selected_features.csv",
-        "stability_selection": RESULTS_DIR / "candidate_stability_selection_feature_frequencies.csv",
+        "stability_selection": RESULTS_DIR
+        / "candidate_stability_selection_feature_frequencies.csv",
         "xgboost_tuning": RESULTS_DIR / "xgboost_tuning_audit.csv",
         "frozen_config": frozen_config_path,
         "frozen_manifest": frozen_manifest_path,

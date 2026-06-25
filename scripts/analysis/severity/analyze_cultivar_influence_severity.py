@@ -75,7 +75,17 @@ def read_inputs() -> pl.DataFrame:
     )
     multi = (
         pl.read_csv(SELECTED_MULTI_PREDICTIONS)
-        .select(["plot_id", "predictor_week", "target_week", "y_true", "y_pred", "base_pred", "xgb_residual_pred"])
+        .select(
+            [
+                "plot_id",
+                "predictor_week",
+                "target_week",
+                "y_true",
+                "y_pred",
+                "base_pred",
+                "xgb_residual_pred",
+            ]
+        )
         .rename(
             {
                 "y_pred": "y_pred_multiangular",
@@ -91,22 +101,30 @@ def read_inputs() -> pl.DataFrame:
             [
                 (pl.col("y_pred_nadir") - pl.col("y_true")).alias("err_nadir"),
                 (pl.col("y_pred_multiangular") - pl.col("y_true")).alias("err_multiangular"),
-                (pl.col("y_pred_ridge_base_multiangular") - pl.col("y_true")).alias("err_ridge_base_multiangular"),
+                (pl.col("y_pred_ridge_base_multiangular") - pl.col("y_true")).alias(
+                    "err_ridge_base_multiangular"
+                ),
             ]
         )
         .with_columns(
             [
                 pl.col("err_nadir").abs().alias("abs_err_nadir"),
                 pl.col("err_multiangular").abs().alias("abs_err_multiangular"),
-                pl.col("err_ridge_base_multiangular").abs().alias("abs_err_ridge_base_multiangular"),
-                (pl.col("err_nadir").abs() - pl.col("err_multiangular").abs()).alias("abs_error_reduction_multi_vs_nadir"),
-                (pl.col("err_nadir").pow(2) - pl.col("err_multiangular").pow(2)).alias("sq_error_reduction_multi_vs_nadir"),
-                (pl.col("err_ridge_base_multiangular").abs() - pl.col("err_multiangular").abs()).alias(
-                    "abs_error_reduction_residual_vs_ridge"
+                pl.col("err_ridge_base_multiangular")
+                .abs()
+                .alias("abs_err_ridge_base_multiangular"),
+                (pl.col("err_nadir").abs() - pl.col("err_multiangular").abs()).alias(
+                    "abs_error_reduction_multi_vs_nadir"
                 ),
-                (pl.col("err_ridge_base_multiangular").pow(2) - pl.col("err_multiangular").pow(2)).alias(
-                    "sq_error_reduction_residual_vs_ridge"
+                (pl.col("err_nadir").pow(2) - pl.col("err_multiangular").pow(2)).alias(
+                    "sq_error_reduction_multi_vs_nadir"
                 ),
+                (
+                    pl.col("err_ridge_base_multiangular").abs() - pl.col("err_multiangular").abs()
+                ).alias("abs_error_reduction_residual_vs_ridge"),
+                (
+                    pl.col("err_ridge_base_multiangular").pow(2) - pl.col("err_multiangular").pow(2)
+                ).alias("sq_error_reduction_residual_vs_ridge"),
             ]
         )
     )
@@ -128,18 +146,30 @@ def grouped_metrics(df: pl.DataFrame, group_cols: list[str]) -> pl.DataFrame:
                 rmse_expr("err_ridge_base_multiangular"),
                 pl.col("abs_err_nadir").mean().alias("mae_nadir"),
                 pl.col("abs_err_multiangular").mean().alias("mae_multiangular"),
-                pl.col("abs_err_ridge_base_multiangular").mean().alias("mae_ridge_base_multiangular"),
+                pl.col("abs_err_ridge_base_multiangular")
+                .mean()
+                .alias("mae_ridge_base_multiangular"),
                 pl.col("err_nadir").mean().alias("bias_nadir"),
                 pl.col("err_multiangular").mean().alias("bias_multiangular"),
-                pl.col("abs_error_reduction_multi_vs_nadir").mean().alias("mean_abs_error_reduction_multi_vs_nadir"),
-                pl.col("sq_error_reduction_multi_vs_nadir").mean().alias("mean_sq_error_reduction_multi_vs_nadir"),
-                pl.col("abs_error_reduction_residual_vs_ridge").mean().alias("mean_abs_error_reduction_residual_vs_ridge"),
+                pl.col("abs_error_reduction_multi_vs_nadir")
+                .mean()
+                .alias("mean_abs_error_reduction_multi_vs_nadir"),
+                pl.col("sq_error_reduction_multi_vs_nadir")
+                .mean()
+                .alias("mean_sq_error_reduction_multi_vs_nadir"),
+                pl.col("abs_error_reduction_residual_vs_ridge")
+                .mean()
+                .alias("mean_abs_error_reduction_residual_vs_ridge"),
             ]
         )
         .with_columns(
             [
-                (pl.col("rmse_nadir") - pl.col("rmse_multiangular")).alias("rmse_reduction_multi_vs_nadir"),
-                (pl.col("mae_nadir") - pl.col("mae_multiangular")).alias("mae_reduction_multi_vs_nadir"),
+                (pl.col("rmse_nadir") - pl.col("rmse_multiangular")).alias(
+                    "rmse_reduction_multi_vs_nadir"
+                ),
+                (pl.col("mae_nadir") - pl.col("mae_multiangular")).alias(
+                    "mae_reduction_multi_vs_nadir"
+                ),
                 (pl.col("rmse_ridge_base_multiangular") - pl.col("rmse_multiangular")).alias(
                     "rmse_reduction_residual_vs_ridge"
                 ),
@@ -157,7 +187,9 @@ def design_matrix(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
         values = df.get_column(col).cast(pl.Utf8).to_list()
         levels = sorted(set(values))
         for level in levels[1:]:
-            arrays.append(np.asarray([1.0 if value == level else 0.0 for value in values], dtype=float))
+            arrays.append(
+                np.asarray([1.0 if value == level else 0.0 for value in values], dtype=float)
+            )
     return np.column_stack(arrays)
 
 
@@ -198,7 +230,8 @@ def influence_metrics(df: pl.DataFrame) -> pl.DataFrame:
                 "cultivar_only_r2_eta2": linear_r2(y, x_cult),
                 "week_trt_r2": linear_r2(y, x_base),
                 "week_trt_cultivar_r2": linear_r2(y, x_full),
-                "incremental_r2_from_cultivar_after_week_trt": linear_r2(y, x_full) - linear_r2(y, x_base),
+                "incremental_r2_from_cultivar_after_week_trt": linear_r2(y, x_full)
+                - linear_r2(y, x_base),
             }
         )
     out = pl.DataFrame(rows)
@@ -228,7 +261,17 @@ def write_outputs(df: pl.DataFrame, log_path: Path) -> None:
     influence.write_csv(influence_path)
 
     report_path = REPORTS_DIR / "cultivar_influence_selected42_severity_summary.md"
-    report = build_report(by_cult, by_cult_week, influence, joined_path, by_cult_path, by_cult_week_path, by_cult_trt_week_path, influence_path, log_path)
+    report = build_report(
+        by_cult,
+        by_cult_week,
+        influence,
+        joined_path,
+        by_cult_path,
+        by_cult_week_path,
+        by_cult_trt_week_path,
+        influence_path,
+        log_path,
+    )
     report_path.write_text(report, encoding="utf-8")
     logging.info("Report: %s", report_path)
     log_phase("write outputs", t0)
