@@ -28,3 +28,26 @@ profile = "black"
 [tool.flake8]
 max-line-length = 100
 extend-ignore = ["E203", "W503"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/analysis/*",
+    "src/features/*",
+    "src/modelling/plotting.py",
+    "src/modelling/processing.py",
+    "src/models/angle_band_ablation.py",
+    "src/models/cultivar_confounding_tests.py",
+    "src/models/leave_one_week_out.py",
+    "src/models/plot_comparison.py",
+    "src/models/subgroup_analysis.py",
+    "src/pipeline_*.py",
+    "src/stats/anova_aggregated.py",
+    "src/stats/mixed_effects_angle_disease.py",
+    "src/stats/permutation_signal_test.py",
+    "src/stats/plotting.py",
+    "src/stats/processing.py",
+    "src/stats/rpv_failure_diagnostics.py",
+    "src/stats/test_paired_improvements.py",
+    "src/validation/check_leakage.py",
+]

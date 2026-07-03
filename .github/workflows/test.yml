@@ -50,7 +50,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           echo "Running unit tests..."
-          PYTHONPATH=src python -m pytest tests/ \
+          PYTHONPATH=${{ github.workspace }} MPLBACKEND=Agg MPLCONFIGDIR=/tmp/matplotlib python -m pytest tests/ \
             -v \
             --tb=short \
             --cov=src \
@@ -62,12 +62,12 @@ jobs:
       - name: Run end-to-end tests
         run: |
           echo "Running E2E tests..."
-          PYTHONPATH=src python -m pytest tests/e2e/ -v --tb=short
+          PYTHONPATH=${{ github.workspace }} MPLBACKEND=Agg MPLCONFIGDIR=/tmp/matplotlib python -m pytest tests/e2e/ -v --tb=short
 
       - name: Run CLI smoke tests
         run: |
           echo "Running CLI smoke tests..."
-          PYTHONPATH=src python -m pytest tests/test_smoke.py -v
+          PYTHONPATH=${{ github.workspace }} MPLBACKEND=Agg MPLCONFIGDIR=/tmp/matplotlib python -m pytest tests/test_smoke.py -v
 
       - name: Test Makefile targets
         run: |

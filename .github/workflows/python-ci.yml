@@ -1,0 +1,114 @@
+name: Python CI
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install system geospatial libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            gdal-bin \
+            libgdal-dev \
+            libgeos-dev \
+            libproj-dev
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-cov ruff
+          python -m pip install -e .
+
+      - name: Ruff syntax and import sanity checks
+        run: |
+          python -m ruff check src scripts tests --select E9,F63,F7,F82
+
+      - name: Compile project Python files
+        run: |
+          python -m compileall -q src scripts tests
+
+      - name: Run unit tests
+        env:
+          MPLBACKEND: Agg
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          pytest tests -q --tb=short --durations=20
+
+  preprocessing-smoke:
+    name: RedEdge-P preprocessing smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install pytest ruff micasense opencv-python-headless scikit-image
+          python -m pip install -e .
+
+      - name: Import preprocessing entry points
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+          import scripts.preprocessing.rededgep.micasense_rededgep_preprocess as pre
+          import scripts.preprocessing.rededgep.run_2025_rededgep_preprocess as runner
+
+          assert pre.BAND_SUFFIXES == ("1", "2", "3", "4", "5", "6")
+          assert pre.RAW_MS_BAND_NAMES == ("Blue", "Green", "Red", "NIR", "Red edge")
+          assert pre.PANCHRO_BAND_NAME == "Panchro"
+          assert pre.cached_alignment_is_compatible(
+              {"alignment_method": "gpu_panchro_sift_undistorted"}, "gpu_panchro"
+          )
+          assert not pre.cached_alignment_is_compatible(
+              {"alignment_method": "gpu_panchro_sift"}, "gpu_panchro"
+          )
+          assert runner.DEFAULT_OUTPUT_NAME
+          PY

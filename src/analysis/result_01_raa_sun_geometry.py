@@ -27,6 +27,7 @@ from matplotlib.colors import Normalize
 from src.analysis.result_01_reflectance_distributions import (
     BANDS,
     FINE_VZA_MAX,
+    FINE_VZA_MIN,
     MAX_PLOT_SAMPLE,
     SEED,
     WEEK_COLORS,
@@ -43,6 +44,27 @@ RAA_EDGES = [0, 45, 90, 135, 180]
 PHASE_STEP = 10
 MIN_HEADLINE_PLOTS = 10
 EXPORT_DPI = 300
+FIELD_LAT = 51.5648
+FIELD_LON = 9.9177
+SUN_TIME_ZONE = "Europe/Berlin"
+WEEK_ACQUISITION_DATETIMES = {
+    2024: {
+        0: "2024-06-03 12:00:00",
+        2: "2024-06-22 12:00:00",
+        3: "2024-06-24 12:00:00",
+        4: "2024-07-08 12:00:00",
+        5: "2024-07-15 12:00:00",
+        6: "2024-07-23 12:00:00",
+        7: "2024-07-30 12:00:00",
+        8: "2024-08-26 12:00:00",
+    },
+    2025: {
+        0: "2025-06-03 12:00:00",
+        3: "2025-06-24 12:00:00",
+        5: "2025-07-15 12:00:00",
+        7: "2025-07-30 12:00:00",
+    },
+}
 VZA_RAA_MODEL_FORMULA = (
     "reflectance ~ C(vza_class) + C(raa_class) + C(vza_class):C(raa_class) "
     "+ C(week) + C(cult) + C(trt)"
@@ -84,6 +106,19 @@ def configure_logging(out_dir: Path, year: int) -> Path:
 
 def log_phase(name: str, started: float) -> None:
     logging.info("[PHASE] %s: %.2fs", name, time.perf_counter() - started)
+
+
+def corrected_sun_angles(year: int, week: int) -> tuple[float, float]:
+    timestamp = WEEK_ACQUISITION_DATETIMES.get(year, {}).get(week)
+    if timestamp is None:
+        raise ValueError(f"No acquisition timestamp configured for year={year}, week={week}")
+    tz = pytz.timezone(SUN_TIME_ZONE)
+    dt = tz.localize(datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S"))
+    elevation = float(pysolar.solar.get_altitude(FIELD_LAT, FIELD_LON, dt))
+    azimuth = float(pysolar.solar.get_azimuth(FIELD_LAT, FIELD_LON, dt))
+    if azimuth < 0:
+        azimuth += 360.0
+    return elevation, azimuth
 
 
 def raa_signed_expr() -> pl.Expr:

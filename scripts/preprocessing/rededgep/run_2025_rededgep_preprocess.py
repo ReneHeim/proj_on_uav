@@ -15,6 +15,11 @@ from pathlib import Path
 DEFAULT_ONCERCO_ROOT = Path("/run/media/davidem/data/ONCERCO")
 DEFAULT_OUTPUT_NAME = "2025_rededgep_no_correction_v3"
 
+from scripts.preprocessing.rededgep.micasense_rededgep_preprocess import (
+    iter_capture_seeds,
+    load_capture,
+)
+
 
 def setup_logging(log_file: Path | None) -> None:
     handlers: list[logging.Handler] = [logging.StreamHandler()]
@@ -76,9 +81,106 @@ def discover_sets(root: Path, minimum_captures: int) -> list[dict[str, object]]:
     return records
 
 
+def detect_panel_seed(set_dir: Path, max_seeds: int = 3) -> dict[str, object]:
+    """Detect whether a SET contains a usable calibration-panel capture."""
+    seeds = list(iter_capture_seeds(set_dir))[:max_seeds]
+    best = {
+        "panel_set": str(set_dir),
+        "panel_seed": None,
+        "panel_detected_bands": 0,
+        "panel_utc": None,
+        "panel_error": None,
+    }
+    for seed in seeds:
+        try:
+            cap = load_capture(seed)
+            detected = int(cap.detect_panels())
+            utc = cap.utc_time().isoformat()
+        except Exception as exc:  # pragma: no cover - depends on raw camera files
+            best["panel_error"] = repr(exc)
+            continue
+        if detected > int(best["panel_detected_bands"]):
+            best.update(
+                {
+                    "panel_seed": seed.name,
+                    "panel_detected_bands": detected,
+                    "panel_utc": utc,
+                    "panel_error": None,
+                }
+            )
+    return best
+
+
+def assign_panel_sets(
+    records: list[dict[str, object]],
+    minimum_panel_bands: int,
+    panel_discovery: str,
+) -> list[dict[str, object]]:
+    """Attach panel SET metadata to each flight SET.
+
+    MicaSense exports sometimes place standalone panel captures in small SET
+    folders immediately before the flight SET. The runner must therefore not
+    assume that every large flight SET starts with its own calibration panel.
+    """
+    if panel_discovery == "self":
+        for record in records:
+            record["panel_set"] = record["path"]
+            record["panel_seed"] = None
+            record["panel_detected_bands"] = None
+            record["panel_source"] = "self_unchecked"
+        return records
+
+    last_valid_panel: dict[str, object] | None = None
+    for record in records:
+        set_dir = Path(str(record["path"]))
+        # Large flight SETs either start with a panel or they do not; checking
+        # more flight captures is slow and can accidentally classify field
+        # images. Tiny SETs are likely standalone panel captures, so inspect a
+        # few captures and keep the best panel detection.
+        max_panel_seeds = 1 if int(record["capture_count"]) >= 20 else 3
+        panel = detect_panel_seed(set_dir, max_panel_seeds)
+        record.update(
+            {
+                "own_panel_seed": panel["panel_seed"],
+                "own_panel_detected_bands": panel["panel_detected_bands"],
+                "own_panel_utc": panel["panel_utc"],
+                "own_panel_error": panel["panel_error"],
+            }
+        )
+        if int(panel["panel_detected_bands"]) >= minimum_panel_bands:
+            last_valid_panel = panel
+
+        if not record["selected"]:
+            record["panel_set"] = None
+            record["panel_seed"] = panel["panel_seed"]
+            record["panel_detected_bands"] = panel["panel_detected_bands"]
+            record["panel_source"] = (
+                "panel_candidate" if int(panel["panel_detected_bands"]) >= minimum_panel_bands else None
+            )
+            continue
+
+        if int(panel["panel_detected_bands"]) >= minimum_panel_bands:
+            record["panel_set"] = record["path"]
+            record["panel_seed"] = panel["panel_seed"]
+            record["panel_detected_bands"] = panel["panel_detected_bands"]
+            record["panel_source"] = "own_set"
+        elif last_valid_panel:
+            record["panel_set"] = last_valid_panel["panel_set"]
+            record["panel_seed"] = last_valid_panel["panel_seed"]
+            record["panel_detected_bands"] = last_valid_panel["panel_detected_bands"]
+            record["panel_source"] = "previous_panel_set"
+        else:
+            record["panel_set"] = record["path"]
+            record["panel_seed"] = None
+            record["panel_detected_bands"] = panel["panel_detected_bands"]
+            record["panel_source"] = "own_set_no_detected_panel"
+    return records
+
+
 def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> dict[str, object]:
     set_name = str(record["set"])
     set_path = Path(str(record["path"]))
+    panel_set = Path(str(record.get("panel_set") or record["path"]))
     outdir = args.output_root / week / set_name / "preprocessed_stacks"
     set_log_dir = args.log_root / week / set_name
 
@@ -89,7 +191,7 @@ def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> d
         "--input-set",
         str(set_path),
         "--panel-set",
-        str(set_path),
+        str(panel_set),
         "--outdir",
         str(outdir),
         "--panel-strategy",
@@ -116,6 +218,8 @@ def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> d
         "--profile-summary",
         str(set_log_dir / "profile_summary.txt"),
     ]
+    if record.get("panel_seed"):
+        cmd.extend(["--panel-seed", str(record["panel_seed"])])
     if args.refresh_warps:
         cmd.append("--refresh-warps")
     if args.allow_calibrated_fallback:
@@ -139,6 +243,7 @@ def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> d
             "elapsed_seconds": 0.0,
             "output_dir": str(outdir),
             "log_dir": str(set_log_dir),
+            "panel_set": str(panel_set),
             "command": cmd,
             "dry_run": True,
         }
@@ -160,6 +265,7 @@ def run_set(args: argparse.Namespace, week: str, record: dict[str, object]) -> d
         "elapsed_seconds": elapsed,
         "output_dir": str(outdir),
         "log_dir": str(set_log_dir),
+        "panel_set": str(panel_set),
         "command": cmd,
         "dry_run": False,
     }
@@ -176,14 +282,18 @@ def write_outputs(summary: dict, manifest_root: Path) -> tuple[Path, Path]:
     manifest_path.write_text(json.dumps(summary, indent=2))
 
     rows = [
-        "| SET | Raw captures | Selected | Return code | Elapsed s | Output |",
-        "|---|---:|---|---:|---:|---|",
+        "| SET | Raw captures | Selected | Panel source | Panel bands | Return code | Elapsed s | Output |",
+        "|---|---:|---|---|---:|---:|---:|---|",
     ]
     for record in summary["sets"]:
         rows.append(
-            "| {set} | {capture_count} | {selected} | {returncode} | {elapsed_seconds:.1f} | `{output_dir}` |".format(
+            "| {set} | {capture_count} | {selected} | {panel_source} | {panel_detected_bands} | {returncode} | {elapsed_seconds:.1f} | `{output_dir}` |".format(
                 **{
                     **record,
+                    "panel_source": record.get("panel_source") or "",
+                    "panel_detected_bands": ""
+                    if record.get("panel_detected_bands") is None
+                    else record["panel_detected_bands"],
                     "returncode": "" if record.get("returncode") is None else record["returncode"],
                     "output_dir": record.get("output_dir", ""),
                     "elapsed_seconds": float(record.get("elapsed_seconds", 0.0)),
@@ -217,6 +327,8 @@ def write_outputs(summary: dict, manifest_root: Path) -> tuple[Path, Path]:
                 "- Output band order: `Blue, Green, Red, Red edge, NIR`",
                 f"- Radiometry mode: `{summary['radiometry_mode']}`",
                 f"- Alignment method: `{summary['alignment_method']}`",
+                f"- Allow calibrated fallback: `{summary['allow_calibrated_fallback']}`",
+                f"- Panel discovery: `{summary['panel_discovery']}`",
                 f"- Workers: `{summary['workers']}`",
                 f"- Panel strategy: `{summary['panel_strategy']}`",
                 f"- Dry run: `{summary['dry_run']}`",
@@ -237,6 +349,17 @@ def main() -> int:
     parser.add_argument("--manifest-root", type=Path)
     parser.add_argument("--minimum-captures", type=int, default=20)
     parser.add_argument(
+        "--panel-discovery",
+        choices=("auto", "self"),
+        default="auto",
+        help=(
+            "Panel SET assignment mode. 'auto' detects calibration panels in "
+            "small neighboring SETs and pairs them with following flight SETs; "
+            "'self' preserves the old behavior and uses each flight SET itself."
+        ),
+    )
+    parser.add_argument("--minimum-panel-bands", type=int, default=5)
+    parser.add_argument(
         "--panel-strategy",
         choices=("none", "full"),
         default="none",
@@ -248,10 +371,24 @@ def main() -> int:
     )
     parser.add_argument("--sets", nargs="+", help="Optional explicit SET names to process.")
     parser.add_argument("--workers", type=int, default=4)
-    parser.add_argument("--alignment-method", choices=("sift", "calibrated"), default="sift")
+    parser.add_argument(
+        "--alignment-method",
+        choices=("sift", "calibrated", "gpu_panchro"),
+        default="gpu_panchro",
+        help=(
+            "Alignment method. gpu_panchro uses Kornia SIFT against the panchromatic "
+            "band and writes panchro-resolution pan-sharpened stacks."
+        ),
+    )
     parser.add_argument("--alignment-timeout", type=int, default=180)
     parser.add_argument("--alignment-candidate-count", type=int, default=120)
-    parser.add_argument("--allow-calibrated-fallback", action="store_true")
+    parser.add_argument("--allow-calibrated-fallback", action="store_true", default=False)
+    parser.add_argument(
+        "--disable-calibrated-fallback",
+        action="store_false",
+        dest="allow_calibrated_fallback",
+        help="Strict mode: fail instead of using calibrated camera warps after SIFT failure.",
+    )
     parser.add_argument("--refresh-warps", action="store_true")
     parser.add_argument("--include-panchro", action="store_true")
     parser.add_argument("--qa-previews", action="store_true")
@@ -285,6 +422,7 @@ def main() -> int:
             for record in records:
                 record["selected"] = record["set"] in requested
                 record["reason"] = "explicitly_selected" if record["selected"] else "not_requested"
+        records = assign_panel_sets(records, args.minimum_panel_bands, args.panel_discovery)
 
     selected = [record for record in records if record["selected"]]
     if not selected:
@@ -308,6 +446,8 @@ def main() -> int:
         "log_root": str(log_root),
         "manifest_root": str(manifest_root),
         "minimum_captures": args.minimum_captures,
+        "minimum_panel_bands": args.minimum_panel_bands,
+        "panel_discovery": args.panel_discovery,
         "panel_strategy": args.panel_strategy,
         "workers": args.workers,
         "alignment_method": args.alignment_method,
