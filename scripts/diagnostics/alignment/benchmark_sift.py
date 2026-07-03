@@ -110,7 +110,7 @@ def _make_kornia_sift(num_features: int = 5000, device: str = "cuda"):
         self, ref=5, min_matches=10, verbose=0, err_red=10.0, err_blue=12.0, err_LWIR=12.0
     ):
         import torch
-        from kornia.feature import match_smnn
+        from kornia.feature import SIFTFeature, match_smnn
         from kornia.feature.laf import get_laf_center
         from skimage.transform import ProjectiveTransform
 

@@ -237,6 +237,7 @@ def evaluate_feature_set(name, year=None):
 
 
 def main(years=None):
+    t_start = time.time()
     explicitly_requested = years is not None
     if years is None:
         years = ["all", "2024", "2025"]

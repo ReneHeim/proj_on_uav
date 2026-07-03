@@ -163,7 +163,7 @@ def process_logistic_regression(out, week, gdf, debug=False):
         res.write_csv(
             out
             / "logistic_regression"
-            / f"logistic_regression_{week}_{healthy_df}_vs_{diseased_df}_{healthy_row["cult"]}.csv"
+            / f"logistic_regression_{week}_{healthy_df}_vs_{diseased_df}_{healthy_row['cult']}.csv"
         )
 
         logging.info("Logistic regression completed in %.2f seconds", time.time() - start_time)
