@@ -155,7 +155,9 @@ def assign_panel_sets(
             record["panel_seed"] = panel["panel_seed"]
             record["panel_detected_bands"] = panel["panel_detected_bands"]
             record["panel_source"] = (
-                "panel_candidate" if int(panel["panel_detected_bands"]) >= minimum_panel_bands else None
+                "panel_candidate"
+                if int(panel["panel_detected_bands"]) >= minimum_panel_bands
+                else None
             )
             continue
 
@@ -291,9 +293,11 @@ def write_outputs(summary: dict, manifest_root: Path) -> tuple[Path, Path]:
                 **{
                     **record,
                     "panel_source": record.get("panel_source") or "",
-                    "panel_detected_bands": ""
-                    if record.get("panel_detected_bands") is None
-                    else record["panel_detected_bands"],
+                    "panel_detected_bands": (
+                        ""
+                        if record.get("panel_detected_bands") is None
+                        else record["panel_detected_bands"]
+                    ),
                     "returncode": "" if record.get("returncode") is None else record["returncode"],
                     "output_dir": record.get("output_dir", ""),
                     "elapsed_seconds": float(record.get("elapsed_seconds", 0.0)),
