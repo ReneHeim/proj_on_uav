@@ -90,25 +90,36 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
-          python -m pip install pytest ruff micasense opencv-python-headless scikit-image
+          python -m pip install pytest ruff requests imageio pyexiftool pyzbar opencv-python-headless scikit-image
+          python -m pip install --no-deps "micasense @ git+https://github.com/micasense/imageprocessing.git"
           python -m pip install -e .
 
       - name: Import preprocessing entry points
         env:
+          MPLBACKEND: Agg
+          MPLCONFIGDIR: /tmp/matplotlib
           PYTHONPATH: ${{ github.workspace }}
         run: |
           python - <<'PY'
+          from pathlib import Path
+
+          import numpy as np
+
           import scripts.preprocessing.rededgep.micasense_rededgep_preprocess as pre
           import scripts.preprocessing.rededgep.run_2025_rededgep_preprocess as runner
 
           assert pre.BAND_SUFFIXES == ("1", "2", "3", "4", "5", "6")
           assert pre.RAW_MS_BAND_NAMES == ("Blue", "Green", "Red", "NIR", "Red edge")
           assert pre.PANCHRO_BAND_NAME == "Panchro"
-          assert pre.cached_alignment_is_compatible(
-              {"alignment_method": "gpu_panchro_sift_undistorted"}, "gpu_panchro"
+          assert pre.output_indexes_and_names(False) == (
+              (0, 1, 2, 4, 3),
+              ("Blue", "Green", "Red", "Red edge", "NIR"),
           )
-          assert not pre.cached_alignment_is_compatible(
-              {"alignment_method": "gpu_panchro_sift"}, "gpu_panchro"
-          )
+          assert pre.capture_files_from_blue(Path("IMG_0001_1.tif"))[-1] == "IMG_0001_6.tif"
+          assert pre.scale_reflectance_to_uint16(np.array([-1.0, 1.0, 3.0])).tolist() == [
+              0,
+              32767,
+              65534,
+          ]
           assert runner.DEFAULT_OUTPUT_NAME
           PY
