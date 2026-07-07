@@ -23,7 +23,7 @@ from rasterio.enums import Resampling
 from rasterio.transform import array_bounds
 from rasterio.warp import calculate_default_transform, reproject
 
-BAND_NAMES = ("Blue", "Green", "Red", "NIR", "Red edge")
+BAND_NAMES = ("Blue", "Green", "Red", "Red edge", "NIR")
 REFLECTANCE_SCALE = 32767.0
 
 
@@ -58,19 +58,24 @@ def select_stacks(stack_dir: Path, captures: set[str] | None, limit: int | None)
     return stacks
 
 
-def pose_spread(cameras: FrameCameras, capture: str) -> dict:
+def camera_name(capture: str, reference_band: int, camera_prefix: str) -> str:
+    return f"{camera_prefix}{capture}_{reference_band}.tif"
+
+
+def pose_spread(
+    cameras: FrameCameras, capture: str, reference_band: int, camera_prefix: str
+) -> dict:
     xyz_values = []
     missing = []
-    for suffix in range(1, 6):
-        name = f"{capture}_{suffix}.tif"
-        try:
-            cam = cameras.get(name)
-        except Exception:
-            missing.append(name)
-            continue
+    name = camera_name(capture, reference_band, camera_prefix)
+    try:
+        cam = cameras.get(name)
+    except Exception:
+        missing.append(name)
+    else:
         xyz_values.append(np.asarray(cam.pos, dtype=np.float64))
 
-    if missing or len(xyz_values) != 5:
+    if missing or len(xyz_values) != 1:
         return {"complete": False, "missing": missing}
 
     xyz = np.vstack(xyz_values)
@@ -80,6 +85,50 @@ def pose_spread(cameras: FrameCameras, capture: str) -> dict:
     }
 
 
+def validate_dem(
+    dem_path: Path,
+    min_valid_fraction: float,
+    min_valid_pixels: int,
+) -> tuple[CRS, dict]:
+    with rasterio.open(dem_path) as dem_ds:
+        world_crs = dem_ds.crs
+        arr = dem_ds.read(1, masked=True)
+        valid_pixels = int(np.ma.count(arr))
+        total_pixels = int(arr.size)
+        valid_fraction = valid_pixels / total_pixels if total_pixels else 0.0
+        bounds = dem_ds.bounds
+        stats = {
+            "path": str(dem_path),
+            "crs": world_crs.to_string() if world_crs else None,
+            "width": dem_ds.width,
+            "height": dem_ds.height,
+            "resolution": list(dem_ds.res),
+            "bounds": {
+                "left": bounds.left,
+                "bottom": bounds.bottom,
+                "right": bounds.right,
+                "top": bounds.top,
+            },
+            "valid_pixels": valid_pixels,
+            "total_pixels": total_pixels,
+            "valid_fraction": valid_fraction,
+            "min_valid_fraction": min_valid_fraction,
+            "min_valid_pixels": min_valid_pixels,
+        }
+
+    if world_crs is None:
+        raise RuntimeError(f"DSM has no CRS: {dem_path}")
+    if valid_pixels < min_valid_pixels or valid_fraction < min_valid_fraction:
+        raise RuntimeError(
+            "ODM DSM failed validation: "
+            f"{valid_pixels}/{total_pixels} valid pixels "
+            f"({valid_fraction:.2%}); required at least "
+            f"{min_valid_pixels} pixels and {min_valid_fraction:.2%} coverage. "
+            f"Refusing to create rectified photos from {dem_path}"
+        )
+    return world_crs, stats
+
+
 def orthorectify_to_temp(
     stack_path: Path,
     temp_path: Path,
@@ -87,10 +136,11 @@ def orthorectify_to_temp(
     cameras: FrameCameras,
     world_crs: CRS,
     reference_band: int,
+    camera_prefix: str,
     overwrite: bool,
 ) -> None:
     capture = capture_stem(stack_path)
-    camera = cameras.get(f"{capture}_{reference_band}.tif")
+    camera = cameras.get(camera_name(capture, reference_band, camera_prefix))
     temp_path.parent.mkdir(parents=True, exist_ok=True)
     ortho = Ortho(stack_path, dem_path, camera, crs=world_crs, dem_band=1)
     ortho.process(
@@ -199,27 +249,43 @@ def reproject_scaled_to_epsg4326(temp_path: Path, out_path: Path, overwrite: boo
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--odm-project", type=Path, required=True)
+    parser.add_argument(
+        "--dem-path",
+        type=Path,
+        help="Override DSM path. Defaults to <odm-project>/odm_dem/dsm.tif.",
+    )
     parser.add_argument("--stack-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--temp-dir", type=Path)
     parser.add_argument("--captures", help="Comma-separated capture stems or IMG_*_6.tif names")
     parser.add_argument("--limit", type=int)
     parser.add_argument("--reference-band", type=int, default=3, choices=range(1, 6))
+    parser.add_argument(
+        "--camera-prefix",
+        default="",
+        help=(
+            "Prefix used in ODM camera names before IMG_####, for example "
+            "'0000SET_' when a full-week ODM project was built from prefixed inputs."
+        ),
+    )
+    parser.add_argument("--min-dem-valid-fraction", type=float, default=0.25)
+    parser.add_argument("--min-dem-valid-pixels", type=int, default=10_000)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--keep-temp", action="store_true")
     args = parser.parse_args()
 
     reconstruction = args.odm_project / "opensfm" / "reconstruction.json"
-    dem_path = args.odm_project / "odm_dem" / "dsm.tif"
+    dem_path = args.dem_path or args.odm_project / "odm_dem" / "dsm.tif"
     if not reconstruction.exists():
         raise FileNotFoundError(reconstruction)
     if not dem_path.exists():
         raise FileNotFoundError(dem_path)
 
-    with rasterio.open(dem_path) as dem_ds:
-        world_crs = dem_ds.crs
-    if world_crs is None:
-        raise RuntimeError(f"DSM has no CRS: {dem_path}")
+    world_crs, dem_stats = validate_dem(
+        dem_path,
+        args.min_dem_valid_fraction,
+        args.min_dem_valid_pixels,
+    )
 
     cameras = FrameCameras(
         int_param=reconstruction,
@@ -263,7 +329,7 @@ def main() -> int:
                 records.append(record)
                 print(f"[{index}/{len(stacks)}] skipped existing {out_path}")
                 continue
-            spread = pose_spread(cameras, capture)
+            spread = pose_spread(cameras, capture, args.reference_band, args.camera_prefix)
             if not spread.get("complete"):
                 raise RuntimeError(f"incomplete ODM band poses: {spread}")
             orthorectify_to_temp(
@@ -273,6 +339,7 @@ def main() -> int:
                 cameras,
                 world_crs,
                 args.reference_band,
+                args.camera_prefix,
                 args.overwrite,
             )
             record = reproject_scaled_to_epsg4326(temp_path, out_path, args.overwrite)
@@ -282,6 +349,7 @@ def main() -> int:
                     "source_stack": str(stack_path),
                     "temp_utm": str(temp_path),
                     "reference_band": args.reference_band,
+                    "camera_prefix": args.camera_prefix,
                     "pose_spread": spread,
                 }
             )
@@ -304,8 +372,10 @@ def main() -> int:
         "temp_dir": str(temp_dir),
         "kept_temp": args.keep_temp,
         "world_crs_used_for_orthority": world_crs.to_string(),
+        "dem_validation": dem_stats,
         "final_crs": "EPSG:4326",
         "reference_band": args.reference_band,
+        "camera_prefix": args.camera_prefix,
         "selected": len(stacks),
         "processed": len(records),
         "failed": len(failures),
