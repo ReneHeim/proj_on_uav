@@ -29,7 +29,9 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import (
     ALPHAS,
     SEED,
@@ -117,9 +119,7 @@ def load_clean_disease_scores() -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def build_current_model_table(features: pd.DataFrame, disease: pd.DataFrame) -> pd.DataFrame:
     """Pair plot-week reflectance features with same-week DSDI plot severity."""
-    disease_target = disease[["plot_id", "week", "ds_plot"]].rename(
-        columns={"ds_plot": TARGET}
-    )
+    disease_target = disease[["plot_id", "week", "ds_plot"]].rename(columns={"ds_plot": TARGET})
     table = features.merge(disease_target, on=["plot_id", "week"], how="inner")
     table["predictor_week"] = table["week"].astype(int)
     table["target_week"] = table["week"].astype(int)
@@ -215,20 +215,14 @@ def stable_ranked_columns(
             "role": role,
             "feature": cols,
             "selection_frequency": (counts / CURRENT_STABILITY_REPEATS).to_numpy(float),
-            "mean_abs_elasticnet_coef": (
-                abs_coef_sum / CURRENT_STABILITY_REPEATS
-            ).to_numpy(float),
+            "mean_abs_elasticnet_coef": (abs_coef_sum / CURRENT_STABILITY_REPEATS).to_numpy(float),
         }
-    ).sort_values(
-        ["selection_frequency", "mean_abs_elasticnet_coef"], ascending=[False, False]
-    )
+    ).sort_values(["selection_frequency", "mean_abs_elasticnet_coef"], ascending=[False, False])
     selected_cols = [col for col in cols if col in force_cols]
     selected_cols.extend(
-        [
-            col
-            for col in ranking["feature"].tolist()
-            if col not in selected_cols
-        ][: max(0, top_k - len(selected_cols))]
+        [col for col in ranking["feature"].tolist() if col not in selected_cols][
+            : max(0, top_k - len(selected_cols))
+        ]
     )
     ranking["rank"] = np.arange(1, len(ranking) + 1)
     ranking["selected_for_final_model"] = ranking["feature"].isin(selected_cols)
@@ -288,9 +282,7 @@ def fit_hurdle_with_columns(
     if positive_mask.sum() < 5:
         severity_pred = np.full(len(test_aligned), float(np.nanmean(y_train)))
     else:
-        reg_target = (
-            np.log1p(y_train[positive_mask]) if log_positive else y_train[positive_mask]
-        )
+        reg_target = np.log1p(y_train[positive_mask]) if log_positive else y_train[positive_mask]
         regressor.fit(train_aligned.loc[positive_mask, regressor_cols], reg_target)
         severity_pred = regressor.predict(test_aligned[regressor_cols])
         if log_positive:
@@ -372,9 +364,13 @@ def current_hurdle_stability_topk_model(
         train_aligned, test_aligned, classifier_cols, regressor_cols, log_positive
     )
     fit_time = time.perf_counter() - fit_t0
-    model = f"current_hurdle_stability_top{top_k}_{'log_positive' if log_positive else 'raw_positive'}"
+    model = (
+        f"current_hurdle_stability_top{top_k}_{'log_positive' if log_positive else 'raw_positive'}"
+    )
     predictions = residual_pipeline.prediction_frame(test_aligned, pred, model, feature_set)
-    residual_pipeline.save_predictions(predictions, model, feature_set, residual_pipeline.COVARIATES)
+    residual_pipeline.save_predictions(
+        predictions, model, feature_set, residual_pipeline.COVARIATES
+    )
     result = residual_pipeline.score_predictions(
         predictions,
         len(train_aligned),
@@ -469,10 +465,7 @@ def current_hurdle_topk_model(
             severity_pred = np.expm1(severity_pred)
 
     zero_weeks = (
-        train_aligned.groupby("target_week")[TARGET]
-        .max()
-        .loc[lambda s: s <= 0]
-        .index.to_numpy()
+        train_aligned.groupby("target_week")[TARGET].max().loc[lambda s: s <= 0].index.to_numpy()
     )
     pred = disease_prob * severity_pred
     if zero_weeks.size:
@@ -482,7 +475,9 @@ def current_hurdle_topk_model(
 
     model = f"current_hurdle_top{top_k}_{'log_positive' if log_positive else 'raw_positive'}"
     predictions = residual_pipeline.prediction_frame(test_aligned, pred, model, feature_set)
-    residual_pipeline.save_predictions(predictions, model, feature_set, residual_pipeline.COVARIATES)
+    residual_pipeline.save_predictions(
+        predictions, model, feature_set, residual_pipeline.COVARIATES
+    )
     result = residual_pipeline.score_predictions(
         predictions,
         len(train_aligned),
@@ -506,8 +501,7 @@ def target_progression(table: pd.DataFrame, year: int, feature_set: str) -> pd.D
             mean_current_ds_plot=(TARGET, "mean"),
             max_current_ds_plot=(TARGET, "max"),
         )
-        .assign(year=year, feature_set=feature_set)
-        [
+        .assign(year=year, feature_set=feature_set)[
             [
                 "year",
                 "feature_set",
@@ -670,7 +664,9 @@ def main() -> None:
     ci_df = residual_pipeline.candidate_delta_ci(results_df)
     progression = pd.concat(progression_tables, ignore_index=True)
     week_summary = prediction_week_summary(predictions)
-    selections = pd.concat(selection_tables, ignore_index=True) if selection_tables else pd.DataFrame()
+    selections = (
+        pd.concat(selection_tables, ignore_index=True) if selection_tables else pd.DataFrame()
+    )
     tuning = pd.concat(tuning_tables, ignore_index=True) if tuning_tables else pd.DataFrame()
 
     paths = {
@@ -678,7 +674,8 @@ def main() -> None:
         "paired_delta_ci": RESULTS_DIR / "current_severity_model_comparison_with_paired_ci.csv",
         "target_support": RESULTS_DIR / "current_severity_target_support.csv",
         "week_summary": RESULTS_DIR / "current_severity_week_summary.csv",
-        "selected_features": RESULTS_DIR / "current_severity_stability_selection_feature_frequencies.csv",
+        "selected_features": RESULTS_DIR
+        / "current_severity_stability_selection_feature_frequencies.csv",
         "xgboost_tuning": RESULTS_DIR / "current_severity_xgboost_tuning_audit.csv",
     }
     results_df.to_csv(paths["model_comparison"], index=False)

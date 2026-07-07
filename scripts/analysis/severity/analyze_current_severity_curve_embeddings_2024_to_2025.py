@@ -22,8 +22,12 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import (
     SEED,
     TARGET,
@@ -102,12 +106,8 @@ def filter_curve_rows(long: pd.DataFrame) -> pd.DataFrame:
     data = long.copy()
     data["band_token"] = data["band_name"].map(clean_band_name)
     data["metric_token"] = data["metric"].map(clean_token)
-    keep = (
-        data["band_token"].isin(CURVE_BANDS)
-        & (
-            data["metric_token"].isin(REFLECTANCE_METRICS)
-            | data["metric_token"].isin(OSAVI_METRICS)
-        )
+    keep = data["band_token"].isin(CURVE_BANDS) & (
+        data["metric_token"].isin(REFLECTANCE_METRICS) | data["metric_token"].isin(OSAVI_METRICS)
     )
     keep &= (data["band_token"] != "osavi") | data["metric_token"].isin(OSAVI_METRICS)
     keep &= (data["band_token"] == "osavi") | data["metric_token"].isin(REFLECTANCE_METRICS)
@@ -129,13 +129,19 @@ def curve_matrices(
             aggfunc="mean",
         ).reset_index()
         pivot.columns.name = None
-        angle_cols = [col for col in pivot.columns if isinstance(col, float) or isinstance(col, int)]
+        angle_cols = [
+            col for col in pivot.columns if isinstance(col, float) or isinstance(col, int)
+        ]
         pivot = pivot.rename(columns={angle: f"angle_{float(angle):04.1f}" for angle in angle_cols})
         frames.append((year, pivot))
     train_pivot = frames[0][1]
     test_pivot = frames[1][1]
     for group in sorted(set(train_pivot["curve_group"]).intersection(test_pivot["curve_group"])):
-        cols = [f"angle_{angle:04.1f}" for angle in ANGLE_GRID if f"angle_{angle:04.1f}" in train_pivot.columns]
+        cols = [
+            f"angle_{angle:04.1f}"
+            for angle in ANGLE_GRID
+            if f"angle_{angle:04.1f}" in train_pivot.columns
+        ]
         groups[group] = (cols, [float(col.replace("angle_", "")) for col in cols])
     return train_pivot, test_pivot, groups
 
@@ -186,7 +192,9 @@ def fit_group_embedding(
                 out=np.full_like(first, np.nan, dtype=float),
                 where=np.isfinite(first) & (first != 0),
             ),
-            "linear_slope": np.sum((values - values.mean(axis=1, keepdims=True)) * centered_x, axis=1)
+            "linear_slope": np.sum(
+                (values - values.mean(axis=1, keepdims=True)) * centered_x, axis=1
+            )
             / denom,
             "mean_abs_derivative": np.mean(np.abs(gradient), axis=1),
             "mean_abs_curvature": np.mean(np.abs(curvature), axis=1),
@@ -218,7 +226,9 @@ def fit_group_embedding(
     return train_features, test_features, audit
 
 
-def build_curve_feature_sets(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def build_curve_feature_sets(
+    long_2024: pd.DataFrame, long_2025: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     started = time.perf_counter()
     train_pivot, test_pivot, groups = curve_matrices(long_2024, long_2025)
     train_frames = []
@@ -278,14 +288,10 @@ def curve_feature_variants(
     feature_cols = [col for col in train_features.columns if col not in meta_cols]
     variants = {
         "curve_embedding_all": feature_cols,
-        "curve_embedding_fpca_shape": [
-            col for col in feature_cols if "__spline_coef_" not in col
-        ],
+        "curve_embedding_fpca_shape": [col for col in feature_cols if "__spline_coef_" not in col],
         "curve_embedding_fpca_only": [col for col in feature_cols if "__fpca_" in col],
         "curve_embedding_shape_only": [
-            col
-            for col in feature_cols
-            if "__spline_coef_" not in col and "__fpca_" not in col
+            col for col in feature_cols if "__spline_coef_" not in col and "__fpca_" not in col
         ],
     }
     out: dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
@@ -298,7 +304,9 @@ def curve_feature_variants(
     return out
 
 
-def score_predictions(predictions: pd.DataFrame, model: str, feature_set: str, n_features: int) -> dict[str, object]:
+def score_predictions(
+    predictions: pd.DataFrame, model: str, feature_set: str, n_features: int
+) -> dict[str, object]:
     y = predictions["y_true"].to_numpy(float)
     pred = predictions["y_pred"].to_numpy(float)
     return {
@@ -465,7 +473,8 @@ def main() -> None:
         "context_model_comparison": RESULTS_DIR / "curve_embedding_with_context_baselines.csv",
         "paired_delta_vs_nadir": RESULTS_DIR / "curve_embedding_delta_vs_best_nadir.csv",
         "curve_embedding_audit": RESULTS_DIR / "curve_embedding_audit.csv",
-        "selected_features": RESULTS_DIR / "curve_embedding_stability_selection_feature_frequencies.csv",
+        "selected_features": RESULTS_DIR
+        / "curve_embedding_stability_selection_feature_frequencies.csv",
     }
     results_df.to_csv(paths["model_comparison"], index=False)
     combined.to_csv(paths["context_model_comparison"], index=False)

@@ -31,11 +31,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegressionCV, RidgeCV
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -46,8 +46,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
     ANGLE_GRID,
     CURVE_BANDS,
@@ -120,7 +124,9 @@ def configure_reused_pipeline_paths() -> None:
     residual_pipeline.REPORTS_DIR = REPORTS_DIR
     residual_pipeline.FIGURES_DIR = FIGURES_DIR
     residual_pipeline.PREDICTIONS_DIR = PREDICTIONS_DIR
-    residual_pipeline.FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "magnitude_shape_functional_manifest.json"
+    residual_pipeline.FROZEN_MANIFEST_PATH = (
+        OUTPUT_ROOT / "magnitude_shape_functional_manifest.json"
+    )
 
 
 def read_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -137,12 +143,8 @@ def filter_curve_rows(long: pd.DataFrame) -> pd.DataFrame:
     data = long.copy()
     data["band_token"] = data["band_name"].map(clean_band_name)
     data["metric_token"] = data["metric"].map(clean_token)
-    keep = (
-        data["band_token"].isin(CURVE_BANDS)
-        & (
-            data["metric_token"].isin(REFLECTANCE_METRICS)
-            | data["metric_token"].isin(OSAVI_METRICS)
-        )
+    keep = data["band_token"].isin(CURVE_BANDS) & (
+        data["metric_token"].isin(REFLECTANCE_METRICS) | data["metric_token"].isin(OSAVI_METRICS)
     )
     keep &= (data["band_token"] != "osavi") | data["metric_token"].isin(OSAVI_METRICS)
     keep &= (data["band_token"] == "osavi") | data["metric_token"].isin(REFLECTANCE_METRICS)
@@ -185,7 +187,9 @@ def shifted_log_values(
     return train_log, test_log, shift
 
 
-def curve_magnitude_features(values: np.ndarray, log_values: np.ndarray, angles: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
+def curve_magnitude_features(
+    values: np.ndarray, log_values: np.ndarray, angles: np.ndarray, prefix: str
+) -> dict[str, np.ndarray]:
     low = values[:, angles <= 25]
     high = values[:, angles >= 45]
     off_nadir = values[:, 1:] if values.shape[1] > 1 else values
@@ -202,7 +206,9 @@ def curve_magnitude_features(values: np.ndarray, log_values: np.ndarray, angles:
     }
 
 
-def shape_summary_features(shape: np.ndarray, angles: np.ndarray, prefix: str) -> dict[str, np.ndarray]:
+def shape_summary_features(
+    shape: np.ndarray, angles: np.ndarray, prefix: str
+) -> dict[str, np.ndarray]:
     low = shape[:, angles <= 25]
     high = shape[:, angles >= 45]
     centered = angles - angles.mean()
@@ -234,12 +240,10 @@ def fit_shape_scores(
     train_scores = pca.fit_transform(train_scaled)
     test_scores = pca.transform(test_scaled)
     train_features = {
-        f"{prefix}__shape_fpca_{idx + 1}": train_scores[:, idx]
-        for idx in range(n_components)
+        f"{prefix}__shape_fpca_{idx + 1}": train_scores[:, idx] for idx in range(n_components)
     }
     test_features = {
-        f"{prefix}__shape_fpca_{idx + 1}": test_scores[:, idx]
-        for idx in range(n_components)
+        f"{prefix}__shape_fpca_{idx + 1}": test_scores[:, idx] for idx in range(n_components)
     }
     audit = {
         "n_shape_fpca_components": n_components,
@@ -434,17 +438,11 @@ def block_pca_features(
     train_scores = pca.fit_transform(train_values)
     test_scores = pca.transform(test_values)
     train_out = pd.DataFrame(
-        {
-            f"{prefix}_pc{idx + 1}": train_scores[:, idx]
-            for idx in range(n_components)
-        },
+        {f"{prefix}_pc{idx + 1}": train_scores[:, idx] for idx in range(n_components)},
         index=train_features.index,
     )
     test_out = pd.DataFrame(
-        {
-            f"{prefix}_pc{idx + 1}": test_scores[:, idx]
-            for idx in range(n_components)
-        },
+        {f"{prefix}_pc{idx + 1}": test_scores[:, idx] for idx in range(n_components)},
         index=test_features.index,
     )
     audit = {
@@ -492,11 +490,19 @@ def compact_block_variants(
         MAX_SHAPE_BLOCK_COMPONENTS,
     )
     train_block = pd.concat(
-        [train_features[META_COLS].reset_index(drop=True), train_mag.reset_index(drop=True), train_shape.reset_index(drop=True)],
+        [
+            train_features[META_COLS].reset_index(drop=True),
+            train_mag.reset_index(drop=True),
+            train_shape.reset_index(drop=True),
+        ],
         axis=1,
     )
     test_block = pd.concat(
-        [test_features[META_COLS].reset_index(drop=True), test_mag.reset_index(drop=True), test_shape.reset_index(drop=True)],
+        [
+            test_features[META_COLS].reset_index(drop=True),
+            test_mag.reset_index(drop=True),
+            test_shape.reset_index(drop=True),
+        ],
         axis=1,
     )
 
@@ -724,10 +730,7 @@ def apply_sparse_zero_week_floor(
     feature_set: str,
 ) -> tuple[dict[str, object], pd.DataFrame]:
     zero_weeks = (
-        train.groupby("target_week")[TARGET]
-        .max()
-        .loc[lambda values: values <= 0]
-        .index.to_numpy()
+        train.groupby("target_week")[TARGET].max().loc[lambda values: values <= 0].index.to_numpy()
     )
     model = f"{result['model']}_zero_week_floor"
     floor_pred = predictions.copy()
@@ -845,7 +848,17 @@ def write_report(
 ) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / "magnitude_shape_functional_current_severity_summary.md"
-    display_cols = ["model", "feature_set", "source", "n_test", "n_features", "rmse", "mae", "r2", "spearman"]
+    display_cols = [
+        "model",
+        "feature_set",
+        "source",
+        "n_test",
+        "n_features",
+        "rmse",
+        "mae",
+        "r2",
+        "spearman",
+    ]
     lines = [
         "## Results: Magnitude-Shape Functional Current Severity Model",
         "",
@@ -937,7 +950,8 @@ def main() -> None:
         "paired_delta_vs_nadir": RESULTS_DIR / "magnitude_shape_functional_delta_vs_nadir.csv",
         "target_week_summary": RESULTS_DIR / "magnitude_shape_functional_target_week_summary.csv",
         "feature_audit": RESULTS_DIR / "magnitude_shape_functional_feature_audit.csv",
-        "block_embedding_audit": RESULTS_DIR / "magnitude_shape_functional_block_embedding_audit.csv",
+        "block_embedding_audit": RESULTS_DIR
+        / "magnitude_shape_functional_block_embedding_audit.csv",
         "sparse_selected_features": RESULTS_DIR
         / "magnitude_shape_functional_sparse_selected_features.csv",
         "predictions": PREDICTIONS_DIR,

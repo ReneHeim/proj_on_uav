@@ -26,7 +26,9 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/current_severity_design_aware_mixture_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -56,7 +58,9 @@ EARLY_UNTREATED_MEAN_MAX_SEVERITY = 1.0
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_design_aware_mixture_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_design_aware_mixture_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -179,8 +183,12 @@ def build_mixture_predictions(
     out["design_aware_treatment_floor_mixture"] = np.where(
         use_floor, 0.0, out["mixture_curve_early_compact_late"]
     )
-    out["simple_average_compact_curve"] = 0.5 * out["compact_multiangular"] + 0.5 * out["curve_fpca"]
-    out["design_aware_average_floor"] = np.where(use_floor, 0.0, out["simple_average_compact_curve"])
+    out["simple_average_compact_curve"] = (
+        0.5 * out["compact_multiangular"] + 0.5 * out["curve_fpca"]
+    )
+    out["design_aware_average_floor"] = np.where(
+        use_floor, 0.0, out["simple_average_compact_curve"]
+    )
     out["expert_used"] = np.where(use_curve, "curve_fpca", "compact_multiangular")
     out["treatment_floor_applied"] = use_floor
     return out

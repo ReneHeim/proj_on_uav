@@ -13,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -57,9 +56,7 @@ def load_plot_data() -> pl.DataFrame:
     ).row(0, named=True)
 
     all_features = (
-        forced.sort("k_reflectance_features_forced", descending=True)
-        .head(1)
-        .row(0, named=True)
+        forced.sort("k_reflectance_features_forced", descending=True).head(1).row(0, named=True)
     )
 
     rows = [

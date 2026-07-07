@@ -29,8 +29,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
     clean_token,
     markdown_table,
@@ -80,7 +84,9 @@ SEED = current_severity.SEED
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_raa_geometry_fusion_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_raa_geometry_fusion_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -116,7 +122,9 @@ def read_parquet_with_timing(path: Path) -> pd.DataFrame:
     return frame
 
 
-def read_inputs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def read_inputs() -> (
+    tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]
+):
     vza_2024 = read_parquet_with_timing(VZA_2024)
     vza_2025 = read_parquet_with_timing(VZA_2025)
     raa_2024 = read_parquet_with_timing(RAA_2024)
@@ -258,8 +266,7 @@ def filter_reliable_angular_bins(raa: pd.DataFrame) -> pd.DataFrame:
     if not required.issubset(raa.columns):
         return raa.copy()
     return raa[
-        (raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS)
-        & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)
+        (raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS) & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)
     ].copy()
 
 
@@ -457,13 +464,26 @@ def make_week_gate_prediction(
         how="inner",
     )
     week = merged["target_week"].to_numpy(int)
-    pred = np.where(week <= 0, 0.0, np.where(week <= 3, merged["y_pred_early"], merged["y_pred_late"]))
+    pred = np.where(
+        week <= 0, 0.0, np.where(week <= 3, merged["y_pred_early"], merged["y_pred_late"])
+    )
     out = merged[key_cols].copy()
     out["model"] = model
     out["feature_set"] = feature_set
     out["covariates"] = COVARIATES
     out["y_pred"] = pred
-    return out[["plot_id", "predictor_week", "target_week", "model", "feature_set", "covariates", "y_true", "y_pred"]]
+    return out[
+        [
+            "plot_id",
+            "predictor_week",
+            "target_week",
+            "model",
+            "feature_set",
+            "covariates",
+            "y_true",
+            "y_pred",
+        ]
+    ]
 
 
 def build_week_gate_fusions(
@@ -571,7 +591,11 @@ def write_report(
         [
             context_scores[top_cols],
             geometry_show[top_cols],
-            fusion_results[top_cols] if not fusion_results.empty else pd.DataFrame(columns=top_cols),
+            (
+                fusion_results[top_cols]
+                if not fusion_results.empty
+                else pd.DataFrame(columns=top_cols)
+            ),
         ],
         ignore_index=True,
         sort=False,
@@ -674,7 +698,8 @@ def main() -> None:
         "week_gate_fusions": RESULTS_DIR / "raa_geometry_week_gate_fusion_comparison.csv",
         "paired_delta_vs_nadir": RESULTS_DIR / "raa_geometry_delta_vs_existing_nadir.csv",
         "target_week_summary": RESULTS_DIR / "raa_geometry_target_week_summary.csv",
-        "selected_features": RESULTS_DIR / "raa_geometry_stability_selection_feature_frequencies.csv",
+        "selected_features": RESULTS_DIR
+        / "raa_geometry_stability_selection_feature_frequencies.csv",
         "fusion_predictions": PREDICTIONS_DIR,
     }
     geometry_results.to_csv(paths["geometry_model_comparison"], index=False)

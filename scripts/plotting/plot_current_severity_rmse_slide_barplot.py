@@ -13,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/current_severity_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -149,7 +148,9 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
             fontweight="bold",
             color=PALETTE["navy"],
         )
-        inner_color = "white" if label in {"Selected multiangular", "All features"} else PALETTE["navy"]
+        inner_color = (
+            "white" if label in {"Selected multiangular", "All features"} else PALETTE["navy"]
+        )
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             max(value - 0.45, 0.25),

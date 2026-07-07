@@ -44,8 +44,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
     ANGLE_GRID,
     INPUT_RESULTS_DIR,
@@ -98,7 +102,9 @@ TARGET_MAGNITUDES = [
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_healthy_counterfactual_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_healthy_counterfactual_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -230,7 +236,9 @@ def build_structure_and_observed_features(
                     continue
                 gap = mean_curve - q_curve
                 rel_gap = np.divide(gap, np.maximum(np.abs(mean_curve), EPS))
-                row.update(summarize_curve(rel_gap, f"relative_weak_tail__{band}__mean_minus_{quantile}"))
+                row.update(
+                    summarize_curve(rel_gap, f"relative_weak_tail__{band}__mean_minus_{quantile}")
+                )
         mean_osavi = curves.get(("osavi", "osavi_mean"))
         p10_osavi = curves.get(("osavi", "osavi_p10"))
         if mean_osavi is not None and p10_osavi is not None:
@@ -304,7 +312,9 @@ def fit_counterfactual_features(
     train_design, test_design, design_audit = counterfactual_design_matrices(
         train_base, test_base, x_cols
     )
-    train = train_base.merge(disease_2024[["plot_id", "week", "ds_plot"]], on=["plot_id", "week"], how="left")
+    train = train_base.merge(
+        disease_2024[["plot_id", "week", "ds_plot"]], on=["plot_id", "week"], how="left"
+    )
     train["ds_plot"] = train["ds_plot"].fillna(0.0)
     healthy_mask = train["ds_plot"].le(HEALTHY_MAX_SEVERITY_FOR_COUNTERFACTUAL)
     train_residual_rows = train_base[META_COLS].copy()
@@ -355,9 +365,9 @@ def fit_counterfactual_features(
                 "n_healthy_fit_rows": int(fit_mask.sum()),
                 **design_audit,
                 "healthy_fit_rmse": math.sqrt(mean_squared_error(healthy_y, healthy_pred)),
-                "healthy_fit_r2": r2_score(healthy_y, healthy_pred)
-                if len(np.unique(healthy_y)) > 1
-                else math.nan,
+                "healthy_fit_r2": (
+                    r2_score(healthy_y, healthy_pred) if len(np.unique(healthy_y)) > 1 else math.nan
+                ),
                 "healthy_residual_std": residual_scale,
             }
         )
@@ -371,7 +381,9 @@ def build_feature_sets(
     disease_2024: pd.DataFrame,
 ) -> tuple[dict[str, tuple[pd.DataFrame, pd.DataFrame]], pd.DataFrame, pd.DataFrame]:
     started = time.perf_counter()
-    train_base = build_structure_and_observed_features(curves_for_plot_week(pivot_curves(long_2024)))
+    train_base = build_structure_and_observed_features(
+        curves_for_plot_week(pivot_curves(long_2024))
+    )
     test_base = build_structure_and_observed_features(curves_for_plot_week(pivot_curves(long_2025)))
     train_counter, test_counter, counter_audit = fit_counterfactual_features(
         train_base, test_base, disease_2024
@@ -417,7 +429,13 @@ def build_feature_sets(
                 "test_features": len([col for col in test.columns if col not in META_COLS]),
             }
         )
-        logging.info("%s: train=%d test=%d features=%d", name, len(train), len(test), support_rows[-1]["train_features"])
+        logging.info(
+            "%s: train=%d test=%d features=%d",
+            name,
+            len(train),
+            len(test),
+            support_rows[-1]["train_features"],
+        )
     log_phase("build healthy counterfactual feature sets", started)
     return feature_sets, counter_audit, pd.DataFrame(support_rows)
 
@@ -429,10 +447,7 @@ def apply_zero_week_floor(
     feature_set: str,
 ) -> tuple[dict[str, object], pd.DataFrame]:
     zero_weeks = (
-        train.groupby("target_week")[TARGET]
-        .max()
-        .loc[lambda values: values <= 0]
-        .index.to_numpy()
+        train.groupby("target_week")[TARGET].max().loc[lambda values: values <= 0].index.to_numpy()
     )
     model = f"{result['model']}_zero_week_floor"
     floor_pred = predictions.copy()
@@ -597,7 +612,11 @@ def write_report(
         "train_grouped_oof_rmse",
         "external_minus_oof_rmse",
     ]
-    selected = selections[selections["selected_for_final_model"]].copy() if not selections.empty else pd.DataFrame()
+    selected = (
+        selections[selections["selected_for_final_model"]].copy()
+        if not selections.empty
+        else pd.DataFrame()
+    )
     selected_summary = (
         selected.groupby(["feature_set", "role"], as_index=False)
         .size()
@@ -662,7 +681,9 @@ def main() -> None:
     log_path = setup_logging()
     long_2024, long_2025, disease_2024, disease_2025 = read_inputs()
     feature_sets, counter_audit, support = build_feature_sets(long_2024, long_2025, disease_2024)
-    results, predictions, selections = evaluate_feature_sets(feature_sets, disease_2024, disease_2025)
+    results, predictions, selections = evaluate_feature_sets(
+        feature_sets, disease_2024, disease_2025
+    )
     context_predictions = load_context_predictions()
     context_rows = [
         score_prediction_frame(pred, model, feature_set, "existing_context")

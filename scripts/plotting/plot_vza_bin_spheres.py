@@ -13,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/presentation_assets/vza_bin_spheres"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
@@ -145,7 +144,9 @@ def add_bin_labels(ax, classes: list[tuple[int, int]], colors: list[str], side: 
     x_anchor = 0.08 if side == "left" else 0.84
     ha = "right" if side == "left" else "left"
     y_positions = np.linspace(0.68, 0.30, len(classes)) if len(classes) > 1 else [0.62]
-    for y_pos, ((theta_low, theta_high), color) in zip(y_positions, zip(classes, colors, strict=True), strict=True):
+    for y_pos, ((theta_low, theta_high), color) in zip(
+        y_positions, zip(classes, colors, strict=True), strict=True
+    ):
         ax.text2D(
             x_anchor,
             y_pos,
@@ -179,8 +180,12 @@ def write_plot() -> list[Path]:
     add_bin_labels(axes[0], NADIR_CLASSES, [PALETTE["teal"]], side="left")
     add_bin_labels(axes[1], VZA_CLASSES, BIN_COLORS, side="right")
 
-    axes[0].set_title("Nadir-only bin", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8)
-    axes[1].set_title("Multiangular bins", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8)
+    axes[0].set_title(
+        "Nadir-only bin", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8
+    )
+    axes[1].set_title(
+        "Multiangular bins", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8
+    )
 
     fig.suptitle(
         "View Zenith Angle Bins Used for Reflectance Features",
