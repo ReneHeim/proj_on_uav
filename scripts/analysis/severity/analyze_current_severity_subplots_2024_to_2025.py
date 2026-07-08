@@ -73,9 +73,12 @@ PLOT_DIRS = {
         / "data/processed/2024/20240826_week8/metashape/20241029_products_uav_data/output/extract/polygon_df",
     },
     2025: {
-        0: DATA_ROOT / "data/processed/2025/week0/metashape/20250822_products_uas_data/output/plots",
-        3: DATA_ROOT / "data/processed/2025/week3/metashape/20250828_products_uas_data/output/plots",
-        5: DATA_ROOT / "data/processed/2025/week5/metashape/20250829_products_uas_data/output/plots",
+        0: DATA_ROOT
+        / "data/processed/2025/week0/metashape/20250822_products_uas_data/output/plots",
+        3: DATA_ROOT
+        / "data/processed/2025/week3/metashape/20250828_products_uas_data/output/plots",
+        5: DATA_ROOT
+        / "data/processed/2025/week5/metashape/20250829_products_uas_data/output/plots",
         7: DATA_ROOT / "data/extracted/2025/week7/output/plots",
     },
 }
@@ -339,12 +342,16 @@ def pivot_features(long: pd.DataFrame, feature_set: str) -> pd.DataFrame:
     if feature_set == "nadir":
         idx = (
             data.sort_values("vza_midpoint")
-            .groupby(["year", "week", "plot_id", "parent_plot_id", "subplot_id", "band_name", "metric"])
+            .groupby(
+                ["year", "week", "plot_id", "parent_plot_id", "subplot_id", "band_name", "metric"]
+            )
             .head(1)
             .index
         )
         data = data.loc[idx].copy()
-        data["feature"] = "subplot_nadir__" + data["band_name"].map(clean_token) + "__" + data["metric"]
+        data["feature"] = (
+            "subplot_nadir__" + data["band_name"].map(clean_token) + "__" + data["metric"]
+        )
     elif feature_set == "multiangular":
         data["feature"] = (
             "subplot_multiangular__"
@@ -405,11 +412,17 @@ def score(y: np.ndarray, pred: np.ndarray) -> dict[str, float]:
     }
 
 
-def ridge_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def ridge_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train, test = align(train, test)
     y = train[TARGET].to_numpy(float)
     pipe = Pipeline(
-        [("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler()), ("ridge", RidgeCV(alphas=ALPHAS))]
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("ridge", RidgeCV(alphas=ALPHAS)),
+        ]
     )
     pipe.fit(train[cols], y)
     pred = np.clip(pipe.predict(test[cols]), float(np.nanmin(y)), float(np.nanmax(y)))
@@ -417,22 +430,38 @@ def ridge_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tu
     out["model"] = "ridge"
     out["feature_set"] = feature_set
     out["y_pred"] = pred
-    result = {"model": "ridge", "feature_set": feature_set, "n_train": len(train), "n_test": len(test), "n_features": len(cols), **score(test[TARGET].to_numpy(float), pred)}
+    result = {
+        "model": "ridge",
+        "feature_set": feature_set,
+        "n_train": len(train),
+        "n_test": len(test),
+        "n_features": len(cols),
+        **score(test[TARGET].to_numpy(float), pred),
+    }
     return result, out
 
 
-def phenology_floor_ridge(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def phenology_floor_ridge(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     result, out = ridge_model(train, test, feature_set)
     zero_weeks = train.groupby("week")[TARGET].max().loc[lambda s: s <= 0].index.to_numpy()
     if zero_weeks.size:
         out.loc[out["week"].isin(zero_weeks), "y_pred"] = 0.0
     metrics = score(out[TARGET].to_numpy(float), out["y_pred"].to_numpy(float))
-    result = {**result, **metrics, "model": "phenology_floor_ridge", "zero_weeks": ",".join(map(str, zero_weeks.tolist()))}
+    result = {
+        **result,
+        **metrics,
+        "model": "phenology_floor_ridge",
+        "zero_weeks": ",".join(map(str, zero_weeks.tolist())),
+    }
     out["model"] = "phenology_floor_ridge"
     return result, out
 
 
-def hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def hurdle_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train, test = align(train, test)
     y = train[TARGET].to_numpy(float)
     present = (y > 0).astype(int)
@@ -457,7 +486,11 @@ def hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> t
     prob = classifier.predict_proba(test[cols])[:, 1]
     positive = y > 0
     regressor = Pipeline(
-        [("imputer", SimpleImputer(strategy="median")), ("scaler", StandardScaler()), ("ridge", RidgeCV(alphas=ALPHAS))]
+        [
+            ("imputer", SimpleImputer(strategy="median")),
+            ("scaler", StandardScaler()),
+            ("ridge", RidgeCV(alphas=ALPHAS)),
+        ]
     )
     regressor.fit(train.loc[positive, cols], y[positive])
     pred = prob * regressor.predict(test[cols])
@@ -469,11 +502,20 @@ def hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> t
     out["model"] = "hurdle_probability_times_severity"
     out["feature_set"] = feature_set
     out["y_pred"] = pred
-    result = {"model": "hurdle_probability_times_severity", "feature_set": feature_set, "n_train": len(train), "n_test": len(test), "n_features": len(cols), **score(test[TARGET].to_numpy(float), pred)}
+    result = {
+        "model": "hurdle_probability_times_severity",
+        "feature_set": feature_set,
+        "n_train": len(train),
+        "n_test": len(test),
+        "n_features": len(cols),
+        **score(test[TARGET].to_numpy(float), pred),
+    }
     return result, out
 
 
-def xgboost_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def xgboost_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train, test = align(train, test)
     y_train = train[TARGET].to_numpy(float)
     x_train = train[cols].replace([np.inf, -np.inf], np.nan)
@@ -526,7 +568,9 @@ def xgboost_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> 
     return result, out
 
 
-def xgboost_hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def xgboost_hurdle_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     cols, train, test = align(train, test)
     y_train = train[TARGET].to_numpy(float)
     present = (y_train > 0).astype(int)
@@ -555,7 +599,9 @@ def xgboost_hurdle_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: s
     y_positive = y_train[positive]
     splitter = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=SEED)
     fit_idx, eval_idx = next(
-        splitter.split(x_positive, y_positive, groups=train.loc[positive, "parent_plot_id"].to_numpy())
+        splitter.split(
+            x_positive, y_positive, groups=train.loc[positive, "parent_plot_id"].to_numpy()
+        )
     )
     model = XGBRegressor(
         objective="reg:squarederror",
@@ -625,7 +671,9 @@ def week_summary(predictions: pd.DataFrame) -> pd.DataFrame:
 
 def add_fixed_ensembles(predictions: pd.DataFrame) -> pd.DataFrame:
     index = ["plot_id", "parent_plot_id", "subplot_id", "week", TARGET]
-    wide = predictions.pivot_table(index=index, columns=["model", "feature_set"], values="y_pred").reset_index()
+    wide = predictions.pivot_table(
+        index=index, columns=["model", "feature_set"], values="y_pred"
+    ).reset_index()
     members = [
         ("phenology_floor_ridge", "multiangular"),
         ("hurdle_probability_times_severity", "nadir"),
@@ -659,13 +707,10 @@ def prediction_result_rows(predictions: pd.DataFrame) -> pd.DataFrame:
 def plot_level_summary(predictions: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for keys, group in predictions.groupby(["model", "feature_set"]):
-        plot_predictions = (
-            group.groupby(["week", "parent_plot_id"], as_index=False)
-            .agg(
-                y_true=(TARGET, "first"),
-                y_pred=("y_pred", "mean"),
-                n_subplots=("subplot_id", "nunique"),
-            )
+        plot_predictions = group.groupby(["week", "parent_plot_id"], as_index=False).agg(
+            y_true=(TARGET, "first"),
+            y_pred=("y_pred", "mean"),
+            n_subplots=("subplot_id", "nunique"),
         )
         rows.append(
             {
@@ -685,7 +730,10 @@ def plot_level_summary(predictions: pd.DataFrame) -> pd.DataFrame:
 def markdown_table(df: pd.DataFrame) -> str:
     if df.empty:
         return "_No rows._"
-    rows = ["| " + " | ".join(df.columns) + " |", "| " + " | ".join(["---"] * len(df.columns)) + " |"]
+    rows = [
+        "| " + " | ".join(df.columns) + " |",
+        "| " + " | ".join(["---"] * len(df.columns)) + " |",
+    ]
     for _, row in df.iterrows():
         vals = []
         for value in row:
@@ -717,7 +765,13 @@ def main() -> None:
         train = model_table(train_features, disease_2024)
         test = model_table(test_features, disease_2025)
         logging.info("%s model table: train=%d test=%d", feature_set, len(train), len(test))
-        for fit in [ridge_model, phenology_floor_ridge, hurdle_model, xgboost_model, xgboost_hurdle_model]:
+        for fit in [
+            ridge_model,
+            phenology_floor_ridge,
+            hurdle_model,
+            xgboost_model,
+            xgboost_hurdle_model,
+        ]:
             result, pred = fit(train, test, feature_set)
             results.append(result)
             preds.append(pred)
@@ -729,13 +783,17 @@ def main() -> None:
     ensemble_rows = model_rows_from_predictions[
         model_rows_from_predictions["model"].eq("ensemble_ridge_multiangular_hurdle_nadir")
     ]
-    results_df = pd.concat([recorded_results, ensemble_rows], ignore_index=True).sort_values(["rmse", "model"])
+    results_df = pd.concat([recorded_results, ensemble_rows], ignore_index=True).sort_values(
+        ["rmse", "model"]
+    )
     weeks = week_summary(predictions).sort_values(["model", "feature_set", "week"])
     plot_level = plot_level_summary(predictions).sort_values(["rmse", "model"])
     results_df.to_csv(RESULTS_DIR / "subplot_current_severity_model_comparison.csv", index=False)
     predictions.to_csv(RESULTS_DIR / "subplot_current_severity_predictions.csv", index=False)
     weeks.to_csv(RESULTS_DIR / "subplot_current_severity_week_summary.csv", index=False)
-    plot_level.to_csv(RESULTS_DIR / "subplot_current_severity_plot_level_model_comparison.csv", index=False)
+    plot_level.to_csv(
+        RESULTS_DIR / "subplot_current_severity_plot_level_model_comparison.csv", index=False
+    )
 
     report = [
         "## Results: Current Severity With 20 Subplots Per Plot",

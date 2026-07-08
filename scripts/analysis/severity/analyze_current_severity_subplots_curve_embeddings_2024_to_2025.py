@@ -20,9 +20,16 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_severity_subplots_2024_to_2025 as subplot_pipeline
-from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import SEED, TARGET
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity import (
+    analyze_current_severity_subplots_2024_to_2025 as subplot_pipeline,
+)
+from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import (
+    SEED,
+    TARGET,
+)
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 INPUT_ROOT = ROOT / "outputs/current_severity_subplots_2024_to_2025/results"
 FEATURE_CACHE_DIR = INPUT_ROOT / "feature_cache"
@@ -46,7 +53,10 @@ META_COLS = ["year", "week", "plot_id", "parent_plot_id", "subplot_id"]
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_subplots_curve_embeddings_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR
+        / f"analyze_current_severity_subplots_curve_embeddings_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -79,12 +89,8 @@ def filter_curve_rows(long: pd.DataFrame) -> pd.DataFrame:
     data = long.copy()
     data["band_token"] = data["band_name"].map(clean_token)
     data["metric_token"] = data["metric"].map(clean_token)
-    keep = (
-        data["band_token"].isin(CURVE_BANDS)
-        & (
-            data["metric_token"].isin(REFLECTANCE_METRICS)
-            | data["metric_token"].isin(OSAVI_METRICS)
-        )
+    keep = data["band_token"].isin(CURVE_BANDS) & (
+        data["metric_token"].isin(REFLECTANCE_METRICS) | data["metric_token"].isin(OSAVI_METRICS)
     )
     keep &= (data["band_token"] != "osavi") | data["metric_token"].isin(OSAVI_METRICS)
     keep &= (data["band_token"] == "osavi") | data["metric_token"].isin(REFLECTANCE_METRICS)
@@ -93,7 +99,9 @@ def filter_curve_rows(long: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
-def curve_pivots(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+def curve_pivots(
+    long_2024: pd.DataFrame, long_2025: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     frames = []
     for data in [filter_curve_rows(long_2024), filter_curve_rows(long_2025)]:
         pivot = data.pivot_table(
@@ -103,7 +111,9 @@ def curve_pivots(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tuple[pd.D
             aggfunc="mean",
         ).reset_index()
         pivot.columns.name = None
-        angle_cols = [col for col in pivot.columns if isinstance(col, float) or isinstance(col, int)]
+        angle_cols = [
+            col for col in pivot.columns if isinstance(col, float) or isinstance(col, int)
+        ]
         pivot = pivot.rename(columns={angle: f"angle_{float(angle):04.1f}" for angle in angle_cols})
         frames.append(pivot)
     groups = sorted(set(frames[0]["curve_group"]).intersection(frames[1]["curve_group"]))
@@ -128,7 +138,8 @@ def shape_features(values: np.ndarray, angles: np.ndarray) -> dict[str, np.ndarr
             out=np.full_like(first, np.nan, dtype=float),
             where=np.isfinite(first) & (first != 0),
         ),
-        "linear_slope": np.sum((values - values.mean(axis=1, keepdims=True)) * centered_x, axis=1) / denom,
+        "linear_slope": np.sum((values - values.mean(axis=1, keepdims=True)) * centered_x, axis=1)
+        / denom,
         "mean_abs_derivative": np.mean(np.abs(gradient), axis=1),
         "mean_abs_curvature": np.mean(np.abs(curvature), axis=1),
     }
@@ -187,7 +198,9 @@ def fit_group_embedding(
     return train_features, test_features, audit
 
 
-def build_curve_features(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def build_curve_features(
+    long_2024: pd.DataFrame, long_2025: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     started = time.perf_counter()
     train_pivot, test_pivot, groups = curve_pivots(long_2024, long_2025)
     train_frames = []
@@ -197,7 +210,9 @@ def build_curve_features(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tu
     for group in groups:
         train_group = train_pivot.loc[train_pivot["curve_group"].eq(group)].copy()
         test_group = test_pivot.loc[test_pivot["curve_group"].eq(group)].copy()
-        available = [col for col in angle_cols if col in train_group.columns and col in test_group.columns]
+        available = [
+            col for col in angle_cols if col in train_group.columns and col in test_group.columns
+        ]
         if len(available) < 5:
             continue
         angles = np.array([float(col.replace("angle_", "")) for col in available])
@@ -221,11 +236,18 @@ def build_curve_features(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tu
     test = merge_frames(test_frames)
     audit = pd.DataFrame(audit_rows)
     log_phase("build subplot curve embedding features", started)
-    logging.info("subplot curve features: train=%d test=%d features=%d", len(train), len(test), len(train.columns) - len(META_COLS))
+    logging.info(
+        "subplot curve features: train=%d test=%d features=%d",
+        len(train),
+        len(test),
+        len(train.columns) - len(META_COLS),
+    )
     return train, test, audit
 
 
-def feature_variants(train: pd.DataFrame, test: pd.DataFrame) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
+def feature_variants(
+    train: pd.DataFrame, test: pd.DataFrame
+) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
     feature_cols = [col for col in train.columns if col not in META_COLS]
     variants = {
         "subplot_curve_all": feature_cols,
@@ -244,9 +266,10 @@ def feature_variants(train: pd.DataFrame, test: pd.DataFrame) -> dict[str, tuple
 def plot_level_summary(predictions: pd.DataFrame) -> pd.DataFrame:
     rows = []
     for keys, group in predictions.groupby(["model", "feature_set"]):
-        plot_predictions = (
-            group.groupby(["week", "parent_plot_id"], as_index=False)
-            .agg(y_true=(TARGET, "first"), y_pred=("y_pred", "mean"), n_subplots=("subplot_id", "nunique"))
+        plot_predictions = group.groupby(["week", "parent_plot_id"], as_index=False).agg(
+            y_true=(TARGET, "first"),
+            y_pred=("y_pred", "mean"),
+            n_subplots=("subplot_id", "nunique"),
         )
         y = plot_predictions["y_true"].to_numpy(float)
         pred = plot_predictions["y_pred"].to_numpy(float)
@@ -359,21 +382,30 @@ def main() -> None:
     baseline_model, baseline_plot = baseline_rows()
     paths = {
         "model_comparison": RESULTS_DIR / "subplot_curve_embedding_model_comparison.csv",
-        "plot_level_model_comparison": RESULTS_DIR / "subplot_curve_embedding_plot_level_model_comparison.csv",
+        "plot_level_model_comparison": RESULTS_DIR
+        / "subplot_curve_embedding_plot_level_model_comparison.csv",
         "predictions": RESULTS_DIR / "subplot_curve_embedding_predictions.csv",
         "curve_embedding_audit": RESULTS_DIR / "subplot_curve_embedding_audit.csv",
-        "context_model_comparison": RESULTS_DIR / "subplot_curve_embedding_with_context_baselines.csv",
-        "context_plot_level_comparison": RESULTS_DIR / "subplot_curve_embedding_plot_level_with_context_baselines.csv",
+        "context_model_comparison": RESULTS_DIR
+        / "subplot_curve_embedding_with_context_baselines.csv",
+        "context_plot_level_comparison": RESULTS_DIR
+        / "subplot_curve_embedding_plot_level_with_context_baselines.csv",
     }
-    context = pd.concat([results_df, baseline_model], ignore_index=True, sort=False).sort_values(["rmse", "model"])
-    plot_context = pd.concat([plot_results, baseline_plot], ignore_index=True, sort=False).sort_values(["rmse", "model"])
+    context = pd.concat([results_df, baseline_model], ignore_index=True, sort=False).sort_values(
+        ["rmse", "model"]
+    )
+    plot_context = pd.concat(
+        [plot_results, baseline_plot], ignore_index=True, sort=False
+    ).sort_values(["rmse", "model"])
     results_df.to_csv(paths["model_comparison"], index=False)
     plot_results.to_csv(paths["plot_level_model_comparison"], index=False)
     predictions.to_csv(paths["predictions"], index=False)
     audit.to_csv(paths["curve_embedding_audit"], index=False)
     context.to_csv(paths["context_model_comparison"], index=False)
     plot_context.to_csv(paths["context_plot_level_comparison"], index=False)
-    report = write_report(results_df, plot_results, baseline_model, baseline_plot, audit, paths, log_path)
+    report = write_report(
+        results_df, plot_results, baseline_model, baseline_plot, audit, paths, log_path
+    )
     logging.info("Report: %s", report)
     log_phase("total", total)
 

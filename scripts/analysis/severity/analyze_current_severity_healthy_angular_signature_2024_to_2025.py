@@ -38,8 +38,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
     ANGLE_GRID,
     CURVE_BANDS,
@@ -82,7 +86,8 @@ def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = (
-        LOGS_DIR / f"analyze_current_severity_healthy_angular_signature_2024_to_2025_{timestamp}.log"
+        LOGS_DIR
+        / f"analyze_current_severity_healthy_angular_signature_2024_to_2025_{timestamp}.log"
     )
     logging.basicConfig(
         level=logging.INFO,
@@ -123,12 +128,8 @@ def filter_curve_rows(long: pd.DataFrame) -> pd.DataFrame:
     data = long.copy()
     data["band_token"] = data["band_name"].map(clean_band_name)
     data["metric_token"] = data["metric"].map(clean_token)
-    keep = (
-        data["band_token"].isin(CURVE_BANDS)
-        & (
-            data["metric_token"].isin(REFLECTANCE_METRICS)
-            | data["metric_token"].isin(OSAVI_METRICS)
-        )
+    keep = data["band_token"].isin(CURVE_BANDS) & (
+        data["metric_token"].isin(REFLECTANCE_METRICS) | data["metric_token"].isin(OSAVI_METRICS)
     )
     keep &= (data["band_token"] != "osavi") | data["metric_token"].isin(OSAVI_METRICS)
     keep &= (data["band_token"] == "osavi") | data["metric_token"].isin(REFLECTANCE_METRICS)
@@ -151,7 +152,9 @@ def pivot_curves(long: pd.DataFrame) -> pd.DataFrame:
     return pivot.rename(columns=rename)
 
 
-def angle_columns_for_group(train: pd.DataFrame, test: pd.DataFrame) -> tuple[list[str], np.ndarray]:
+def angle_columns_for_group(
+    train: pd.DataFrame, test: pd.DataFrame
+) -> tuple[list[str], np.ndarray]:
     cols = []
     for angle in ANGLE_GRID:
         col = f"angle_{angle:04.1f}"
@@ -290,7 +293,9 @@ def build_group_signature_features(
     severity = train_group[TARGET].to_numpy(float)
     relative_baselines = healthy_baselines(train_relative, weeks_train, severity)
     shape_baselines = healthy_baselines(train_shape, weeks_train, severity)
-    train_relative_residual = residualize_to_healthy(train_relative, weeks_train, relative_baselines)
+    train_relative_residual = residualize_to_healthy(
+        train_relative, weeks_train, relative_baselines
+    )
     test_relative_residual = residualize_to_healthy(test_relative, weeks_test, relative_baselines)
     train_shape_residual = residualize_to_healthy(train_shape, weeks_train, shape_baselines)
     test_shape_residual = residualize_to_healthy(test_shape, weeks_test, shape_baselines)
@@ -456,10 +461,7 @@ def apply_zero_week_floor(
     raw_predictions: pd.DataFrame,
 ) -> tuple[dict[str, object], pd.DataFrame]:
     zero_weeks = (
-        train.groupby("target_week")[TARGET]
-        .max()
-        .loc[lambda values: values <= 0]
-        .index.to_numpy()
+        train.groupby("target_week")[TARGET].max().loc[lambda values: values <= 0].index.to_numpy()
     )
     model = "healthy_angular_signature_hurdle_zero_week_floor"
     predictions = raw_predictions.copy()
@@ -498,7 +500,9 @@ def write_report(
         "### Model Comparison",
         "",
         markdown_table(
-            comparison[["model", "feature_set", "source", "n_test", "rmse", "mae", "r2", "spearman"]]
+            comparison[
+                ["model", "feature_set", "source", "n_test", "rmse", "mae", "r2", "spearman"]
+            ]
             .round(4)
             .sort_values("rmse"),
             max_rows=20,

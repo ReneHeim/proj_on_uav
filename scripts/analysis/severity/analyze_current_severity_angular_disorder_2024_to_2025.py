@@ -34,8 +34,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
     ANGLE_GRID,
     INPUT_RESULTS_DIR,
@@ -237,7 +241,9 @@ def cross_band_decoupling_features(curves: dict[tuple[str, str], np.ndarray]) ->
     return features
 
 
-def lower_quantile_heterogeneity_features(curves: dict[tuple[str, str], np.ndarray]) -> dict[str, float]:
+def lower_quantile_heterogeneity_features(
+    curves: dict[tuple[str, str], np.ndarray]
+) -> dict[str, float]:
     features: dict[str, float] = {}
     for band in ["red", "red_edge", "nir"]:
         mean = curves.get((band, "mean"))
@@ -251,7 +257,9 @@ def lower_quantile_heterogeneity_features(curves: dict[tuple[str, str], np.ndarr
             with np.errstate(divide="ignore", invalid="ignore"):
                 rel_gap = np.divide(gap, np.maximum(np.abs(mean), EPS))
             features.update(curve_summary(gap, f"weak_tail__{band}__mean_minus_{quantile}"))
-            features.update(curve_summary(rel_gap, f"weak_tail__{band}__relative_mean_minus_{quantile}"))
+            features.update(
+                curve_summary(rel_gap, f"weak_tail__{band}__relative_mean_minus_{quantile}")
+            )
         for metric in ["iqr", "cv"]:
             hetero = curves.get((band, metric))
             if hetero is not None:
@@ -268,14 +276,18 @@ def lower_quantile_heterogeneity_features(curves: dict[tuple[str, str], np.ndarr
     return features
 
 
-def build_feature_sets_from_long(long_2024: pd.DataFrame, long_2025: pd.DataFrame) -> tuple[dict[str, tuple[pd.DataFrame, pd.DataFrame]], pd.DataFrame]:
+def build_feature_sets_from_long(
+    long_2024: pd.DataFrame, long_2025: pd.DataFrame
+) -> tuple[dict[str, tuple[pd.DataFrame, pd.DataFrame]], pd.DataFrame]:
     started = time.perf_counter()
     pivot_2024 = pivot_curves(long_2024)
     pivot_2025 = pivot_curves(long_2025)
     curves_2024 = curves_for_plot_week(pivot_2024)
     curves_2025 = curves_for_plot_week(pivot_2025)
 
-    def build_frames(curve_map: dict[tuple, dict[tuple[str, str], np.ndarray]]) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    def build_frames(
+        curve_map: dict[tuple, dict[tuple[str, str], np.ndarray]]
+    ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         decoupling_rows = []
         heterogeneity_rows = []
         combined_rows = []
@@ -331,10 +343,7 @@ def apply_zero_week_floor(
     feature_set: str,
 ) -> tuple[dict[str, object], pd.DataFrame]:
     zero_weeks = (
-        train.groupby("target_week")[TARGET]
-        .max()
-        .loc[lambda values: values <= 0]
-        .index.to_numpy()
+        train.groupby("target_week")[TARGET].max().loc[lambda values: values <= 0].index.to_numpy()
     )
     model = f"{result['model']}_zero_week_floor"
     floor_pred = predictions.copy()
@@ -496,7 +505,11 @@ def write_report(
         "r2",
         "spearman",
     ]
-    selected = selections[selections["selected_for_final_model"]].copy() if not selections.empty else pd.DataFrame()
+    selected = (
+        selections[selections["selected_for_final_model"]].copy()
+        if not selections.empty
+        else pd.DataFrame()
+    )
     selected_summary = (
         selected.groupby(["feature_set", "role"], as_index=False)
         .size()
