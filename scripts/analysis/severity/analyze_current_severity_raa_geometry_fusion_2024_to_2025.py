@@ -253,6 +253,15 @@ def merge_feature_frames(left: pd.DataFrame, right: pd.DataFrame) -> pd.DataFram
     return left.merge(right, on=META_COLS, how="outer")
 
 
+def merge_many_feature_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
+    if not frames:
+        return pd.DataFrame(columns=META_COLS)
+    merged = frames[0]
+    for frame in frames[1:]:
+        merged = merge_feature_frames(merged, frame)
+    return merged
+
+
 def filter_reliable_angular_bins(raa: pd.DataFrame) -> pd.DataFrame:
     required = {"n_pixels", "n_images"}
     if not required.issubset(raa.columns):
@@ -296,23 +305,32 @@ def build_geometry_feature_sets(
         geometry_compact = summarize_geometry_contrasts(raa)
         angular_shape = merge_feature_frames(vza_compact, geometry_compact)
         raa_reliable = filter_reliable_angular_bins(raa)
+        vza_features = pivot_reflectance_features(vza, "vza", ["vza_class"])
+        raa_features = pivot_reflectance_features(raa, "vza_raa", ["vza_class", "raa_class"])
+        phase_features = pivot_reflectance_features(
+            raa, "vza_phase", ["vza_class", "phase_class"]
+        )
+        raa_reliable_features = pivot_reflectance_features(
+            raa_reliable, "vza_raa_reliable", ["vza_class", "raa_class"]
+        )
+        phase_reliable_features = pivot_reflectance_features(
+            raa_reliable, "vza_phase_reliable", ["vza_class", "phase_class"]
+        )
         return {
             "nadir_from_vza": pivot_reflectance_features(nadir, "nadir", []),
-            "multiangular_vza": pivot_reflectance_features(vza, "vza", ["vza_class"]),
+            "multiangular_vza": vza_features,
             "multiangular_vza_compact": vza_compact,
             "multiangular_geometry_compact": geometry_compact,
             "multiangular_angular_shape": angular_shape,
-            "multiangular_vza_raa": pivot_reflectance_features(
-                raa, "vza_raa", ["vza_class", "raa_class"]
+            "multiangular_vza_raa": raa_features,
+            "multiangular_vza_phase": phase_features,
+            "multiangular_vza_raa_reliable": raa_reliable_features,
+            "multiangular_vza_phase_reliable": phase_reliable_features,
+            "multiangular_vza_raa_phase": merge_many_feature_frames(
+                [vza_features, raa_features, phase_features]
             ),
-            "multiangular_vza_phase": pivot_reflectance_features(
-                raa, "vza_phase", ["vza_class", "phase_class"]
-            ),
-            "multiangular_vza_raa_reliable": pivot_reflectance_features(
-                raa_reliable, "vza_raa_reliable", ["vza_class", "raa_class"]
-            ),
-            "multiangular_vza_phase_reliable": pivot_reflectance_features(
-                raa_reliable, "vza_phase_reliable", ["vza_class", "phase_class"]
+            "multiangular_vza_raa_phase_reliable": merge_many_feature_frames(
+                [vza_features, raa_reliable_features, phase_reliable_features]
             ),
         }
 
@@ -354,6 +372,8 @@ def evaluate_geometry_feature_sets(
         "multiangular_vza_phase",
         "multiangular_vza_raa_reliable",
         "multiangular_vza_phase_reliable",
+        "multiangular_vza_raa_phase",
+        "multiangular_vza_raa_phase_reliable",
     ]
     for feature_set in feature_order:
         train_features, test_features = features[feature_set]
@@ -552,6 +572,44 @@ def write_prediction_files(predictions: dict[tuple[str, str], pd.DataFrame]) -> 
         frame.to_csv(path, index=False)
 
 
+def selected_feature_family(feature: str) -> str:
+    if feature.startswith("known__"):
+        return "timing"
+    if feature.startswith("vza_raa_reliable"):
+        return "raa_reliable"
+    if feature.startswith("vza_phase_reliable"):
+        return "phase_reliable"
+    if feature.startswith("vza_raa"):
+        return "raa"
+    if feature.startswith("vza_phase"):
+        return "phase"
+    if feature.startswith("vza__"):
+        return "vza"
+    if feature.startswith("vza_compact"):
+        return "vza_compact"
+    if feature.startswith("geometry_compact"):
+        return "geometry_compact"
+    return "other"
+
+
+def selected_feature_family_counts(selections: pd.DataFrame) -> pd.DataFrame:
+    if selections.empty:
+        return pd.DataFrame()
+    selected = selections[
+        selections["selected_for_final_model"]
+        & selections["feature_set"].str.contains("vza_raa_phase", regex=False, na=False)
+    ].copy()
+    if selected.empty:
+        return pd.DataFrame()
+    selected["family"] = selected["feature"].map(selected_feature_family)
+    return (
+        selected.groupby(["model", "feature_set", "role", "family"], as_index=False)
+        .size()
+        .rename(columns={"size": "n_selected"})
+        .sort_values(["feature_set", "model", "role", "family"])
+    )
+
+
 def write_report(
     geometry_results: pd.DataFrame,
     context_scores: pd.DataFrame,
@@ -675,6 +733,7 @@ def main() -> None:
         "paired_delta_vs_nadir": RESULTS_DIR / "raa_geometry_delta_vs_existing_nadir.csv",
         "target_week_summary": RESULTS_DIR / "raa_geometry_target_week_summary.csv",
         "selected_features": RESULTS_DIR / "raa_geometry_stability_selection_feature_frequencies.csv",
+        "selected_family_counts": RESULTS_DIR / "raa_phase_augmented_selected_family_counts.csv",
         "fusion_predictions": PREDICTIONS_DIR,
     }
     geometry_results.to_csv(paths["geometry_model_comparison"], index=False)
@@ -683,6 +742,7 @@ def main() -> None:
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
     week_summary.to_csv(paths["target_week_summary"], index=False)
     selections.to_csv(paths["selected_features"], index=False)
+    selected_feature_family_counts(selections).to_csv(paths["selected_family_counts"], index=False)
 
     report_path = write_report(
         geometry_results,

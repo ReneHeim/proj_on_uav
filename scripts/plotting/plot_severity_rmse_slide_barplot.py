@@ -2,19 +2,28 @@
 
 from __future__ import annotations
 
+import math
 import logging
+import os
 import time
 from datetime import datetime
 from pathlib import Path
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[2]
+MPLCONFIG_DIR = ROOT / "outputs/.matplotlib"
+MPLCONFIG_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
+from scipy.stats import spearmanr
 
 
-ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
@@ -24,6 +33,14 @@ LOGS_DIR = ROOT / "outputs/logs"
 SELECTED_RESULT = RESULTS_DIR / "selected_42_feature_severity_result.csv"
 CANDIDATE_COMPARISON = RESULTS_DIR / "candidate_model_comparison.csv"
 FORCED_TOPK = RESULTS_DIR / "exploratory_extra_compact_forced_topk_results.csv"
+VZA_RAA_BLEND_SUMMARY = (
+    ROOT
+    / "outputs/future_severity_vza_raa_feature_selection_improvement/results/vza_raa_oof_selected_blend_summary.csv"
+)
+VZA_RAA_BLEND_PREDICTIONS = (
+    ROOT
+    / "outputs/future_severity_vza_raa_feature_selection_improvement/results/vza_raa_oof_selected_blend_predictions_2025.csv"
+)
 
 
 def setup_logging() -> Path:
@@ -44,11 +61,24 @@ def log_phase(name: str, started: float) -> None:
     logging.info("[PHASE] %s: %.1fs", name, time.perf_counter() - started)
 
 
+def score_prediction_frame(predictions: pl.DataFrame, pred_col: str) -> dict[str, float]:
+    y = predictions.get_column("y_true").to_numpy().astype(float)
+    pred = predictions.get_column(pred_col).to_numpy().astype(float)
+    rmse = math.sqrt(float(np.mean((y - pred) ** 2)))
+    mae = float(np.mean(np.abs(y - pred)))
+    r2 = 1.0 - float(np.sum((y - pred) ** 2) / np.sum((y - np.mean(y)) ** 2))
+    spearman = float(spearmanr(y, pred, nan_policy="omit").correlation)
+    return {"rmse": rmse, "mae": mae, "r2": r2, "spearman": spearman}
+
+
 def load_plot_data() -> pl.DataFrame:
     started = time.perf_counter()
     selected = pl.read_csv(SELECTED_RESULT).row(0, named=True)
     candidates = pl.read_csv(CANDIDATE_COMPARISON)
     forced = pl.read_csv(FORCED_TOPK)
+    blend_summary = pl.read_csv(VZA_RAA_BLEND_SUMMARY).row(0, named=True)
+    blend_predictions = pl.read_csv(VZA_RAA_BLEND_PREDICTIONS)
+    blend_scores = score_prediction_frame(blend_predictions, "y_pred")
 
     nadir = candidates.filter(
         (pl.col("model") == "residual_reliability_filtered_xgboost")
@@ -72,29 +102,44 @@ def load_plot_data() -> pl.DataFrame:
             "spearman": float(nadir["spearman"]),
             "reflectance_features": int(nadir["n_features"]) - 2,
             "total_features": int(nadir["n_features"]),
+            "bar_note": f"{int(nadir['n_features']) - 2} features",
             "status": "reference",
         },
         {
-            "label": "All features",
-            "model_detail": "Residual pipeline, all compact multiangular candidates",
+            "label": "All VZA features",
+            "model_detail": "Residual pipeline, all compact VZA-only candidates",
             "rmse": float(all_features["rmse"]),
             "mae": float(all_features["mae"]),
             "r2": float(all_features["r2"]),
             "spearman": float(all_features["spearman"]),
             "reflectance_features": int(all_features["k_reflectance_features_forced"]),
             "total_features": int(all_features["n_total_features"]),
+            "bar_note": f"{int(all_features['k_reflectance_features_forced'])} features",
             "status": "exploratory",
         },
         {
-            "label": "Selected multiangular",
-            "model_detail": "Residual pipeline, selected compact multiangular subset",
+            "label": "VZA only",
+            "model_detail": "Residual pipeline, selected compact VZA-only subset",
             "rmse": float(selected["rmse"]),
             "mae": float(selected["mae"]),
             "r2": float(selected["r2"]),
             "spearman": float(selected["spearman"]),
             "reflectance_features": int(selected["selected_reflectance_features"]),
             "total_features": int(selected["n_total_features"]),
+            "bar_note": f"{int(selected['selected_reflectance_features'])} features",
             "status": "selected",
+        },
+        {
+            "label": "VZA + RAA correction",
+            "model_detail": "OOF-selected blend: VZA-only plus shrinked all-VZA+RAA correction",
+            "rmse": blend_scores["rmse"],
+            "mae": blend_scores["mae"],
+            "r2": blend_scores["r2"],
+            "spearman": blend_scores["spearman"],
+            "reflectance_features": int(selected["selected_reflectance_features"]),
+            "total_features": int(selected["n_total_features"]),
+            "bar_note": f"{float(blend_summary['alpha_on_raa']):.0%} RAA",
+            "status": f"oof_blend_alpha_raa_{float(blend_summary['alpha_on_raa']):.2f}",
         },
     ]
     out = pl.DataFrame(rows)
@@ -108,11 +153,12 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
     data = data.sort("rmse")
     labels = data.get_column("label").to_list()
     rmse = data.get_column("rmse").to_list()
-    features = data.get_column("reflectance_features").to_list()
+    bar_notes = data.get_column("bar_note").to_list()
     palette = {
-        "All features": "#FF6B6B",
+        "All VZA features": "#FF6B6B",
         "Nadir only": "#F6C85F",
-        "Selected multiangular": "#0B132B",
+        "VZA only": "#0B132B",
+        "VZA + RAA correction": "#00A6A6",
     }
     colors = [palette[label] for label in labels]
 
@@ -124,7 +170,7 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
     nadir_rmse = float(data.filter(pl.col("label") == "Nadir only")["rmse"][0])
     ax.axhline(nadir_rmse, color="#0B132B", linewidth=1.1, linestyle=(0, (4, 4)), alpha=0.55)
 
-    for idx, (bar, value, n_features) in enumerate(zip(bars, rmse, features, strict=True)):
+    for idx, (bar, value, note) in enumerate(zip(bars, rmse, bar_notes, strict=True)):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             value + 0.12,
@@ -138,11 +184,13 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             max(value - 0.72, 0.35),
-            f"{n_features} refl. features",
+            note,
             ha="center",
             va="center",
             fontsize=10.5,
-            color="#0B132B" if labels[idx] != "Selected multiangular" else "white",
+            color="#0B132B"
+            if labels[idx] not in {"VZA only", "VZA + RAA correction", "All VZA features"}
+            else "white",
             fontweight="bold",
         )
 
@@ -198,6 +246,7 @@ def markdown_table(data: pl.DataFrame) -> str:
             pl.col("spearman").round(3),
             "reflectance_features",
             "total_features",
+            "bar_note",
             "status",
         ]
     )
@@ -215,12 +264,13 @@ def write_report(data: pl.DataFrame, figure_paths: list[Path], log_path: Path) -
     started = time.perf_counter()
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     nadir_rmse = float(data.filter(pl.col("label") == "Nadir only")["rmse"][0])
-    selected_rmse = float(data.filter(pl.col("label") == "Selected multiangular")["rmse"][0])
+    selected_rmse = float(data.filter(pl.col("label") == "VZA only")["rmse"][0])
+    vza_raa_rmse = float(data.filter(pl.col("label") == "VZA + RAA correction")["rmse"][0])
     report = f"""## Results: Severity RMSE Slide Bar Plot
 
 {markdown_table(data)}
 
-**Interpretation**: The selected compact multiangular residual model reduced external-year RMSE by {nadir_rmse - selected_rmse:.3f} severity units relative to the matched nadir-only residual reference. The all-feature model performed worse than nadir, showing why feature selection is part of the final model story.
+**Interpretation**: The OOF-selected VZA+RAA correction reduced external-year RMSE by {selected_rmse - vza_raa_rmse:.3f} severity units relative to the selected VZA-only residual model, and by {nadir_rmse - vza_raa_rmse:.3f} severity units relative to nadir-only.
 
 **Outputs**:
 {chr(10).join(f"- `{path.relative_to(ROOT)}`" for path in figure_paths)}
@@ -230,6 +280,8 @@ def write_report(data: pl.DataFrame, figure_paths: list[Path], log_path: Path) -
 - Source selected result: `{SELECTED_RESULT.relative_to(ROOT)}`
 - Source candidate comparison: `{CANDIDATE_COMPARISON.relative_to(ROOT)}`
 - Source all-feature top-k run: `{FORCED_TOPK.relative_to(ROOT)}`
+- Source VZA+RAA blend summary: `{VZA_RAA_BLEND_SUMMARY.relative_to(ROOT)}`
+- Source VZA+RAA blend predictions: `{VZA_RAA_BLEND_PREDICTIONS.relative_to(ROOT)}`
 - Log: `{log_path.relative_to(ROOT)}`
 """
     path = REPORTS_DIR / "severity_rmse_slide_barplot_summary.md"

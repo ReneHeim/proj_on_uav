@@ -22,6 +22,10 @@ REPORTS_DIR = OUTPUT_ROOT / "reports"
 LOGS_DIR = ROOT / "outputs/logs"
 
 MODEL_COMPARISON = RESULTS_DIR / "current_severity_model_comparison.csv"
+RAA_MODEL_COMPARISON = (
+    ROOT
+    / "outputs/current_severity_raa_geometry_fusion_2024_to_2025/results/raa_geometry_model_comparison.csv"
+)
 
 PALETTE = {
     "navy": "#0B132B",
@@ -62,6 +66,7 @@ def row_by_model(data: pl.DataFrame, model: str, feature_set: str) -> dict[str, 
 def load_plot_data() -> pl.DataFrame:
     started = time.perf_counter()
     current = pl.read_csv(MODEL_COMPARISON)
+    raa_current = pl.read_csv(RAA_MODEL_COMPARISON)
 
     selected = row_by_model(
         current,
@@ -74,11 +79,21 @@ def load_plot_data() -> pl.DataFrame:
         "compact_anomaly_multiangular",
     )
     nadir = row_by_model(current, "current_hurdle_top20_raw_positive", "compact_anomaly_nadir")
+    vza_raa = row_by_model(
+        raa_current,
+        "current_hurdle_stability_top30_raw_positive",
+        "multiangular_vza_raa",
+    )
+    all_vza_raa = row_by_model(
+        raa_current,
+        "hurdle_probability_times_severity",
+        "multiangular_vza_raa",
+    )
 
     rows = [
         {
-            "label": "Selected multiangular",
-            "model_detail": "Selected compact multiangular current-severity model",
+            "label": "VZA only",
+            "model_detail": "Selected compact VZA-only current-severity model",
             "feature_set": selected["feature_set"],
             "rmse": float(selected["rmse"]),
             "mae": float(selected["mae"]),
@@ -88,7 +103,18 @@ def load_plot_data() -> pl.DataFrame:
             "status": "selected",
         },
         {
-            "label": "All features",
+            "label": "VZA + RAA",
+            "model_detail": "Selected VZA plus relative-azimuth current-severity model",
+            "feature_set": vza_raa["feature_set"],
+            "rmse": float(vza_raa["rmse"]),
+            "mae": float(vza_raa["mae"]),
+            "r2": float(vza_raa["r2"]),
+            "spearman": float(vza_raa["spearman"]),
+            "total_features": int(float(vza_raa["n_features"])),
+            "status": "geometry_extension",
+        },
+        {
+            "label": "All VZA features",
             "model_detail": "All compact multiangular current-severity features",
             "feature_set": all_features["feature_set"],
             "rmse": float(all_features["rmse"]),
@@ -97,6 +123,17 @@ def load_plot_data() -> pl.DataFrame:
             "spearman": float(all_features["spearman"]),
             "total_features": int(all_features["n_features"]),
             "status": "unselected",
+        },
+        {
+            "label": "All VZA+RAA",
+            "model_detail": "All VZA plus relative-azimuth current-severity features",
+            "feature_set": all_vza_raa["feature_set"],
+            "rmse": float(all_vza_raa["rmse"]),
+            "mae": float(all_vza_raa["mae"]),
+            "r2": float(all_vza_raa["r2"]),
+            "spearman": float(all_vza_raa["spearman"]),
+            "total_features": int(float(all_vza_raa["n_features"])),
+            "status": "unselected_geometry",
         },
         {
             "label": "Nadir only",
@@ -123,8 +160,10 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
     rmse = data.get_column("rmse").to_list()
     features = data.get_column("total_features").to_list()
     colors_by_label = {
-        "Selected multiangular": PALETTE["navy"],
-        "All features": PALETTE["coral"],
+        "VZA only": PALETTE["navy"],
+        "VZA + RAA": PALETTE["coral"],
+        "All VZA features": PALETTE["coral"],
+        "All VZA+RAA": PALETTE["teal"],
         "Nadir only": PALETTE["gold"],
     }
     colors = [colors_by_label[label] for label in labels]
@@ -149,7 +188,11 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
             fontweight="bold",
             color=PALETTE["navy"],
         )
-        inner_color = "white" if label in {"Selected multiangular", "All features"} else PALETTE["navy"]
+        inner_color = (
+            "white"
+            if label in {"VZA only", "VZA + RAA", "All VZA features", "All VZA+RAA"}
+            else PALETTE["navy"]
+        )
         ax.text(
             bar.get_x() + bar.get_width() / 2,
             max(value - 0.45, 0.25),
@@ -229,12 +272,14 @@ def write_report(data: pl.DataFrame, figure_paths: list[Path], log_path: Path) -
     started = time.perf_counter()
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     nadir_rmse = float(data.filter(pl.col("label") == "Nadir only")["rmse"][0])
-    selected_rmse = float(data.filter(pl.col("label") == "Selected multiangular")["rmse"][0])
+    selected_rmse = float(data.filter(pl.col("label") == "VZA only")["rmse"][0])
+    vza_raa_rmse = float(data.filter(pl.col("label") == "VZA + RAA")["rmse"][0])
+    all_vza_raa_rmse = float(data.filter(pl.col("label") == "All VZA+RAA")["rmse"][0])
     report = f"""## Results: Current Severity RMSE Slide Bar Plot
 
 {markdown_table(data)}
 
-**Interpretation**: The selected compact multiangular model reduced 2025 current-severity RMSE by {nadir_rmse - selected_rmse:.3f} severity units relative to the nadir-only reference. The all-feature compact multiangular model performs worse than the selected model, so the slide emphasizes both multiangular information and feature selection.
+**Interpretation**: The selected compact VZA-only model reduced 2025 current-severity RMSE by {nadir_rmse - selected_rmse:.3f} severity units relative to the nadir-only reference. The selected VZA+RAA extension changed RMSE by {vza_raa_rmse - selected_rmse:+.3f} severity units relative to VZA-only, while the all-VZA+RAA model changed RMSE by {all_vza_raa_rmse - vza_raa_rmse:+.3f} relative to selected VZA+RAA.
 
 **Outputs**:
 {chr(10).join(f"- `{path.relative_to(ROOT)}`" for path in figure_paths)}
@@ -242,6 +287,7 @@ def write_report(data: pl.DataFrame, figure_paths: list[Path], log_path: Path) -
 **Reproducibility**:
 
 - Source current-severity model comparison: `{MODEL_COMPARISON.relative_to(ROOT)}`
+- Source VZA+RAA current-severity comparison: `{RAA_MODEL_COMPARISON.relative_to(ROOT)}`
 - Target: same-week plot-level severity, trained on 2024 and validated on 2025.
 - Figure format: 4:3 slide figure, palette Navy `{PALETTE["navy"]}`, Teal `{PALETTE["teal"]}`, Coral `{PALETTE["coral"]}`, Gold `{PALETTE["gold"]}`.
 - Log: `{log_path.relative_to(ROOT)}`
