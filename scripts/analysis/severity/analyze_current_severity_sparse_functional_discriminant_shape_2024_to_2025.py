@@ -40,8 +40,17 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
+from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
+    ANGLE_GRID,
+    CURVE_BANDS,
+    clean_band_name,
+)
 from scripts.analysis.severity.analyze_current_severity_magnitude_shape_functional_2024_to_2025 import (
     COVARIATES,
     META_COLS,
@@ -59,11 +68,6 @@ from scripts.analysis.severity.analyze_current_severity_raa_geometry_fusion_2024
     MIN_ANGULAR_BIN_PIXELS,
     RAA_2024,
     RAA_2025,
-)
-from scripts.analysis.severity.analyze_current_severity_curve_embeddings_2024_to_2025 import (
-    ANGLE_GRID,
-    CURVE_BANDS,
-    clean_band_name,
 )
 from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
     clean_token,
@@ -124,7 +128,9 @@ def configure_reused_pipeline_paths() -> None:
     residual_pipeline.REPORTS_DIR = REPORTS_DIR
     residual_pipeline.FIGURES_DIR = FIGURES_DIR
     residual_pipeline.PREDICTIONS_DIR = PREDICTIONS_DIR
-    residual_pipeline.FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "sparse_functional_discriminant_shape_manifest.json"
+    residual_pipeline.FROZEN_MANIFEST_PATH = (
+        OUTPUT_ROOT / "sparse_functional_discriminant_shape_manifest.json"
+    )
 
 
 def read_raa(path: Path) -> pd.DataFrame:
@@ -139,8 +145,7 @@ def read_raa(path: Path) -> pd.DataFrame:
 
 def filter_reliable_raa(raa: pd.DataFrame) -> pd.DataFrame:
     return raa[
-        (raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS)
-        & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)
+        (raa["n_pixels"] >= MIN_ANGULAR_BIN_PIXELS) & (raa["n_images"] >= MIN_ANGULAR_BIN_IMAGES)
     ].copy()
 
 
@@ -181,7 +186,9 @@ def shape_values(
     return train_log - train_log[:, [0]], apply_log - apply_log[:, [0]]
 
 
-def grouped_cv_splits(y: np.ndarray, groups: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]] | int:
+def grouped_cv_splits(
+    y: np.ndarray, groups: np.ndarray
+) -> list[tuple[np.ndarray, np.ndarray]] | int:
     unique_groups = np.unique(groups)
     if len(unique_groups) < 3:
         return 3
@@ -262,7 +269,9 @@ def build_group_sparse_scores(
                 "n_train_curves": len(train_targeted),
                 "n_apply_curves": len(apply_group),
                 "n_angles": len(angle_cols),
-                "n_nonzero_coefficients": int(np.count_nonzero(np.abs(presence_direction.coef) > EPS)),
+                "n_nonzero_coefficients": int(
+                    np.count_nonzero(np.abs(presence_direction.coef) > EPS)
+                ),
                 "alpha": presence_direction.alpha,
                 "l1_ratio": presence_direction.l1_ratio,
             },
@@ -273,7 +282,9 @@ def build_group_sparse_scores(
                 "n_train_curves": len(train_targeted),
                 "n_apply_curves": len(apply_group),
                 "n_angles": len(angle_cols),
-                "n_nonzero_coefficients": int(np.count_nonzero(np.abs(severity_direction.coef) > EPS)),
+                "n_nonzero_coefficients": int(
+                    np.count_nonzero(np.abs(severity_direction.coef) > EPS)
+                ),
                 "alpha": severity_direction.alpha,
                 "l1_ratio": severity_direction.l1_ratio,
             },
@@ -304,7 +315,9 @@ def build_sparse_discriminant_features_for_sources(
     for source in selected_sources:
         train_pivot = train_sources[source]
         apply_pivot = apply_sources[source]
-        common_groups = sorted(set(train_pivot["curve_group"]).intersection(apply_pivot["curve_group"]))
+        common_groups = sorted(
+            set(train_pivot["curve_group"]).intersection(apply_pivot["curve_group"])
+        )
         for group in common_groups:
             train_group = train_pivot[train_pivot["curve_group"].eq(group)].copy()
             apply_group = apply_pivot[apply_pivot["curve_group"].eq(group)].copy()
@@ -390,26 +403,37 @@ def nested_oof_predictions(
     groups = base["plot_id"].to_numpy()
     preds: list[pd.DataFrame] = []
     n_splits = min(5, len(np.unique(groups)))
-    for fold, (fit_idx, eval_idx) in enumerate(GroupKFold(n_splits=n_splits).split(base, base[TARGET], groups), start=1):
+    for fold, (fit_idx, eval_idx) in enumerate(
+        GroupKFold(n_splits=n_splits).split(base, base[TARGET], groups), start=1
+    ):
         fit_keys = base.iloc[fit_idx][["plot_id", "week"]]
         eval_keys = base.iloc[eval_idx][["plot_id", "week"]]
         fold_train_sources: dict[str, pd.DataFrame] = {}
         fold_eval_sources: dict[str, pd.DataFrame] = {}
         for source in selected_sources:
             source_frame = train_sources[source]
-            fold_train_sources[source] = source_frame.merge(fit_keys, on=["plot_id", "week"], how="inner")
-            fold_eval_sources[source] = source_frame.merge(eval_keys, on=["plot_id", "week"], how="inner")
+            fold_train_sources[source] = source_frame.merge(
+                fit_keys, on=["plot_id", "week"], how="inner"
+            )
+            fold_eval_sources[source] = source_frame.merge(
+                eval_keys, on=["plot_id", "week"], how="inner"
+            )
         fold_train_features, fold_eval_features, _ = build_sparse_discriminant_features_for_sources(
             fold_train_sources, fold_eval_sources, disease_2024, selected_sources
         )
         train_table = current_severity.build_current_model_table(fold_train_features, disease_2024)
         eval_table = current_severity.build_current_model_table(fold_eval_features, disease_2024)
-        cols, train_aligned, eval_aligned = residual_pipeline.prepare_aligned(train_table, eval_table)
+        cols, train_aligned, eval_aligned = residual_pipeline.prepare_aligned(
+            train_table, eval_table
+        )
         pred = current_severity.fit_hurdle_with_columns(
             train_aligned, eval_aligned, cols, cols, log_positive=False
         )
         frame = residual_pipeline.prediction_frame(
-            eval_aligned, pred, "nested_oof_sparse_functional_discriminant_hurdle_ridge", feature_set
+            eval_aligned,
+            pred,
+            "nested_oof_sparse_functional_discriminant_hurdle_ridge",
+            feature_set,
         )
         frame["fold"] = fold
         preds.append(frame)
@@ -453,7 +477,9 @@ def evaluate_variant(
     result["train_oof_minus_in_sample_rmse"] = (
         result["train_nested_grouped_oof_rmse"] - result["train_in_sample_rmse"]
     )
-    result["external_minus_nested_oof_rmse"] = result["rmse"] - result["train_nested_grouped_oof_rmse"]
+    result["external_minus_nested_oof_rmse"] = (
+        result["rmse"] - result["train_nested_grouped_oof_rmse"]
+    )
     result["nested_oof_mae"] = oof_scores["mae"]
     result["nested_oof_r2"] = oof_scores["r2"]
     result["nested_oof_spearman"] = oof_scores["spearman"]
@@ -575,9 +601,12 @@ def main() -> None:
     audit_df = pd.concat(audits, ignore_index=True) if audits else pd.DataFrame()
 
     paths = {
-        "model_comparison": RESULTS_DIR / "sparse_functional_discriminant_shape_model_comparison.csv",
-        "paired_delta_vs_nadir": RESULTS_DIR / "sparse_functional_discriminant_shape_delta_vs_nadir.csv",
-        "sparse_direction_audit": RESULTS_DIR / "sparse_functional_discriminant_shape_direction_audit.csv",
+        "model_comparison": RESULTS_DIR
+        / "sparse_functional_discriminant_shape_model_comparison.csv",
+        "paired_delta_vs_nadir": RESULTS_DIR
+        / "sparse_functional_discriminant_shape_delta_vs_nadir.csv",
+        "sparse_direction_audit": RESULTS_DIR
+        / "sparse_functional_discriminant_shape_direction_audit.csv",
         "predictions": PREDICTIONS_DIR,
     }
     comparison.to_csv(paths["model_comparison"], index=False)

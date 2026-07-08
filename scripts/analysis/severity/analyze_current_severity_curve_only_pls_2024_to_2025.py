@@ -34,8 +34,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_only_functional_2024_to_2025 import (
     build_sampled_curve_features,
     make_curve_sources,
@@ -52,7 +56,9 @@ from scripts.analysis.severity.analyze_current_severity_sparse_functional_discri
     RAA_2025,
     read_raa,
 )
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/current_severity_curve_only_pls_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -223,7 +229,9 @@ def evaluate_pls_variant(
     in_sample_pred = fit_hurdle_pls(train_aligned, train_aligned, cols, best_n)
     oof_pred = grouped_oof_predictions(train_aligned, cols, best_n)
     model = "curve_only_hurdle_pls"
-    predictions = residual_pipeline.prediction_frame(test_aligned, external_pred, model, feature_set)
+    predictions = residual_pipeline.prediction_frame(
+        test_aligned, external_pred, model, feature_set
+    )
     residual_pipeline.save_predictions(predictions, model, feature_set, COVARIATES)
     result = residual_pipeline.score_predictions(
         predictions, len(train_aligned), len(cols), model, feature_set

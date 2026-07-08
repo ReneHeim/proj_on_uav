@@ -20,9 +20,15 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/current_severity_multiangular_plus_nadir_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -32,13 +38,17 @@ FIGURES_DIR = OUTPUT_ROOT / "figures"
 LOGS_DIR = ROOT / "outputs/logs"
 
 FEATURE_SET = "compact_anomaly_multiangular_plus_nadir"
-CONTEXT_RESULTS = ROOT / "outputs/current_severity_2024_to_2025/results/current_severity_model_comparison.csv"
+CONTEXT_RESULTS = (
+    ROOT / "outputs/current_severity_2024_to_2025/results/current_severity_model_comparison.csv"
+)
 
 
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_multiangular_plus_nadir_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_multiangular_plus_nadir_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -55,7 +65,9 @@ def log_phase(name: str, started: float) -> None:
 
 def configure_paths() -> None:
     residual_pipeline.ROOT = ROOT
-    residual_pipeline.INPUT_RESULTS_DIR = ROOT / "outputs/multiangular_distribution_feature_family/results"
+    residual_pipeline.INPUT_RESULTS_DIR = (
+        ROOT / "outputs/multiangular_distribution_feature_family/results"
+    )
     residual_pipeline.COVARIATES = "spectral_plus_week"
     residual_pipeline.OUTPUT_ROOT = OUTPUT_ROOT
     residual_pipeline.RESULTS_DIR = RESULTS_DIR
@@ -65,14 +77,18 @@ def configure_paths() -> None:
     residual_pipeline.FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "multiangular_plus_nadir_manifest.json"
 
 
-def combine_multiangular_plus_nadir(features: dict[str, tuple[pd.DataFrame, pd.DataFrame]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def combine_multiangular_plus_nadir(
+    features: dict[str, tuple[pd.DataFrame, pd.DataFrame]]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     meta = ["year", "week", "plot_id", "cult", "trt"]
     train_multi, test_multi = features["compact_anomaly_multiangular"]
     train_nadir, test_nadir = features["compact_anomaly_nadir"]
 
     def merge(left: pd.DataFrame, right: pd.DataFrame) -> pd.DataFrame:
         right_features = [col for col in right.columns if col not in meta]
-        merged = left.merge(right[meta + right_features], on=meta, how="inner", validate="one_to_one")
+        merged = left.merge(
+            right[meta + right_features], on=meta, how="inner", validate="one_to_one"
+        )
         if len(merged) != len(left):
             raise RuntimeError(f"Merge lost rows: {len(left)} -> {len(merged)}")
         return merged
@@ -197,8 +213,10 @@ def main() -> None:
     result_frame = pd.DataFrame(results)
     combined = pd.concat([context, result_frame], ignore_index=True, sort=False).sort_values("rmse")
     paths = {
-        "model_comparison": RESULTS_DIR / "current_severity_multiangular_plus_nadir_model_comparison.csv",
-        "selected_features": RESULTS_DIR / "current_severity_multiangular_plus_nadir_selected_features.csv",
+        "model_comparison": RESULTS_DIR
+        / "current_severity_multiangular_plus_nadir_model_comparison.csv",
+        "selected_features": RESULTS_DIR
+        / "current_severity_multiangular_plus_nadir_selected_features.csv",
         "predictions": PREDICTIONS_DIR,
     }
     combined.to_csv(paths["model_comparison"], index=False)

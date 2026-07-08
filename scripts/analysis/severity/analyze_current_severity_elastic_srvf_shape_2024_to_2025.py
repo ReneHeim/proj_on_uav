@@ -40,8 +40,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_magnitude_shape_functional_2024_to_2025 import (
     COVARIATES,
     META_COLS,
@@ -79,7 +83,9 @@ EPS = 1e-8
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_elastic_srvf_shape_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_elastic_srvf_shape_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -141,13 +147,15 @@ def srvf_shape_features(
     test_out[f"{prefix}__elastic_shape_std"] = test_unit.std(axis=1)
     train_out[f"{prefix}__elastic_shape_positive_fraction"] = (train_unit > 0).mean(axis=1)
     test_out[f"{prefix}__elastic_shape_positive_fraction"] = (test_unit > 0).mean(axis=1)
-    train_out[f"{prefix}__elastic_shape_high_minus_low"] = (
-        train_unit[:, high].mean(axis=1) - train_unit[:, low].mean(axis=1)
+    train_out[f"{prefix}__elastic_shape_high_minus_low"] = train_unit[:, high].mean(
+        axis=1
+    ) - train_unit[:, low].mean(axis=1)
+    test_out[f"{prefix}__elastic_shape_high_minus_low"] = test_unit[:, high].mean(
+        axis=1
+    ) - test_unit[:, low].mean(axis=1)
+    train_out[f"{prefix}__elastic_shape_roughness"] = np.abs(np.diff(train_unit, axis=1)).mean(
+        axis=1
     )
-    test_out[f"{prefix}__elastic_shape_high_minus_low"] = (
-        test_unit[:, high].mean(axis=1) - test_unit[:, low].mean(axis=1)
-    )
-    train_out[f"{prefix}__elastic_shape_roughness"] = np.abs(np.diff(train_unit, axis=1)).mean(axis=1)
     test_out[f"{prefix}__elastic_shape_roughness"] = np.abs(np.diff(test_unit, axis=1)).mean(axis=1)
 
     scaler = StandardScaler()
@@ -552,9 +560,7 @@ def main() -> None:
     long_2024, long_2025, disease_2024, disease_2025 = read_inputs()
     train_features, test_features, audit = build_elastic_features(long_2024, long_2025)
     variants = feature_variants(train_features, test_features)
-    fixed_results, fixed_predictions = evaluate_fixed_variants(
-        variants, disease_2024, disease_2025
-    )
+    fixed_results, fixed_predictions = evaluate_fixed_variants(variants, disease_2024, disease_2025)
     sparse_results, sparse_predictions, sparse_selection = evaluate_sparse_variants(
         variants, disease_2024, disease_2025
     )

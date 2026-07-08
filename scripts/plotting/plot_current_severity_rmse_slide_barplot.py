@@ -13,7 +13,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/current_severity_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"

@@ -14,7 +14,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_ROOT = ROOT / "outputs/presentation_assets/vza_bin_spheres"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
@@ -159,9 +158,7 @@ def load_angle_importance() -> dict[tuple[int, int], float]:
 
     table = pd.read_csv(path)
     feature_set = (
-        "curve_only_vza_log_offnadir_no_10_15"
-        if path == IMPORTANCE_PATH
-        else "curve_only_vza_log"
+        "curve_only_vza_log_offnadir_no_10_15" if path == IMPORTANCE_PATH else "curve_only_vza_log"
     )
     table = table[
         (table["model"] == "current_hurdle_stability_top50_raw_positive")
@@ -209,13 +206,17 @@ def add_bin_labels(
             color=PALETTE["grey"],
             fontweight="bold",
         )
-    for y_pos, ((theta_low, theta_high), color) in zip(y_positions, zip(classes, colors, strict=True), strict=True):
+    for y_pos, ((theta_low, theta_high), color) in zip(
+        y_positions, zip(classes, colors, strict=True), strict=True
+    ):
         label = f"{theta_low}-{theta_high}°"
         if importance and side == "right" and theta_low == 10 and theta_high == 15:
             label = f"{label}   excl."
         elif importance:
             label = f"{label}   {importance.get((theta_low, theta_high), 0.0):.2f}"
-        label_color = PALETTE["grey"] if (side == "right" and theta_low == 10 and theta_high == 15) else color
+        label_color = (
+            PALETTE["grey"] if (side == "right" and theta_low == 10 and theta_high == 15) else color
+        )
         ax.text2D(
             x_anchor,
             y_pos,
@@ -250,8 +251,12 @@ def write_plot() -> list[Path]:
     add_bin_labels(axes[0], NADIR_CLASSES, [PALETTE["teal"]], side="left")
     add_bin_labels(axes[1], VZA_CLASSES, BIN_COLORS, side="right", importance=importance)
 
-    axes[0].set_title("Nadir-only bin", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8)
-    axes[1].set_title("Multiangular bins", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8)
+    axes[0].set_title(
+        "Nadir-only bin", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8
+    )
+    axes[1].set_title(
+        "Multiangular bins", fontsize=22, fontweight="bold", color=PALETTE["navy"], pad=8
+    )
 
     fig.suptitle(
         "View Zenith Angle Bins Used for Reflectance Features",

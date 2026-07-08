@@ -27,8 +27,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.early_warning.analyze_early_warning_severity_2024 import build_model_table  # noqa: E402
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline  # noqa: E402
+from scripts.analysis.early_warning.analyze_early_warning_severity_2024 import (  # noqa: E402
+    build_model_table,
+)
+from scripts.analysis.severity import (  # noqa: E402
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_raa_geometry_fusion_2024_to_2025 import (  # noqa: E402
     build_geometry_feature_sets,
 )
@@ -139,9 +143,7 @@ def fit_vza_raa_residual_models(
 
     selected_started = time.perf_counter()
     selected_result, selected_predictions, selected_tuning = (
-        residual_pipeline.fit_residual_reliability_filtered_xgboost(
-            train, test, FEATURE_SET
-        )
+        residual_pipeline.fit_residual_reliability_filtered_xgboost(train, test, FEATURE_SET)
     )
     selected_tuning["model"] = selected_result["model"]
     selected_tuning["feature_set"] = FEATURE_SET
@@ -150,12 +152,14 @@ def fit_vza_raa_residual_models(
 
     all_started = time.perf_counter()
     cols, train_aligned, test_aligned = residual_pipeline.prepare_aligned(train, test)
-    all_result, all_predictions, all_tuning = residual_pipeline.fit_tuned_xgboost_residual_with_cols(
-        train_aligned,
-        test_aligned,
-        cols,
-        ALL_FEATURES_MODEL,
-        FEATURE_SET,
+    all_result, all_predictions, all_tuning = (
+        residual_pipeline.fit_tuned_xgboost_residual_with_cols(
+            train_aligned,
+            test_aligned,
+            cols,
+            ALL_FEATURES_MODEL,
+            FEATURE_SET,
+        )
     )
     all_tuning["model"] = all_result["model"]
     all_tuning["feature_set"] = FEATURE_SET
@@ -193,10 +197,7 @@ def write_report(
         "",
         "**Outputs**:",
         f"- `{result_path.relative_to(ROOT)}`",
-        *[
-            f"- `{path.relative_to(ROOT)}`"
-            for path in predictions_paths.values()
-        ],
+        *[f"- `{path.relative_to(ROOT)}`" for path in predictions_paths.values()],
         f"- `{tuning_path.relative_to(ROOT)}`",
         "",
         "**Reproducibility**:",

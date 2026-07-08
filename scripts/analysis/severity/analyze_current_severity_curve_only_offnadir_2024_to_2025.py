@@ -21,8 +21,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_only_functional_2024_to_2025 import (
     build_sampled_curve_features,
     make_curve_sources,
@@ -38,7 +42,9 @@ from scripts.analysis.severity.analyze_current_severity_sparse_functional_discri
     RAA_2025,
     read_raa,
 )
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/current_severity_curve_only_offnadir_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -55,7 +61,9 @@ CURVE_ONLY_RESULTS = ROOT / "outputs/current_severity_curve_only_functional_2024
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_curve_only_offnadir_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_curve_only_offnadir_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -82,7 +90,9 @@ def configure_paths() -> None:
 
 
 def remove_10_15_bin(frame: pd.DataFrame) -> pd.DataFrame:
-    drop_cols = [col for col in frame.columns if isinstance(col, str) and col.endswith("__vza_12.5")]
+    drop_cols = [
+        col for col in frame.columns if isinstance(col, str) and col.endswith("__vza_12.5")
+    ]
     logging.info("Dropping %d curve features from 10-15 degree bin.", len(drop_cols))
     return frame.drop(columns=drop_cols)
 
@@ -114,7 +124,12 @@ def load_context_predictions() -> dict[tuple[str, str], pd.DataFrame]:
     return out
 
 
-def evaluate_offnadir(train_features: pd.DataFrame, test_features: pd.DataFrame, disease_2024: pd.DataFrame, disease_2025: pd.DataFrame):
+def evaluate_offnadir(
+    train_features: pd.DataFrame,
+    test_features: pd.DataFrame,
+    disease_2024: pd.DataFrame,
+    disease_2025: pd.DataFrame,
+):
     train = current_severity.build_current_model_table(train_features, disease_2024)
     test = current_severity.build_current_model_table(test_features, disease_2025)
     results = []
@@ -131,7 +146,13 @@ def evaluate_offnadir(train_features: pd.DataFrame, test_features: pd.DataFrame,
     return results, predictions, pd.concat(selections, ignore_index=True)
 
 
-def write_report(comparison: pd.DataFrame, delta: pd.DataFrame, selection: pd.DataFrame, paths: dict[str, Path], log_path: Path) -> Path:
+def write_report(
+    comparison: pd.DataFrame,
+    delta: pd.DataFrame,
+    selection: pd.DataFrame,
+    paths: dict[str, Path],
+    log_path: Path,
+) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / "curve_only_offnadir_current_severity_summary.md"
     display_cols = [
@@ -219,7 +240,9 @@ def main() -> None:
         score_prediction_frame(pred, model, feature_set, "existing_context")
         for (model, feature_set), pred in context_predictions.items()
     ]
-    comparison = pd.concat([pd.DataFrame(context_rows), pd.DataFrame(rows)], ignore_index=True, sort=False).sort_values("rmse")
+    comparison = pd.concat(
+        [pd.DataFrame(context_rows), pd.DataFrame(rows)], ignore_index=True, sort=False
+    ).sort_values("rmse")
     delta = paired_delta_vs_nadir({**context_predictions, **new_predictions})
     paths = {
         "model_comparison": RESULTS_DIR / "curve_only_offnadir_model_comparison.csv",

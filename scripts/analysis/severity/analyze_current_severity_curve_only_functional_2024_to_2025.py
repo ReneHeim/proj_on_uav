@@ -30,8 +30,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_magnitude_shape_functional_2024_to_2025 import (
     COVARIATES,
     META_COLS,
@@ -69,7 +73,9 @@ EPS = 1e-4
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_curve_only_functional_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR / f"analyze_current_severity_curve_only_functional_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -95,7 +101,9 @@ def configure_reused_pipeline_paths() -> None:
     residual_pipeline.FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "curve_only_functional_manifest.json"
 
 
-def angle_columns(train_group: pd.DataFrame, test_group: pd.DataFrame) -> tuple[list[str], np.ndarray]:
+def angle_columns(
+    train_group: pd.DataFrame, test_group: pd.DataFrame
+) -> tuple[list[str], np.ndarray]:
     train_angles = {
         float(col.replace("angle_", ""))
         for col in train_group.columns
@@ -173,7 +181,9 @@ def build_sampled_curve_features(
     for source in selected_sources:
         train_pivot = train_sources[source]
         test_pivot = test_sources[source]
-        common_groups = sorted(set(train_pivot["curve_group"]).intersection(test_pivot["curve_group"]))
+        common_groups = sorted(
+            set(train_pivot["curve_group"]).intersection(test_pivot["curve_group"])
+        )
         for group in common_groups:
             train_group = train_pivot[train_pivot["curve_group"].eq(group)].copy()
             test_group = test_pivot[test_pivot["curve_group"].eq(group)].copy()

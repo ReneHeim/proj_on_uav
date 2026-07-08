@@ -27,8 +27,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_only_elasticnet_gam_2024_to_2025 import (
     build_curve_summary_features,
     fit_gam_transformer,
@@ -50,7 +54,9 @@ from scripts.analysis.severity.analyze_current_severity_sparse_functional_discri
     RAA_2025,
     read_raa,
 )
-from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import markdown_table
+from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (
+    markdown_table,
+)
 
 OUTPUT_ROOT = ROOT / "outputs/current_severity_curve_only_hurdle_elasticnet_gam_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -60,8 +66,12 @@ FIGURES_DIR = OUTPUT_ROOT / "figures"
 LOGS_DIR = ROOT / "outputs/logs"
 
 CURRENT_RESULTS_DIR = ROOT / "outputs/current_severity_2024_to_2025/results"
-CURVE_ONLY_RESULTS_DIR = ROOT / "outputs/current_severity_curve_only_functional_2024_to_2025/results"
-DIRECT_CURVE_RESULTS_DIR = ROOT / "outputs/current_severity_curve_only_elasticnet_gam_2024_to_2025/results"
+CURVE_ONLY_RESULTS_DIR = (
+    ROOT / "outputs/current_severity_curve_only_functional_2024_to_2025/results"
+)
+DIRECT_CURVE_RESULTS_DIR = (
+    ROOT / "outputs/current_severity_curve_only_elasticnet_gam_2024_to_2025/results"
+)
 
 TARGET = current_severity.TARGET
 WARNING_TARGET = current_severity.WARNING_TARGET
@@ -74,7 +84,10 @@ SMOOTH_RIDGE_LAMBDAS = np.array([0.0, 1.0, 10.0, 100.0, 1000.0])
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_curve_only_hurdle_elasticnet_gam_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR
+        / f"analyze_current_severity_curve_only_hurdle_elasticnet_gam_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -97,7 +110,9 @@ def configure_reused_pipeline_paths() -> None:
     residual_pipeline.REPORTS_DIR = REPORTS_DIR
     residual_pipeline.FIGURES_DIR = FIGURES_DIR
     residual_pipeline.PREDICTIONS_DIR = PREDICTIONS_DIR
-    residual_pipeline.FROZEN_MANIFEST_PATH = OUTPUT_ROOT / "curve_only_hurdle_elasticnet_gam_manifest.json"
+    residual_pipeline.FROZEN_MANIFEST_PATH = (
+        OUTPUT_ROOT / "curve_only_hurdle_elasticnet_gam_manifest.json"
+    )
 
 
 def regression_scores(y_true: np.ndarray, pred: np.ndarray) -> dict[str, float]:
@@ -110,7 +125,9 @@ def regression_scores(y_true: np.ndarray, pred: np.ndarray) -> dict[str, float]:
 
 
 def cv_splits(groups: np.ndarray, y: np.ndarray) -> list[tuple[np.ndarray, np.ndarray]]:
-    return list(GroupKFold(n_splits=min(5, len(np.unique(groups)))).split(np.zeros(len(y)), y, groups))
+    return list(
+        GroupKFold(n_splits=min(5, len(np.unique(groups)))).split(np.zeros(len(y)), y, groups)
+    )
 
 
 def classifier_cv_folds(y_present: np.ndarray) -> int | None:
@@ -121,7 +138,9 @@ def classifier_cv_folds(y_present: np.ndarray) -> int | None:
     return min(3, smallest_class)
 
 
-def fit_elasticnet_regressor(x: pd.DataFrame, y: np.ndarray, groups: np.ndarray) -> tuple[ElasticNetCV, SimpleImputer, StandardScaler]:
+def fit_elasticnet_regressor(
+    x: pd.DataFrame, y: np.ndarray, groups: np.ndarray
+) -> tuple[ElasticNetCV, SimpleImputer, StandardScaler]:
     imputer = SimpleImputer(strategy="median")
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(imputer.fit_transform(x))
@@ -136,7 +155,9 @@ def fit_elasticnet_regressor(x: pd.DataFrame, y: np.ndarray, groups: np.ndarray)
     return model, imputer, scaler
 
 
-def fit_lasso_regressor(x: pd.DataFrame, y: np.ndarray, groups: np.ndarray) -> tuple[LassoCV, SimpleImputer, StandardScaler]:
+def fit_lasso_regressor(
+    x: pd.DataFrame, y: np.ndarray, groups: np.ndarray
+) -> tuple[LassoCV, SimpleImputer, StandardScaler]:
     imputer = SimpleImputer(strategy="median")
     scaler = StandardScaler()
     x_scaled = scaler.fit_transform(imputer.fit_transform(x))
@@ -175,7 +196,9 @@ def smooth_difference_matrix(cols: list[str]) -> np.ndarray:
     return np.vstack(rows)
 
 
-def solve_smooth_ridge(x: np.ndarray, y_centered: np.ndarray, dmat: np.ndarray, alpha: float, smooth_lambda: float) -> np.ndarray:
+def solve_smooth_ridge(
+    x: np.ndarray, y_centered: np.ndarray, dmat: np.ndarray, alpha: float, smooth_lambda: float
+) -> np.ndarray:
     penalty = alpha * np.eye(x.shape[1])
     if dmat.size:
         penalty = penalty + smooth_lambda * (dmat.T @ dmat)
@@ -239,15 +262,21 @@ def fit_smooth_ridge_regressor(
     return model, imputer, scaler
 
 
-def predict_elasticnet(model: ElasticNetCV, imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame) -> np.ndarray:
+def predict_elasticnet(
+    model: ElasticNetCV, imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame
+) -> np.ndarray:
     return model.predict(scaler.transform(imputer.transform(x)))
 
 
-def predict_lasso(model: LassoCV, imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame) -> np.ndarray:
+def predict_lasso(
+    model: LassoCV, imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame
+) -> np.ndarray:
     return model.predict(scaler.transform(imputer.transform(x)))
 
 
-def predict_smooth_ridge(model: dict[str, object], imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame) -> np.ndarray:
+def predict_smooth_ridge(
+    model: dict[str, object], imputer: SimpleImputer, scaler: StandardScaler, x: pd.DataFrame
+) -> np.ndarray:
     coef = np.asarray(model["coef"], dtype=float)
     return scaler.transform(imputer.transform(x)) @ coef + float(model["intercept"])
 
@@ -327,19 +356,27 @@ def fit_hurdle_sparse_linear_predict(
     return residual_pipeline.clip_predictions(prob * severity, y), audit
 
 
-def fit_hurdle_elasticnet_predict(train: pd.DataFrame, test: pd.DataFrame, cols: list[str]) -> tuple[np.ndarray, dict[str, object]]:
+def fit_hurdle_elasticnet_predict(
+    train: pd.DataFrame, test: pd.DataFrame, cols: list[str]
+) -> tuple[np.ndarray, dict[str, object]]:
     return fit_hurdle_sparse_linear_predict(train, test, cols, "elasticnet")
 
 
-def fit_hurdle_lasso_predict(train: pd.DataFrame, test: pd.DataFrame, cols: list[str]) -> tuple[np.ndarray, dict[str, object]]:
+def fit_hurdle_lasso_predict(
+    train: pd.DataFrame, test: pd.DataFrame, cols: list[str]
+) -> tuple[np.ndarray, dict[str, object]]:
     return fit_hurdle_sparse_linear_predict(train, test, cols, "lasso")
 
 
-def fit_hurdle_smooth_ridge_predict(train: pd.DataFrame, test: pd.DataFrame, cols: list[str]) -> tuple[np.ndarray, dict[str, object]]:
+def fit_hurdle_smooth_ridge_predict(
+    train: pd.DataFrame, test: pd.DataFrame, cols: list[str]
+) -> tuple[np.ndarray, dict[str, object]]:
     return fit_hurdle_sparse_linear_predict(train, test, cols, "smooth_ridge")
 
 
-def fit_hurdle_gam_predict(train: pd.DataFrame, test: pd.DataFrame, cols: list[str]) -> tuple[np.ndarray, dict[str, object]]:
+def fit_hurdle_gam_predict(
+    train: pd.DataFrame, test: pd.DataFrame, cols: list[str]
+) -> tuple[np.ndarray, dict[str, object]]:
     y = train[TARGET].to_numpy(float)
     y_present = (y > 0).astype(int)
     selected_class = select_top_correlated_features(train[cols], y_present.astype(float), top_k=35)
@@ -388,11 +425,15 @@ def grouped_oof(train: pd.DataFrame, cols: list[str], model_kind: str) -> np.nda
     pred = np.zeros(len(train), dtype=float)
     for fit_idx, eval_idx in cv_splits(groups, y):
         if model_kind == "elasticnet":
-            fold_pred, _ = fit_hurdle_elasticnet_predict(train.iloc[fit_idx], train.iloc[eval_idx], cols)
+            fold_pred, _ = fit_hurdle_elasticnet_predict(
+                train.iloc[fit_idx], train.iloc[eval_idx], cols
+            )
         elif model_kind == "lasso":
             fold_pred, _ = fit_hurdle_lasso_predict(train.iloc[fit_idx], train.iloc[eval_idx], cols)
         elif model_kind == "smooth_ridge":
-            fold_pred, _ = fit_hurdle_smooth_ridge_predict(train.iloc[fit_idx], train.iloc[eval_idx], cols)
+            fold_pred, _ = fit_hurdle_smooth_ridge_predict(
+                train.iloc[fit_idx], train.iloc[eval_idx], cols
+            )
         elif model_kind == "gam":
             fold_pred, _ = fit_hurdle_gam_predict(train.iloc[fit_idx], train.iloc[eval_idx], cols)
         else:
@@ -432,11 +473,15 @@ def evaluate_model(
     in_sample_pred, _ = (
         fit_hurdle_elasticnet_predict(train_aligned, train_aligned, cols)
         if model_kind == "elasticnet"
-        else fit_hurdle_lasso_predict(train_aligned, train_aligned, cols)
-        if model_kind == "lasso"
-        else fit_hurdle_smooth_ridge_predict(train_aligned, train_aligned, cols)
-        if model_kind == "smooth_ridge"
-        else fit_hurdle_gam_predict(train_aligned, train_aligned, cols)
+        else (
+            fit_hurdle_lasso_predict(train_aligned, train_aligned, cols)
+            if model_kind == "lasso"
+            else (
+                fit_hurdle_smooth_ridge_predict(train_aligned, train_aligned, cols)
+                if model_kind == "smooth_ridge"
+                else fit_hurdle_gam_predict(train_aligned, train_aligned, cols)
+            )
+        )
     )
     oof_pred = grouped_oof(train_aligned, cols, model_kind)
     predictions = residual_pipeline.prediction_frame(test_aligned, pred, model_name, feature_set)
@@ -494,7 +539,9 @@ def load_context_predictions() -> dict[tuple[str, str], pd.DataFrame]:
     return out
 
 
-def write_report(comparison: pd.DataFrame, delta: pd.DataFrame, paths: dict[str, Path], log_path: Path) -> Path:
+def write_report(
+    comparison: pd.DataFrame, delta: pd.DataFrame, paths: dict[str, Path], log_path: Path
+) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / "curve_only_hurdle_elasticnet_gam_current_severity_summary.md"
     display_cols = [
@@ -617,14 +664,18 @@ def main() -> None:
         (gam_result["model"], gam_result["feature_set"]): gam_pred,
     }
     comparison = pd.concat(
-        [pd.DataFrame(context_rows), pd.DataFrame([en_result, lasso_result, smooth_result, gam_result])],
+        [
+            pd.DataFrame(context_rows),
+            pd.DataFrame([en_result, lasso_result, smooth_result, gam_result]),
+        ],
         ignore_index=True,
         sort=False,
     ).sort_values("rmse")
     delta = paired_delta_vs_nadir({**context_predictions, **new_predictions})
     paths = {
         "model_comparison": RESULTS_DIR / "curve_only_hurdle_elasticnet_gam_model_comparison.csv",
-        "paired_delta_vs_nadir": RESULTS_DIR / "curve_only_hurdle_elasticnet_gam_delta_vs_nadir.csv",
+        "paired_delta_vs_nadir": RESULTS_DIR
+        / "curve_only_hurdle_elasticnet_gam_delta_vs_nadir.csv",
         "predictions": PREDICTIONS_DIR,
     }
     comparison.to_csv(paths["model_comparison"], index=False)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import math
 import logging
+import math
 import os
 import time
 from datetime import datetime
@@ -22,7 +22,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import polars as pl
 from scipy.stats import spearmanr
-
 
 OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
@@ -87,9 +86,7 @@ def load_plot_data() -> pl.DataFrame:
     ).row(0, named=True)
 
     all_features = (
-        forced.sort("k_reflectance_features_forced", descending=True)
-        .head(1)
-        .row(0, named=True)
+        forced.sort("k_reflectance_features_forced", descending=True).head(1).row(0, named=True)
     )
 
     rows = [
@@ -188,9 +185,11 @@ def write_plot(data: pl.DataFrame) -> list[Path]:
             ha="center",
             va="center",
             fontsize=10.5,
-            color="#0B132B"
-            if labels[idx] not in {"VZA only", "VZA + RAA correction", "All VZA features"}
-            else "white",
+            color=(
+                "#0B132B"
+                if labels[idx] not in {"VZA only", "VZA + RAA correction", "All VZA features"}
+                else "white"
+            ),
             fontweight="bold",
         )
 

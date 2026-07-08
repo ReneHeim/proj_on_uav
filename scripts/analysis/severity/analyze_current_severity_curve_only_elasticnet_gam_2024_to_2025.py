@@ -38,8 +38,12 @@ os.environ.setdefault("MPLCONFIGDIR", str(MPLCONFIG_DIR))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.analysis.severity import analyze_current_plot_severity_2024_to_2025 as current_severity
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline
+from scripts.analysis.severity import (
+    analyze_current_plot_severity_2024_to_2025 as current_severity,
+)
+from scripts.analysis.severity import (
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_current_severity_curve_only_functional_2024_to_2025 import (
     angle_columns,
     build_sampled_curve_features,
@@ -74,7 +78,9 @@ FIGURES_DIR = OUTPUT_ROOT / "figures"
 LOGS_DIR = ROOT / "outputs/logs"
 
 CURRENT_RESULTS_DIR = ROOT / "outputs/current_severity_2024_to_2025/results"
-CURVE_ONLY_RESULTS_DIR = ROOT / "outputs/current_severity_curve_only_functional_2024_to_2025/results"
+CURVE_ONLY_RESULTS_DIR = (
+    ROOT / "outputs/current_severity_curve_only_functional_2024_to_2025/results"
+)
 
 TARGET = current_severity.TARGET
 SEED = current_severity.SEED
@@ -93,7 +99,10 @@ class GamTransformer:
 def setup_logging() -> Path:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_current_severity_curve_only_elasticnet_gam_2024_to_2025_{timestamp}.log"
+    log_path = (
+        LOGS_DIR
+        / f"analyze_current_severity_curve_only_elasticnet_gam_2024_to_2025_{timestamp}.log"
+    )
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
@@ -174,7 +183,9 @@ def prediction_frame_from_values(
     model: str,
     feature_set: str,
 ) -> pd.DataFrame:
-    clipped = residual_pipeline.clip_predictions(pred, pred * 0 + test_aligned[TARGET].to_numpy(float))
+    clipped = residual_pipeline.clip_predictions(
+        pred, pred * 0 + test_aligned[TARGET].to_numpy(float)
+    )
     # Reclip below with training range in caller when available; this fallback keeps schema only.
     out = test_aligned[["plot_id", "predictor_week", "target_week"]].copy()
     out["model"] = model
@@ -335,7 +346,9 @@ def build_curve_summary_features(
     return train, test, audit
 
 
-def fit_gam_transformer(train_x: pd.DataFrame, test_x: pd.DataFrame) -> tuple[np.ndarray, np.ndarray, GamTransformer]:
+def fit_gam_transformer(
+    train_x: pd.DataFrame, test_x: pd.DataFrame
+) -> tuple[np.ndarray, np.ndarray, GamTransformer]:
     feature_names = list(train_x.columns)
     imputer = SimpleImputer(strategy="median")
     train_imp = imputer.fit_transform(train_x)
@@ -639,7 +652,8 @@ def main() -> None:
         "model_comparison": RESULTS_DIR / "curve_only_elasticnet_gam_model_comparison.csv",
         "paired_delta_vs_nadir": RESULTS_DIR / "curve_only_elasticnet_gam_delta_vs_nadir.csv",
         "model_audit": RESULTS_DIR / "curve_only_elasticnet_gam_model_audit.csv",
-        "summary_feature_audit": RESULTS_DIR / "curve_only_elasticnet_gam_summary_feature_audit.csv",
+        "summary_feature_audit": RESULTS_DIR
+        / "curve_only_elasticnet_gam_summary_feature_audit.csv",
         "predictions": PREDICTIONS_DIR,
     }
     comparison.to_csv(paths["model_comparison"], index=False)

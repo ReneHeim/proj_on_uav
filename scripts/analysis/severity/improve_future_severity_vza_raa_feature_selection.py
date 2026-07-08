@@ -39,7 +39,9 @@ from scripts.analysis.early_warning.analyze_early_warning_severity_2024 import (
     TARGET,
     build_model_table,
 )
-from scripts.analysis.severity import debug_multiangular_rmse_bottleneck as residual_pipeline  # noqa: E402
+from scripts.analysis.severity import (  # noqa: E402
+    debug_multiangular_rmse_bottleneck as residual_pipeline,
+)
 from scripts.analysis.severity.analyze_multiangular_distribution_feature_family import (  # noqa: E402
     build_feature_sets,
     clean_token,
@@ -134,14 +136,15 @@ def metric_row(
 
 def write_predictions(predictions: pd.DataFrame, model: str, feature_set: str) -> None:
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
-    path = (
-        PREDICTIONS_DIR
-        / f"severity_predictions_{model}_{feature_set}_{COVARIATES}.csv".replace("/", "_")
+    path = PREDICTIONS_DIR / f"severity_predictions_{model}_{feature_set}_{COVARIATES}.csv".replace(
+        "/", "_"
     )
     predictions.to_csv(path, index=False)
 
 
-def read_inputs() -> tuple[dict[str, tuple[pd.DataFrame, pd.DataFrame]], pd.DataFrame, pd.DataFrame]:
+def read_inputs() -> (
+    tuple[dict[str, tuple[pd.DataFrame, pd.DataFrame]], pd.DataFrame, pd.DataFrame]
+):
     started = time.perf_counter()
     long_2024 = pd.read_csv(DIST_RESULTS_DIR / "distribution_features_long_2024.csv")
     long_2025 = pd.read_csv(DIST_RESULTS_DIR / "distribution_features_long_2025.csv")
@@ -173,7 +176,12 @@ def pivot_rows(rows: list[dict[str, object]], prefix: str) -> pd.DataFrame:
         aggfunc="mean",
     ).reset_index()
     pivot.columns.name = None
-    logging.info("%s compact features: rows=%d cols=%d", prefix, len(pivot), len(pivot.columns) - len(META_COLS))
+    logging.info(
+        "%s compact features: rows=%d cols=%d",
+        prefix,
+        len(pivot),
+        len(pivot.columns) - len(META_COLS),
+    )
     return pivot
 
 
@@ -192,13 +200,19 @@ def build_raa_global_features(raa: pd.DataFrame) -> pd.DataFrame:
             "mean": float(np.nanmean(values)),
             "std": float(np.nanstd(values)),
             "range": float(np.nanmax(values) - np.nanmin(values)),
-            "low_minus_high": float(low.mean() - high.mean()) if not low.empty and not high.empty else np.nan,
-            "front_minus_back": float(front.mean() - back.mean()) if not front.empty and not back.empty else np.nan,
+            "low_minus_high": (
+                float(low.mean() - high.mean()) if not low.empty and not high.empty else np.nan
+            ),
+            "front_minus_back": (
+                float(front.mean() - back.mean()) if not front.empty and not back.empty else np.nan
+            ),
         }
         base = dict(zip(META_COLS, keys[: len(META_COLS)], strict=True))
         band = keys[-1]
         for metric, value in metrics.items():
-            rows.append({**base, "feature": raa_feature_name("raa_global", band, metric), "value": value})
+            rows.append(
+                {**base, "feature": raa_feature_name("raa_global", band, metric), "value": value}
+            )
     return pivot_rows(rows, "raa_global")
 
 
@@ -215,7 +229,9 @@ def build_raa_cluster_features(raa: pd.DataFrame) -> pd.DataFrame:
             "mean": float(np.nanmean(values)),
             "std": float(np.nanstd(values)),
             "range": float(np.nanmax(values) - np.nanmin(values)),
-            "low_minus_high": float(low.mean() - high.mean()) if not low.empty and not high.empty else np.nan,
+            "low_minus_high": (
+                float(low.mean() - high.mean()) if not low.empty and not high.empty else np.nan
+            ),
         }
         base = dict(zip(META_COLS, keys[: len(META_COLS)], strict=True))
         band = keys[len(META_COLS)]
@@ -318,7 +334,9 @@ def build_candidate_feature_sets(
             merge_feature_frames(vza_test, raa_curve_test),
         ),
         "compact_vza_plus_raa_global_curve": (
-            merge_feature_frames(merge_feature_frames(vza_train, raa_global_train), raa_curve_train),
+            merge_feature_frames(
+                merge_feature_frames(vza_train, raa_global_train), raa_curve_train
+            ),
             merge_feature_frames(merge_feature_frames(vza_test, raa_global_test), raa_curve_test),
         ),
         "compact_vza_plus_raa_cluster": (
@@ -329,12 +347,16 @@ def build_candidate_feature_sets(
     for name, (train, test) in candidates.items():
         n_train_features = len([c for c in train.columns if c not in META_COLS])
         n_test_features = len([c for c in test.columns if c not in META_COLS])
-        logging.info("%s: train_features=%d test_features=%d", name, n_train_features, n_test_features)
+        logging.info(
+            "%s: train_features=%d test_features=%d", name, n_train_features, n_test_features
+        )
     log_phase("build candidate VZA+RAA compact feature sets", started)
     return candidates
 
 
-def ridge_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def ridge_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     started = time.perf_counter()
     cols, train_aligned, test_aligned = residual_pipeline.prepare_aligned(train, test)
     pipeline = Pipeline(
@@ -347,7 +369,9 @@ def ridge_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tu
     y_train = train_aligned[TARGET].to_numpy(float)
     pipeline.fit(train_aligned[cols], y_train)
     pred = residual_pipeline.clip_predictions(pipeline.predict(test_aligned[cols]), y_train)
-    predictions = residual_pipeline.prediction_frame(test_aligned, pred, "ridge_all_features", feature_set)
+    predictions = residual_pipeline.prediction_frame(
+        test_aligned, pred, "ridge_all_features", feature_set
+    )
     result = metric_row(
         predictions,
         "ridge_all_features",
@@ -359,7 +383,9 @@ def ridge_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tu
     return result, predictions
 
 
-def huber_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tuple[dict, pd.DataFrame]:
+def huber_model(
+    train: pd.DataFrame, test: pd.DataFrame, feature_set: str
+) -> tuple[dict, pd.DataFrame]:
     started = time.perf_counter()
     cols, train_aligned, test_aligned = residual_pipeline.prepare_aligned(train, test)
     pipeline = Pipeline(
@@ -372,8 +398,17 @@ def huber_model(train: pd.DataFrame, test: pd.DataFrame, feature_set: str) -> tu
     y_train = train_aligned[TARGET].to_numpy(float)
     pipeline.fit(train_aligned[cols], y_train)
     pred = residual_pipeline.clip_predictions(pipeline.predict(test_aligned[cols]), y_train)
-    predictions = residual_pipeline.prediction_frame(test_aligned, pred, "huber_all_features", feature_set)
-    result = metric_row(predictions, "huber_all_features", feature_set, len(train_aligned), len(cols), time.perf_counter() - started)
+    predictions = residual_pipeline.prediction_frame(
+        test_aligned, pred, "huber_all_features", feature_set
+    )
+    result = metric_row(
+        predictions,
+        "huber_all_features",
+        feature_set,
+        len(train_aligned),
+        len(cols),
+        time.perf_counter() - started,
+    )
     return result, predictions
 
 
@@ -402,7 +437,10 @@ def evaluate_candidates(
                 logging.exception("Failed %s / %s", fit_name, feature_set)
                 rows.append({"model": fit_name, "feature_set": feature_set, "error": str(exc)})
         for fit_name, func in [
-            ("residual_reliability_filtered_xgboost", residual_pipeline.fit_residual_reliability_filtered_xgboost),
+            (
+                "residual_reliability_filtered_xgboost",
+                residual_pipeline.fit_residual_reliability_filtered_xgboost,
+            ),
             ("residual_xgboost_stability", residual_pipeline.fit_residual_xgboost_stability),
         ]:
             try:
