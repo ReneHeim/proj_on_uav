@@ -19,17 +19,17 @@ import numpy as np
 import polars as pl
 from scipy.stats import spearmanr
 
-ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
+ROOT = Path(__file__).resolve().parents[3]
+SOURCE_ROOT = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug"
 SOURCE_RESULTS = SOURCE_ROOT / "results"
 SOURCE_PREDICTIONS = SOURCE_RESULTS / "predictions"
-CROSS_YEAR_RESULTS = ROOT / "outputs/cross_year_generalization_2024_to_2025/results"
+CROSS_YEAR_RESULTS = ROOT / "outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/results"
 
-OUTPUT_ROOT = ROOT / "outputs/manuscript_tables/frozen_multiangular_severity"
+OUTPUT_ROOT = ROOT / "outputs/deliverables/manuscript/frozen_multiangular_severity"
 MAIN_DIR = OUTPUT_ROOT / "main"
 SUPPLEMENT_DIR = OUTPUT_ROOT / "supplementary"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 FROZEN_CONFIG = ROOT / "configs/frozen/multiangular_severity_residual_xgboost_v1.yaml"
 FROZEN_MANIFEST = SOURCE_ROOT / "frozen_pipeline_manifest.json"
 SOURCE_CODE = ROOT / "scripts/analysis/severity/debug_multiangular_rmse_bottleneck.py"

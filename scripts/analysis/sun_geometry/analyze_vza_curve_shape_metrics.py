@@ -12,14 +12,14 @@ import numpy as np
 import pandas as pd
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 INPUT_TEMPLATE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/{year}/ground_filtered/results/plot_week_angle_features_{year}.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/{year}/ground_filtered/results/plot_week_angle_features_{year}.parquet"
 )
-OUT_ROOT = ROOT / "outputs/result_03_vza_curve_shape_metrics"
-LOG_ROOT = ROOT / "outputs/logs"
-REPORTS_ROOT = ROOT / "outputs/reports"
+OUT_ROOT = ROOT / "outputs/runs/analysis/sun_geometry/vza_curve_shape_metrics"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
+REPORTS_ROOT = ROOT / "outputs/archive/legacy_unscoped/reports"
 YEARS = [2024, 2025]
 SEED = 42
 

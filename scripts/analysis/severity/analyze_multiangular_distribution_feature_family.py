@@ -15,13 +15,11 @@ import re
 import sys
 import time
 import warnings
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import polars as pl
-from scipy.stats import spearmanr
 from sklearn.decomposition import PCA
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.feature_selection import SelectKBest, f_regression
@@ -33,7 +31,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -53,11 +51,11 @@ from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 im
     load_2025_disease_with_fallback,
     safe_filename,
 )
+from src.research.common import configure_logging, log_phase, markdown_table, safe_spearman
 from src.analysis.result_01_reflectance_distributions import (
     BANDS,
     FINE_VZA_MAX,
     FINE_VZA_MIN,
-    POLYGON_PATHS,
     YEAR_PLOT_DIRS,
     assign_fine_vza_bins,
     ensure_indices,
@@ -66,10 +64,10 @@ from src.analysis.result_01_reflectance_distributions import (
     sample_equal_vza_bins,
 )
 
-OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = OUTPUT_ROOT / "logs"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
 
 GROUND_FILTER = True
@@ -111,34 +109,13 @@ PAIRED_BOOTSTRAP_ALPHA = 0.05
 
 
 def setup_logging() -> Path:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_multiangular_distribution_feature_family_{timestamp}.log"
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
-        force=True,
-    )
-    logging.info("Log file: %s", log_path)
-    return log_path
-
-
-def log_phase(name: str, started: float) -> None:
-    logging.info("[PHASE] %s: %.1fs", name, time.perf_counter() - started)
+    return configure_logging(LOGS_DIR, "analyze_multiangular_distribution_feature_family")
 
 
 def clean_token(value: object) -> str:
     text = str(value).strip().lower()
     text = re.sub(r"[^a-z0-9]+", "_", text)
     return text.strip("_")
-
-
-def safe_spearman(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    if len(np.unique(y_true)) < 2 or len(np.unique(y_pred)) < 2:
-        return math.nan
-    value = spearmanr(y_true, y_pred, nan_policy="omit").correlation
-    return float(value) if value is not None else math.nan
 
 
 def align_train_test(
@@ -168,27 +145,6 @@ def split_train_eval_by_plot(table: pd.DataFrame) -> tuple[np.ndarray, np.ndarra
         splitter.split(table, table[TARGET], groups=table["plot_id"].to_numpy())
     )
     return train_idx, eval_idx
-
-
-def markdown_table(df: pd.DataFrame, float_digits: int = 3, max_rows: int = 30) -> str:
-    if df.empty:
-        return "_No rows._"
-    shown = df.head(max_rows)
-    columns = list(shown.columns)
-    rows = [
-        "| " + " | ".join(columns) + " |",
-        "| " + " | ".join(["---"] * len(columns)) + " |",
-    ]
-    for _, row in shown.iterrows():
-        values = []
-        for col in columns:
-            value = row[col]
-            if isinstance(value, float) or isinstance(value, np.floating):
-                values.append("" if pd.isna(value) else f"{value:.{float_digits}f}")
-            else:
-                values.append("" if pd.isna(value) else str(value))
-        rows.append("| " + " | ".join(values) + " |")
-    return "\n".join(rows)
 
 
 def plot_week_dirs_available(year: int) -> dict[int, Path]:

@@ -12,17 +12,17 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 LIA_SOURCE = (
     ROOT
-    / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
+    / "outputs/runs/metadata/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
 )
 CONTRAST_SOURCE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
 )
-OUT_ROOT = ROOT / "outputs/backup_metadata/eda_lia"
-LOG_ROOT = ROOT / "outputs/logs"
+OUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/eda_lia"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 DATE_TO_WEEK = {
     "2024-06-17": 2,

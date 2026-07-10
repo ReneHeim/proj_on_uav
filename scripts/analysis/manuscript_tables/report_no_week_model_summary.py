@@ -14,12 +14,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-BASE = ROOT / "outputs/cross_year_generalization_2024_to_2025"
+ROOT = Path(__file__).resolve().parents[3]
+BASE = ROOT / "outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025"
 RESULTS_DIR = BASE / "results"
 FIGURES_DIR = BASE / "figures"
 REPORTS_DIR = BASE / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 
 def setup_logging() -> Path:

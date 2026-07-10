@@ -381,10 +381,10 @@ def write_markdown_summary(summary_df, fold_df):
     # Outputs
     lines.append("## Outputs")
     lines.append("")
-    lines.append(f"- Fold results: `outputs/results/early_warning_model_comparison.csv`")
+    lines.append(f"- Fold results: `outputs/archive/legacy_unscoped/results/early_warning_model_comparison.csv`")
     lines.append(f"- Report: `{report_path}`")
-    lines.append(f"- Plots: `outputs/figures/early_warning_comparison.png`")
-    lines.append(f"- Plots: `outputs/figures/early_warning_delta_auc.png`")
+    lines.append(f"- Plots: `outputs/archive/legacy_unscoped/figures/early_warning_comparison.png`")
+    lines.append(f"- Plots: `outputs/archive/legacy_unscoped/figures/early_warning_delta_auc.png`")
     lines.append(f"- Log: `{LOG_FILE}`")
     lines.append("")
 

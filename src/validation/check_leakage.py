@@ -12,8 +12,8 @@ Verifies 8 items:
   8. Feature-disease correlations (flag >0.9, heatmap)
 
 Outputs:
-  - outputs/reports/leakage_check.md
-  - outputs/figures/leakage_feature_correlation.png
+  - outputs/archive/legacy_unscoped/reports/leakage_check.md
+  - outputs/archive/legacy_unscoped/figures/leakage_feature_correlation.png
 """
 
 import logging
@@ -525,8 +525,8 @@ def write_summary(results, suspicious_features, total_time):
     lines.append("")
     lines.append("## Outputs")
     lines.append("")
-    lines.append("- `outputs/reports/leakage_check.md`")
-    lines.append("- `outputs/figures/leakage_feature_correlation.png`")
+    lines.append("- `outputs/archive/legacy_unscoped/reports/leakage_check.md`")
+    lines.append("- `outputs/archive/legacy_unscoped/figures/leakage_feature_correlation.png`")
     lines.append("")
     lines.append("## Reproducibility")
     lines.append("")

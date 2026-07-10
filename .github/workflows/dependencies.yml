@@ -21,14 +21,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install pip-tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-tools==7.5.0
-
       - name: Check for outdated dependencies
         id: check
         run: |
+          python -m pip install --upgrade pip
           echo "Checking for outdated dependencies..."
           pip install -r requirements.txt
           pip list --outdated --format=json > outdated.json

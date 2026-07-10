@@ -21,14 +21,14 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from sklearn.model_selection import GroupKFold
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 JOINED_SOURCE = (
     ROOT
-    / "outputs/backup_metadata/eda_lai_canopy_vza/results/lai_canopy_vza_reflectance_join_2024.csv"
+    / "outputs/runs/metadata/backup_metadata/eda_lai_canopy_vza/results/lai_canopy_vza_reflectance_join_2024.csv"
 )
-OUT_ROOT = ROOT / "outputs/result_02_canopy_gap_vza"
-REPORTS_ROOT = ROOT / "outputs/reports"
-LOG_ROOT = ROOT / "outputs/logs"
+OUT_ROOT = ROOT / "outputs/runs/analysis/canopy_structure/gap_vza"
+REPORTS_ROOT = ROOT / "outputs/archive/legacy_unscoped/reports"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 BANDS = ["Red edge", "NIR"]
 PRIMARY_WEEKS = [5, 6]
 

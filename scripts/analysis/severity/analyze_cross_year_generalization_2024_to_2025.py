@@ -7,7 +7,6 @@ import math
 import re
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
 import matplotlib
@@ -17,7 +16,6 @@ import polars as pl
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from scipy.stats import spearmanr
 from sklearn.base import clone
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegressionCV, RidgeCV
@@ -37,7 +35,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier, XGBRegressor
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -50,42 +48,41 @@ from scripts.analysis.early_warning.analyze_early_warning_severity_2024 import (
     build_model_table,
     clean_token,
     feature_columns,
-    filter_sparse_columns,
     load_disease_scores,
-    markdown_table,
     natural_plot_sort_key,
     read_polygons,
 )
+from src.research.common import configure_logging, log_phase as common_log_phase, markdown_table, safe_spearman
 
-DISEASE_2025_ROOT = ROOT / "outputs/backup_metadata/csv/data/raw/2025"
+DISEASE_2025_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/csv/data/raw/2025"
 POLYGON_2025_PATH = Path("/run/media/davidem/Heim/2025_oncerco_plot_polygons.gpkg")
 VZA_2025 = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2025/ground_filtered/results/plot_week_angle_features_2025.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2025/ground_filtered/results/plot_week_angle_features_2025.parquet"
 )
 RAA_2025 = (
     ROOT
-    / "outputs/result_01_raa_sun_geometry/2025/ground_filtered/results/plot_week_vza_raa_features_2025.parquet"
+    / "outputs/runs/analysis/reflectance/raa_sun_geometry/2025/ground_filtered/results/plot_week_vza_raa_features_2025.parquet"
 )
 VZA_2024 = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
 )
 RAA_2024 = (
     ROOT
-    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
 )
 
-OUTPUT_ROOT = ROOT / "outputs/cross_year_generalization_2024_to_2025"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
 XGB_CURVES_DIR = FIGURES_DIR / "xgboost_training_curves"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
 LAGGED_PREDICTIONS_DIR = RESULTS_DIR / "predictions_lagged_disease"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
-DISEASE_OUT = ROOT / "outputs/disease/clean_disease_scores_2025.csv"
-DISEASE_2024_CLEAN = ROOT / "outputs/disease/clean_disease_scores_2024.csv"
+LOGS_DIR = OUTPUT_ROOT / "logs"
+DISEASE_OUT = ROOT / "outputs/shared/disease/clean_disease_scores_2025.csv"
+DISEASE_2024_CLEAN = ROOT / "outputs/shared/disease/clean_disease_scores_2024.csv"
 
 SEED = 42
 MIN_NON_NULL_FRACTION = 0.50
@@ -114,27 +111,11 @@ def safe_filename(value: str) -> str:
 
 
 def setup_logging() -> Path:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"analyze_cross_year_generalization_2024_to_2025_{timestamp}.log"
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
-    )
-    logging.info("Log file: %s", log_path)
-    return log_path
+    return configure_logging(LOGS_DIR, "analyze_cross_year_generalization_2024_to_2025")
 
 
 def log_phase(name: str, t0: float) -> None:
-    logging.info("[PHASE] %s: %.1fs", name, time.time() - t0)
-
-
-def safe_spearman(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    if len(np.unique(y_true)) < 2 or len(np.unique(y_pred)) < 2:
-        return math.nan
-    value = spearmanr(y_true, y_pred, nan_policy="omit").correlation
-    return float(value) if value is not None else math.nan
+    common_log_phase(name, t0, wall_clock=True)
 
 
 def binary_metrics(

@@ -27,7 +27,7 @@ DEFAULT_ROOT = Path(
 
 def setup_logging(script_name: str) -> Path:
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    log_path = Path("outputs/logs") / f"{script_name}_{timestamp}.log"
+    log_path = Path("outputs/archive/legacy_unscoped/logs") / f"{script_name}_{timestamp}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -96,7 +96,7 @@ def main() -> None:
 
     script_name = Path(__file__).stem
     log_path = setup_logging(script_name)
-    report_dir = Path("outputs/reports/metashape_custom_matchtest")
+    report_dir = Path("outputs/archive/legacy_unscoped/reports/metashape_custom_matchtest")
     report_dir.mkdir(parents=True, exist_ok=True)
 
     t_total = time.time()

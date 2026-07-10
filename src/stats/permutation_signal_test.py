@@ -300,8 +300,8 @@ def write_summary(results, total_time):
     )
     lines.append("")
     lines.append(
-        f"**Outputs**: `outputs/results/permutation_test_scores.csv`, "
-        f"`outputs/figures/permutation_test_multiangular_vs_nadir.png`"
+        f"**Outputs**: `outputs/archive/legacy_unscoped/results/permutation_test_scores.csv`, "
+        f"`outputs/archive/legacy_unscoped/figures/permutation_test_multiangular_vs_nadir.png`"
     )
     lines.append(
         f"**Config**: CV=GroupKFold(n_splits={N_SPLITS}) by ifz_id, seed={SEED}, "

@@ -277,7 +277,7 @@ def write_outputs(summary: dict, manifest_root: Path) -> tuple[Path, Path]:
     manifest_root.mkdir(parents=True, exist_ok=True)
     manifest_path = manifest_root / f"{summary['week']}_rededgep_preprocess_manifest.json"
     report_path = (
-        Path("outputs/reports") / f"run_2025_rededgep_preprocess_{summary['week']}_summary.md"
+        Path("outputs/archive/legacy_unscoped/reports") / f"run_2025_rededgep_preprocess_{summary['week']}_summary.md"
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
 

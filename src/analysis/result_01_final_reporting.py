@@ -24,7 +24,7 @@ from src.analysis.result_01_reflectance_distributions import (
 
 ROOT = Path(__file__).resolve().parents[2]
 VZA_OUTPUT = DEFAULT_OUTPUT
-RAA_OUTPUT = ROOT / "outputs/result_01_raa_sun_geometry"
+RAA_OUTPUT = ROOT / "outputs/runs/analysis/reflectance/raa_sun_geometry"
 FINAL_RESULTS = VZA_OUTPUT / "results"
 FINAL_REPORTS = VZA_OUTPUT / "reports"
 FINAL_FIGURES = VZA_OUTPUT / "figures/main"
@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def configure_logging() -> Path:
-    log_dir = ROOT / "outputs/logs"
+    log_dir = ROOT / "outputs/archive/legacy_unscoped/logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / f"result_01_final_reporting_{datetime.now():%Y%m%d_%H%M%S}.log"
     logging.basicConfig(

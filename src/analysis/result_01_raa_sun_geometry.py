@@ -39,7 +39,7 @@ from src.analysis.result_01_reflectance_distributions import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT = ROOT / "outputs/result_01_raa_sun_geometry"
+DEFAULT_OUTPUT = ROOT / "outputs/runs/analysis/reflectance/raa_sun_geometry"
 RAA_EDGES = [0, 45, 90, 135, 180]
 PHASE_STEP = 10
 MIN_HEADLINE_PLOTS = 10

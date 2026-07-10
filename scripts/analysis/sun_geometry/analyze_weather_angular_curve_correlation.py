@@ -11,26 +11,26 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
-OUT_ROOT = ROOT / "outputs/backup_metadata/weather_angular_curve_correlation"
+ROOT = Path(__file__).resolve().parents[3]
+OUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/weather_angular_curve_correlation"
 RESULT_DIR = OUT_ROOT / "results"
 REPORT_DIR = OUT_ROOT / "reports"
-LOG_DIR = ROOT / "outputs/logs"
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 WEATHER_PATH = Path(
     "/run/media/davidem/heim_data/Backup/proj_on_cerco/code/scripts/r/2024_leaf_dynamics/data/20250129_weather_indices.csv"
 )
 VZA_METRICS_PATH = (
     ROOT
-    / "outputs/result_03_vza_curve_shape_metrics/vza_curve_shape_metrics_by_year_week_cultivar_band.csv"
+    / "outputs/runs/analysis/sun_geometry/vza_curve_shape_metrics/vza_curve_shape_metrics_by_year_week_cultivar_band.csv"
 )
 RAA_PERCENT_PATH = (
     ROOT
-    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/raa_vza_nadir_percent_change_summary_2024_trimmed.csv"
+    / "outputs/runs/analysis/reflectance/raa_sun_geometry/2024/ground_filtered/results/raa_vza_nadir_percent_change_summary_2024_trimmed.csv"
 )
 PHASE_PERCENT_PATH = (
     ROOT
-    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/raa_phase_nadir_percent_change_summary_2024_trimmed.csv"
+    / "outputs/runs/analysis/reflectance/raa_sun_geometry/2024/ground_filtered/results/raa_phase_nadir_percent_change_summary_2024_trimmed.csv"
 )
 
 WEEK_DATES_2024 = {

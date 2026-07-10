@@ -12,7 +12,7 @@ Usage:
         --capture /mnt/data/.../IMG_0002_1.tif \\
         --cpu-stack outputs/.../IMG_0002_6.tif \\
         --label "0000SET / IMG_0002 (SIFT-friendly)" \\
-        --out outputs/quality/0000SET_IMG_0002
+        --out outputs/runs/diagnostics/quality/0000SET_IMG_0002
 """
 from __future__ import annotations
 
@@ -36,9 +36,9 @@ from PIL import Image
 from skimage.transform import ProjectiveTransform, estimate_transform, resize
 
 # Set up logging
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-LOG_DIR = ROOT / "outputs/logs"
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / f"quality_assessment_{TS}.log"
 logging.basicConfig(

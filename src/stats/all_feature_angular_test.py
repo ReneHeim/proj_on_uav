@@ -296,10 +296,10 @@ def write_report(row, log_path, total_time):
 
 ## Outputs
 
-- `outputs/results/all_feature_angular_by_fold.csv`
-- `outputs/results/all_feature_angular_repeated_cv.csv`
-- `outputs/results/all_feature_angular_permutations.csv`
-- `outputs/results/all_feature_angular_summary.csv`
+- `outputs/archive/legacy_unscoped/results/all_feature_angular_by_fold.csv`
+- `outputs/archive/legacy_unscoped/results/all_feature_angular_repeated_cv.csv`
+- `outputs/archive/legacy_unscoped/results/all_feature_angular_permutations.csv`
+- `outputs/archive/legacy_unscoped/results/all_feature_angular_summary.csv`
 
 ## Reproducibility
 

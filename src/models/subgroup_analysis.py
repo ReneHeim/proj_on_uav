@@ -10,11 +10,11 @@ Subgroups:
   - All 4 subgroup combinations (aluco-trt, aluco-no_trt, capone-trt, capone-no_trt)
 
 Generates:
-  - outputs/results/model_comparison_by_subgroup.csv
-  - outputs/reports/subgroup_analysis_summary.md
-  - outputs/figures/delta_auc_by_cultivar.png
-  - outputs/figures/delta_auc_by_treatment.png
-  - outputs/figures/delta_auc_by_week.png
+  - outputs/archive/legacy_unscoped/results/model_comparison_by_subgroup.csv
+  - outputs/archive/legacy_unscoped/reports/subgroup_analysis_summary.md
+  - outputs/archive/legacy_unscoped/figures/delta_auc_by_cultivar.png
+  - outputs/archive/legacy_unscoped/figures/delta_auc_by_treatment.png
+  - outputs/archive/legacy_unscoped/figures/delta_auc_by_week.png
 """
 
 import logging
@@ -655,11 +655,11 @@ def write_markdown_summary(summary_df, delta_df, week_delta_df):
     # Outputs
     lines.append("## Outputs")
     lines.append("")
-    lines.append(f"- Fold results: `outputs/results/model_comparison_by_subgroup.csv`")
+    lines.append(f"- Fold results: `outputs/archive/legacy_unscoped/results/model_comparison_by_subgroup.csv`")
     lines.append(f"- Report: `{report_path}`")
-    lines.append(f"- Plot: `outputs/figures/delta_auc_by_cultivar.png`")
-    lines.append(f"- Plot: `outputs/figures/delta_auc_by_treatment.png`")
-    lines.append(f"- Plot: `outputs/figures/delta_auc_by_week.png`")
+    lines.append(f"- Plot: `outputs/archive/legacy_unscoped/figures/delta_auc_by_cultivar.png`")
+    lines.append(f"- Plot: `outputs/archive/legacy_unscoped/figures/delta_auc_by_treatment.png`")
+    lines.append(f"- Plot: `outputs/archive/legacy_unscoped/figures/delta_auc_by_week.png`")
     lines.append(f"- Log: `{LOG_FILE}`")
     lines.append("")
 

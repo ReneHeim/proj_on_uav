@@ -14,7 +14,8 @@ This registry documents the reorganized script namespace. Status values:
 | diagnostic | `diagnostics/alignment/` | CPU/GPU SIFT alignment QA and benchmarks | `outputs/quality/`, `outputs/cpu_sift_runs/`, `outputs/logs/` |
 | diagnostic | `diagnostics/metashape_compatibility/` | Metashape/custom radiometry and visual comparisons | `outputs/reports/metashape_custom_matchtest/`, `outputs/figures/metashape_custom_visual_diagnostics/` |
 | analysis | `analysis/early_warning/` | Early-warning disease prediction experiments | `outputs/early_warning_severity_2024/`, cross-year outputs |
-| analysis | `analysis/severity/` | Severity prediction, residual pipeline, cultivar checks | `outputs/cross_year_generalization_2024_to_2025/`, `outputs/multiangular_distribution_feature_family/` |
+| analysis | `analysis/severity/` | Canonical cross-year, compact-feature, and residual severity workflows | `outputs/runs/analysis/severity/{cross_year,future}/` |
+| analysis | `analysis/severity/experiments/` | Retained curve-shape, geometry, sampling, and comparison experiments | `outputs/runs/analysis/severity/experiments/` or mapped historical run outputs |
 | analysis | `analysis/canopy_structure/` | LAI/LIA/canopy gap reflectance analyses | `outputs/backup_metadata/`, `outputs/result_02_canopy_gap_vza/` |
 | analysis | `analysis/sun_geometry/` | VZA/RAA/phase angle and weather analyses | `outputs/result_01_raa_sun_geometry/`, `outputs/result_03_vza_curve_shape_metrics/` |
 | analysis | `analysis/manuscript_tables/` | Paper-ready tables and summaries | `outputs/manuscript_tables/`, manuscript reports |
@@ -23,6 +24,16 @@ This registry documents the reorganized script namespace. Status values:
 | utility | `plotting/` | Plot-only scripts for selected model summaries | analysis-family figure folders |
 | archived | `archive/legacy_week1_gpu/` | Historical week1 GPU pipeline and inspection scripts | existing logs and external week1 products |
 | archived | `archive/one_off_repairs/` | One-time band swap/repair scripts retained for audit | existing repair manifests/logs |
+
+## Shared Research Library
+
+Maintained analyses should import recurring infrastructure from
+`src/research/common.py`: project paths, standard run directories, logging,
+metrics, grouped bootstrap comparisons, Markdown tables, named artifacts,
+figure persistence, prediction persistence, and report writing.
+
+One-off methodology files remain valid experiments, but new reusable model or feature logic must move into
+this library instead of being imported from another experiment script.
 
 When adding a new script, place it in a purpose folder and update this file with its status,
 purpose, and output root.

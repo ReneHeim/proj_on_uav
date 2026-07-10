@@ -32,7 +32,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -53,11 +53,11 @@ from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 im
 )
 
 OUTPUT_ROOT = (
-    ROOT / "outputs/cross_year_generalization_2024_to_2025/early_warning_feature_selection"
+    ROOT / "outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/early_warning_feature_selection"
 )
 RESULTS_DIR = OUTPUT_ROOT / "results"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 TARGET_FEATURE_SETS = ["multiangular_vza", "multiangular_vza_phase", "multiangular_vza_raa"]
 TARGET_MODEL_FEATURES = {

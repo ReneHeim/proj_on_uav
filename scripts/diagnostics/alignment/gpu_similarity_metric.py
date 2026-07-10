@@ -14,9 +14,9 @@ Metrics per band:
 
 Usage:
     python -m scripts.diagnostics.alignment.gpu_similarity_metric \\
-        --gpu-stack outputs/quality/0000SET_IMG_0002/gpu_v2_aligned_stack.tif \\
-        --cpu-stack outputs/quality/multispec_stacks/0000SET_IMG_0002_6.tif \\
-        --out outputs/quality/0000SET_IMG_0002 \\
+        --gpu-stack outputs/runs/diagnostics/quality/0000SET_IMG_0002/gpu_v2_aligned_stack.tif \\
+        --cpu-stack outputs/runs/diagnostics/quality/multispec_stacks/0000SET_IMG_0002_6.tif \\
+        --out outputs/runs/diagnostics/quality/0000SET_IMG_0002 \\
         --label "0000SET / IMG_0002"
 """
 from __future__ import annotations
@@ -40,7 +40,7 @@ import rasterio
 def setup_logging(script_name: str) -> Path:
     root = Path(__file__).resolve().parents[1]
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = root / "outputs/logs"
+    log_dir = root / "outputs/archive/legacy_unscoped/logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{script_name}_{ts}.log"
     logging.basicConfig(

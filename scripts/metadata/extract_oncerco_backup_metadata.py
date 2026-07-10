@@ -12,13 +12,13 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = Path("/run/media/davidem/heim_data/Backup/proj_on_cerco")
-OUTPUT_ROOT = ROOT / "outputs/backup_metadata"
+OUTPUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata"
 CSV_ROOT = OUTPUT_ROOT / "csv"
 REPORT_ROOT = OUTPUT_ROOT / "reports"
 MANIFEST_ROOT = OUTPUT_ROOT / "manifests"
-LOG_ROOT = ROOT / "outputs/logs"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 INCLUDE_KEYWORDS = (
     "dsdi",
@@ -196,7 +196,7 @@ def write_report(output_root: Path, inventory: pd.DataFrame, log_path: Path) -> 
     lines = [
         "# ONCERCO Backup Metadata Summary",
         "",
-        "This package extracts the spreadsheet-based trial metadata, disease scores, and canopy measurements from the read-only ONCERCO backup into CSV files under `outputs/backup_metadata/`.",
+        "This package extracts the spreadsheet-based trial metadata, disease scores, and canopy measurements from the read-only ONCERCO backup into CSV files under `outputs/runs/metadata/backup_metadata/`.",
         "",
         "## Interpretation",
         "",
