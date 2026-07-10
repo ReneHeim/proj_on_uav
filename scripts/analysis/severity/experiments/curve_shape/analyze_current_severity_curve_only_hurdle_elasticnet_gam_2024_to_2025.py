@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -539,7 +541,7 @@ def load_context_predictions() -> dict[tuple[str, str], pd.DataFrame]:
     return out
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame, delta: pd.DataFrame, paths: dict[str, Path], log_path: Path
 ) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -600,7 +602,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -680,7 +682,7 @@ def main() -> None:
     }
     comparison.to_csv(paths["model_comparison"], index=False)
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
-    report_path = write_report(comparison, delta, paths, log_path)
+    report_path = build_report(comparison, delta, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_started)
 

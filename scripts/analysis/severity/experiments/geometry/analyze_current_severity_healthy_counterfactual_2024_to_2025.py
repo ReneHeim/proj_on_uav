@@ -19,6 +19,8 @@ are used.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -587,7 +589,7 @@ def paired_delta_vs_nadir(predictions: dict[tuple[str, str], pd.DataFrame]) -> p
     return pd.DataFrame(rows).sort_values("rmse_reduction_observed", ascending=False)
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame,
     delta: pd.DataFrame,
     week_summary: pd.DataFrame,
@@ -669,7 +671,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -712,7 +714,7 @@ def main() -> None:
     counter_audit.to_csv(paths["counterfactual_fit_audit"], index=False)
     support.to_csv(paths["feature_support"], index=False)
     selections.to_csv(paths["selected_features"], index=False)
-    report_path = write_report(
+    report_path = build_report(
         comparison,
         delta,
         week_summary,

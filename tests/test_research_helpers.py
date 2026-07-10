@@ -12,6 +12,7 @@ from src.research.common import (
     markdown_table,
     project_root,
     regression_metrics,
+    write_report,
 )
 
 
@@ -49,3 +50,8 @@ def test_markdown_table_supports_record_lists() -> None:
     rendered = markdown_table([{"model": "ridge", "rmse": 3.4567}], float_digits=2)
     assert "| model | rmse |" in rendered
     assert "3.46" in rendered
+
+
+def test_write_report_normalizes_markdown_lines(tmp_path) -> None:
+    path = write_report(tmp_path / "reports" / "summary.md", ["# Summary", "", "Text"])
+    assert path.read_text(encoding="utf-8") == "# Summary\n\nText\n"

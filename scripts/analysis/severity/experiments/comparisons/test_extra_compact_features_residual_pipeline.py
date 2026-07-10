@@ -9,6 +9,8 @@ Ridge + residual XGBoost architecture.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -304,7 +306,7 @@ def format_value(value: object) -> str:
     return str(value)
 
 
-def write_report(
+def build_report(
     candidates: pl.DataFrame,
     summary: pl.DataFrame,
     results: pl.DataFrame,
@@ -380,7 +382,7 @@ Frozen-rule interpretation:
 - Reliability diagnostic: existing train/test non-null and standardized mean difference screen.
 """
     path = REPORTS_DIR / "exploratory_extra_compact_feature_inclusion_summary.md"
-    path.write_text(report, encoding="utf-8")
+    persist_report(path, report)
     log_phase("write exploratory report", t0)
     return path
 
@@ -402,7 +404,7 @@ def main() -> None:
     results_path = RESULTS_DIR / "exploratory_extra_compact_forced_topk_results.csv"
     results.write_csv(results_path)
     figure_path = plot_results(results)
-    report_path = write_report(candidates, summary, results, figure_path, log_path)
+    report_path = build_report(candidates, summary, results, figure_path, log_path)
     logging.info("Candidate acceptance: %s", candidates_path)
     logging.info("Acceptance summary: %s", summary_path)
     logging.info("Forced top-k results: %s", results_path)

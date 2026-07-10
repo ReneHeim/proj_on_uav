@@ -52,7 +52,13 @@ from scripts.analysis.early_warning.analyze_early_warning_severity_2024 import (
     natural_plot_sort_key,
     read_polygons,
 )
-from src.research.common import configure_logging, log_phase as common_log_phase, markdown_table, safe_spearman
+from src.research.common import (
+    configure_logging,
+    log_phase as common_log_phase,
+    markdown_table,
+    safe_spearman,
+    write_report as persist_report,
+)
 
 DISEASE_2025_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/csv/data/raw/2025"
 POLYGON_2025_PATH = Path("/run/media/davidem/Heim/2025_oncerco_plot_polygons.gpkg")
@@ -1959,7 +1965,7 @@ def plot_binary_warning_delta_metrics(warning_delta: pd.DataFrame, output_path: 
     log_phase("plot binary warning delta metrics", t0)
 
 
-def write_report(
+def build_report(
     outputs: dict[str, Path],
     severity: pd.DataFrame,
     severity_delta: pd.DataFrame,
@@ -2082,10 +2088,10 @@ def write_report(
     ]
     for label, path in outputs.items():
         report.append(f"- {label}: `{path}`")
-    outputs["report"].write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(outputs["report"], report)
 
 
-def write_lagged_disease_report(
+def build_lagged_disease_report(
     outputs: dict[str, Path],
     lagged_results: pd.DataFrame,
     lagged_delta: pd.DataFrame,
@@ -2141,7 +2147,7 @@ def write_lagged_disease_report(
     for label, path in outputs.items():
         if "lagged" in label:
             report.append(f"- {label}: `{path}`")
-    outputs["lagged_disease_report"].write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(outputs["lagged_disease_report"], report)
 
 
 def main() -> None:
@@ -2361,7 +2367,7 @@ def main() -> None:
     feature_audit.to_csv(outputs["feature_set_audit"], index=False)
     plot_binary_warning_metrics(warning, outputs["binary_warning_figure"])
     plot_binary_warning_delta_metrics(warning_delta, outputs["binary_warning_delta_figure"])
-    write_report(
+    build_report(
         outputs,
         severity,
         severity_delta,
@@ -2373,7 +2379,7 @@ def main() -> None:
         audit_2025,
         log_path,
     )
-    write_lagged_disease_report(outputs, lagged_severity, lagged_delta, lagged_horizon, log_path)
+    build_lagged_disease_report(outputs, lagged_severity, lagged_delta, lagged_horizon, log_path)
     log_phase("total", start)
 
 

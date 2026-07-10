@@ -10,6 +10,8 @@ status is used only as experimental design metadata.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -249,7 +251,7 @@ def grouped_error_summary(predictions: pd.DataFrame, by: list[str]) -> pd.DataFr
     return pd.DataFrame(rows).sort_values(by + ["rmse", "model"])
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame,
     rules: pd.DataFrame,
     week_summary: pd.DataFrame,
@@ -298,7 +300,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -327,7 +329,7 @@ def main() -> None:
     rules.to_csv(paths["training_rules"], index=False)
     week_summary.to_csv(paths["week_summary"], index=False)
     week_trt_summary.to_csv(paths["week_treatment_summary"], index=False)
-    report_path = write_report(comparison, rules, week_summary, week_trt_summary, paths, log_path)
+    report_path = build_report(comparison, rules, week_summary, week_trt_summary, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total)
 

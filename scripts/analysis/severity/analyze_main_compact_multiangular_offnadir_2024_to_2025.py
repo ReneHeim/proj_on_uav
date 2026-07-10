@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import os
 import sys
@@ -139,7 +141,7 @@ def run_future(train_features: pd.DataFrame, test_features: pd.DataFrame) -> pd.
     )
 
 
-def write_report(current_results: pd.DataFrame, future_results: pd.DataFrame, paths: dict[str, Path], log_path: Path) -> Path:
+def build_report(current_results: pd.DataFrame, future_results: pd.DataFrame, paths: dict[str, Path], log_path: Path) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     report_path = REPORTS_DIR / "main_compact_multiangular_offnadir_summary.md"
     display_cols = [
@@ -197,7 +199,7 @@ def write_report(current_results: pd.DataFrame, future_results: pd.DataFrame, pa
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -227,7 +229,7 @@ def main() -> None:
     }
     current_results.to_csv(paths["current_results"], index=False)
     future_results.to_csv(paths["future_results"], index=False)
-    report_path = write_report(current_results, future_results, paths, log_path)
+    report_path = build_report(current_results, future_results, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total)
 

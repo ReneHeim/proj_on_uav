@@ -8,6 +8,8 @@ coefficients before the same grouped stability-selected hurdle Ridge model.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -287,7 +289,7 @@ def evaluate_feature_set(
     return results, predictions, pd.concat(selections, ignore_index=True)
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame,
     delta: pd.DataFrame,
     audit: pd.DataFrame,
@@ -362,7 +364,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -435,7 +437,7 @@ def main() -> None:
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
     audit_df.to_csv(paths["feature_audit"], index=False)
     selection_df.to_csv(paths["selected_features"], index=False)
-    report_path = write_report(comparison, delta, audit_df, selection_df, paths, log_path)
+    report_path = build_report(comparison, delta, audit_df, selection_df, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_started)
 

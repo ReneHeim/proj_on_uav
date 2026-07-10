@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -829,7 +831,7 @@ def main() -> None:
         f"- plot-level model comparison: `{RESULTS_DIR / 'subplot_current_severity_plot_level_model_comparison.csv'}`",
     ]
     report_path = REPORTS_DIR / "subplot_current_severity_2024_to_2025_summary.md"
-    report_path.write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(report_path, report)
     logging.info("Report: %s", report_path)
     log_phase("total", total)
 

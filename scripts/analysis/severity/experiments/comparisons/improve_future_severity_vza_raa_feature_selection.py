@@ -9,6 +9,8 @@ compact VZA distribution feature family.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -458,7 +460,7 @@ def evaluate_candidates(
     return results, tuning
 
 
-def write_report(results: pd.DataFrame, tuning: pd.DataFrame, log_path: Path) -> Path:
+def build_report(results: pd.DataFrame, tuning: pd.DataFrame, log_path: Path) -> Path:
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     best = results.dropna(subset=["rmse"]).sort_values("rmse").head(15)
     best_row = best.iloc[0] if not best.empty else pd.Series(dtype=object)
@@ -493,7 +495,7 @@ def write_report(results: pd.DataFrame, tuning: pd.DataFrame, log_path: Path) ->
         f"- Tuning audit: `{(RESULTS_DIR / 'vza_raa_feature_selection_improvement_tuning.csv').relative_to(ROOT)}`",
     ]
     path = REPORTS_DIR / "vza_raa_feature_selection_improvement_summary.md"
-    path.write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(path, report)
     return path
 
 
@@ -517,7 +519,7 @@ def main() -> None:
     tuning_path = RESULTS_DIR / "vza_raa_feature_selection_improvement_tuning.csv"
     results.to_csv(result_path, index=False)
     tuning.to_csv(tuning_path, index=False)
-    write_report(results, tuning, log_path)
+    build_report(results, tuning, log_path)
     logging.info("Wrote results: %s", result_path)
     logging.info("Wrote tuning: %s", tuning_path)
     log_phase("total", total)

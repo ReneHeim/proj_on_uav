@@ -13,6 +13,8 @@ history, or residual correction is used.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -526,7 +528,7 @@ def load_context_predictions() -> dict[tuple[str, str], pd.DataFrame]:
     return out
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame,
     delta: pd.DataFrame,
     model_audit: pd.DataFrame,
@@ -594,7 +596,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -660,7 +662,7 @@ def main() -> None:
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
     model_audit.to_csv(paths["model_audit"], index=False)
     summary_audit.to_csv(paths["summary_feature_audit"], index=False)
-    report_path = write_report(comparison, delta, model_audit, summary_audit, paths, log_path)
+    report_path = build_report(comparison, delta, model_audit, summary_audit, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_started)
 
