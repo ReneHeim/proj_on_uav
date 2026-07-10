@@ -22,8 +22,8 @@ import statsmodels.formula.api as smf
 from matplotlib.transforms import blended_transform_factory
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_INPUT = ROOT / "outputs/ARCHIVED/features/M3_multiangular_vza.parquet"
-DEFAULT_OUTPUT = ROOT / "outputs/result_01_reflectance_distributions"
+DEFAULT_INPUT = ROOT / "outputs/archive/historical_runs/features/M3_multiangular_vza.parquet"
+DEFAULT_OUTPUT = ROOT / "outputs/runs/analysis/reflectance/distributions"
 
 BANDS = {
     "band1": "Blue",

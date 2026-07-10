@@ -16,7 +16,7 @@ import numpy as np
 import polars as pl
 import statsmodels.formula.api as smf
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_NAME = Path(__file__).stem
 YEARS = [2024, 2025]
 BANDS = {
@@ -33,11 +33,11 @@ REFERENCE_VZA_MAX = 10.0
 MAX_ABS_PERCENT_FOR_DISPLAY = 30.0
 SEED = 42
 
-OUT_DIR = ROOT / "outputs/result_01_raa_sun_geometry/support_filtered"
+OUT_DIR = ROOT / "outputs/runs/analysis/reflectance/raa_sun_geometry/support_filtered"
 FIG_DIR = OUT_DIR / "figures"
 RESULTS_DIR = OUT_DIR / "results"
-REPORT_DIR = ROOT / "outputs/reports"
-LOG_DIR = ROOT / "outputs/logs"
+REPORT_DIR = ROOT / "outputs/archive/legacy_unscoped/reports"
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 VZA_ONLY_FORMULA = "reflectance ~ C(vza_class) + C(week) + C(cult) + C(trt)"
 PHASE_FORMULA = "reflectance ~ C(vza_class) + mean_phase_angle + C(week) + C(cult) + C(trt)"
@@ -66,7 +66,7 @@ def log_phase(name: str, started: float) -> None:
 def input_path(year: int) -> Path:
     return (
         ROOT
-        / f"outputs/result_01_raa_sun_geometry/{year}/ground_filtered/results/plot_week_vza_raa_features_{year}.parquet"
+        / f"outputs/runs/analysis/reflectance/raa_sun_geometry/{year}/ground_filtered/results/plot_week_vza_raa_features_{year}.parquet"
     )
 
 

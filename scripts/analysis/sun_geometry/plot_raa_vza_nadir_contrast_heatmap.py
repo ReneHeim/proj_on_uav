@@ -17,10 +17,10 @@ import numpy as np
 import polars as pl
 from matplotlib.colors import TwoSlopeNorm
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_NAME = Path(__file__).stem
-REPORT_DIR = ROOT / "outputs/reports"
-LOG_DIR = ROOT / "outputs/logs"
+REPORT_DIR = ROOT / "outputs/archive/legacy_unscoped/reports"
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 BANDS = {
     "band1": "Blue",
     "band2": "Green",
@@ -59,7 +59,7 @@ def phase(name: str, started: float) -> None:
 
 
 def paths_for_run(year: int, filter_state: str) -> tuple[Path, Path, Path, Path]:
-    out_dir = ROOT / f"outputs/result_01_raa_sun_geometry/{year}/{filter_state}"
+    out_dir = ROOT / f"outputs/runs/analysis/reflectance/raa_sun_geometry/{year}/{filter_state}"
     input_path = out_dir / f"results/plot_week_vza_raa_features_{year}.parquet"
     return input_path, out_dir / "figures/main", out_dir / "results", out_dir
 

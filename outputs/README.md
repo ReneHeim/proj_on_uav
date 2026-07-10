@@ -1,37 +1,40 @@
 # Outputs Layout
 
-Historical outputs are intentionally left in place. New outputs should follow a predictable
-layout so each result can be traced back to the script that created it.
-
-## Preferred New Layout
+`outputs/` stores ignored local research artifacts. The canonical hierarchy is:
 
 ```text
 outputs/
-├── preprocessing/
-│   └── rededgep/{week}/
-│       ├── reports/
-│       ├── results/
-│       ├── figures/
-│       ├── logs/
-│       └── manifests/
-├── analysis/{analysis_family}/
-│   ├── reports/
-│   ├── results/
-│   ├── figures/
-│   ├── logs/
-│   └── manifests/
-├── manuscript/
-│   ├── tables/
-│   ├── figures/
-│   └── reports/
-├── diagnostics/{diagnostic_family}/
-└── archive/
+├── shared/                    # reusable labels and derived feature tables
+├── runs/
+│   ├── preprocessing/
+│   ├── analysis/
+│   │   ├── severity/{current,future,cross_year,experiments}/<run>/
+│   │   ├── early_warning/
+│   │   ├── reflectance/
+│   │   ├── canopy_structure/
+│   │   └── sun_geometry/
+│   ├── diagnostics/
+│   └── metadata/
+├── deliverables/
+│   ├── manuscript/
+│   └── presentation/
+├── archive/
+│   ├── historical_runs/
+│   └── legacy_unscoped/
+└── provenance/
 ```
+
+Every new run must contain `results/`, `figures/`, `reports/`, `logs/`, and
+`manifests/`. Use `src.research.common.RunPaths` to create this structure.
+
+The old-to-new mapping is recorded in `outputs/provenance/output_layout_migration_20260710.csv`.
+There are no compatibility symlinks: maintained code must use canonical paths.
 
 ## Provenance Rules
 
-- Every script should write a markdown summary with exact output paths.
-- Every processing/analysis run should write a structured log.
-- Long-running preprocessing should write a manifest containing inputs, settings, output root,
-  selected captures, failures, and band-order metadata.
-- Existing historical folders are indexed rather than moved during the first refactor.
+- Every script writes a markdown summary with exact output paths and its input artifact IDs.
+- Every processing or analysis run writes a structured log within its own `logs/` directory.
+- Long-running preprocessing writes a manifest with inputs, settings, output root, selected captures,
+  failures, and band-order metadata.
+- New maintained workflows resolve prerequisite artifacts from `configs/outputs.yaml`, not from hardcoded
+  output paths.

@@ -4,18 +4,23 @@
 
 This repository works with the **ONCERCO multiangular drone imagery dataset**.
 
-The data are stored outside the repository in two different Heim-mounted locations with different rules:
+The data are stored outside the repository in Heim-mounted locations with different rules:
 
-1. **Active Heim project/workspace**: `/run/media/davidem/Heim/`
-   * This is the normal working data location used by the current pipelines.
-   * It contains the current ONCERCO extraction inputs and outputs, including 2024 and 2025 week folders, Metashape products, orthophotos, DEMs, camera files, polygon files, extracted parquet outputs, RPV results, and stats outputs.
+1. **Active ONCERCO data workspace**: `/run/media/davidem/data/ONCERCO/`
+   * This is the true normal working data location for current pipelines.
+   * It contains current ONCERCO extraction inputs and outputs, including 2024 and 2025 week folders, Metashape products, orthophotos, DEMs, camera files, polygon files, extracted parquet outputs, RPV results, and stats outputs.
    * Scripts may read from this folder and may write derived pipeline outputs there when that is the configured output location.
 
 2. **Historical backup/archive**: `/run/media/davidem/heim_data/Backup/proj_on_cerco/`
    * This is an old project backup used for discovery, documentation, and recovering metadata such as DSDI, LAI, LCC, LIA, weather, GIS, legacy scripts, and raw historical project structure.
-   * This folder is **strictly read-only**. Agents may inspect, inventory, and copy small derived metadata from the backup when needed, but must never modify, rename, delete, move, clean, reformat, or write files inside the backup location.
+   * This folder is strictly read-only. Agents may inspect, inventory, and copy small derived metadata from the backup when needed, but must never modify, rename, delete, move, clean, reformat, or write files inside the backup location.
+
+3. **Legacy Heim workspace, if mounted**: `/run/media/davidem/Heim/`
+   * Treat this as a legacy or alternate source-data location unless a script or config explicitly points there.
+   * Do not assume it is the canonical current output location.
 
 Do **not** add raw images or large derived image products to Git.
+
 
 ## Mehtodologialc rules
 1) prefere polars to pandas and if you can convert pandas to polars
@@ -43,7 +48,7 @@ The objective of this repository is to collect data from the drone images and pr
 
 The repository should support:
 
-* loading data from `/run/media/davidem/Heim/`
+* loading data from `/run/media/davidem/data/ONCERCO/`
 * linking images to fields, weeks, polygons, cultivars, treatments, bands, and viewing angles
 * extracting reflectance values from AOIs
 * filtering and aggregating per-pixel data
@@ -124,6 +129,10 @@ New outputs should follow the layout documented in `outputs/README.md`. Every ne
 script should make it easy to trace which Python file created which outputs by writing
 a markdown summary, a structured log, and, for preprocessing, a manifest.
 
+Put recurring research infrastructure in `src/research/common.py`. Do not import
+reusable logic from an experiment script; keep only model-specific algorithms in
+analysis modules.
+
 For MicaSense RedEdge-P stacks, the required output band order is:
 
 ```text
@@ -143,7 +152,7 @@ reflectance = pixel_value / 32767
 Every data processing or analysis script MUST:
 
 1. Time every major phase (data loading, preprocessing, feature building, model fitting, aggregation) using `time.time()` or `time.perf_counter()`.
-2. Print per-phase timings to stdout AND write them to a structured log file in `outputs/logs/{script_name}_{timestamp}.log`.
+2. Print per-phase timings to stdout AND write them to `logs/{script_name}_{timestamp}.log` inside the workflow's own canonical run directory.
 3. Use the pattern:
    ```python
    t0 = time.time()
@@ -157,7 +166,7 @@ Bottlenecks must be identifiable from the log alone without re-running the scrip
 
 **Rule 2 — Markdown results summary for paper reporting**
 
-Every analysis script MUST produce a markdown file in `outputs/reports/{script_name}_summary.md` containing:
+Every analysis script MUST produce a markdown file in its canonical run directory's `reports/{script_name}_summary.md` containing:
 
 1. A **markdown table** with the key results (numbers, metrics, p-values) — ready to copy into the paper.
 2. A **1-2 sentence interpretation** of what the results mean for the research question.
@@ -213,10 +222,10 @@ python -m pytest tests/ --durations=20  # find slow tests
 
 190+ tests, all should pass. No GUI windows pop up (conftest.py sets Agg backend).
 
-### Key paths on the Heim drive
+### Key paths on the active ONCERCO data workspace
 
 ```
-/run/media/davidem/Heim/
+/run/media/davidem/data/ONCERCO/
 ├── 2024/                    # 2024 season
 │   ├── 20240603_week0/      # extraction: 1110 parquets ✓ full
 │   ├── 20240611_week1/      # orthophotos are 3-band only (RGB) ✗
@@ -229,7 +238,7 @@ python -m pytest tests/ --durations=20  # find slow tests
 │   ├── week3/               # extraction: 274 parquets ✓ full
 │   └── week5/               # extraction: 101 parquets ✓ full
 ├── 2024_oncerco_plot_polygons.gpkg   # 24 plots: columns [cult, ifz_id, trt, ino, geometry]
-├── 2025_oncerco_plot_polygons.gpkg   # 24 plots: columns [cultivar, trt, geometry] — NO ifz_id!
+├── 2025_oncerco_plot_polygons.gpkg   # 24 plots: columns [cultivar, trt, geometry] - NO ifz_id!
 ├── RPV_Results/             # RPV outputs (V1 through V12)
 └── stats/                   # Stats outputs (V1)
 ```
@@ -241,7 +250,7 @@ python -m pytest tests/ --durations=20  # find slow tests
 Config files use `{base_path}` substitution. Required structure:
 
 ```yaml
-base_path: "/run/media/davidem/Heim/2024/20240624_week3/metashape/20241206_week3_products_uav_data"
+base_path: "/run/media/davidem/data/ONCERCO/2024/20240624_week3/metashape/20241206_week3_products_uav_data"
 inputs:
   date_time:
     start: "2024-06-24 12:00:00"
@@ -251,7 +260,7 @@ inputs:
     dem_path: "{base_path}/20241206_week3_dem.tif"
     orthophoto_path: "{base_path}/20241212_week3_orthophotos/*.tif"
     ori: ["{base_path}/20241212_week3_orthophotos"]
-    polygon_file_path: "/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg"
+    polygon_file_path: "/run/media/davidem/data/ONCERCO/2024_oncerco_plot_polygons.gpkg"
   settings:
     bands: 5
     target_crs: "EPSG:32632"
@@ -310,6 +319,86 @@ OSAVI uses band3 (red) and band5 (NIR): `(1+0.16)*(NIR-Red)/(NIR+Red+0.16)`
 - **Resume support**: extraction pipeline skips already-processed images by checking parquet filenames in output dir
 - **Plotting**: matplotlib Agg backend in tests. Source functions save to file when `output_path` is given, never `plt.show()` unconditionally
 - **Polygon filtering**: parallelized via `process_chunks_parallel` with ThreadPoolExecutor (configurable via `number_of_processor`)
+
+## Current Cross-Year Severity Analysis Map
+
+When the task asks for the cross-year severity model, compact features, Ridge + XGBoost residual model, feature selection, or the model that predicts plant severity, start from these files before broad searching:
+
+### Main cross-year generalization workflow
+
+- Script: `scripts/analysis/severity/analyze_cross_year_generalization_2024_to_2025.py`
+- Output root: `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/`
+- Main report: `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/reports/cross_year_generalization_2024_to_2025_summary.md`
+- Purpose: train on 2024 and test on 2025 for early-warning classification and continuous severity prediction.
+- Important outputs:
+  - `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/results/severity_external_2024_train_2025_test.csv`
+  - `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/results/xgboost_severity_train_eval_2024_test_2025.csv`
+  - `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/results/predictions/`
+  - `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/results/paper_tables/`
+
+### Compact distribution feature family and residual severity model
+
+- Script: `scripts/analysis/severity/analyze_multiangular_distribution_feature_family.py`
+- Output root: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/`
+- Purpose: build and compare compact anomaly feature families, including `compact_anomaly_nadir` and `compact_anomaly_multiangular`.
+- Stability selection uses grouped 2024 resamples with ElasticNetCV:
+  - `STABILITY_REPEATS = 10`
+  - `STABILITY_TEST_SIZE = 0.25`
+  - `STABILITY_MIN_FREQUENCY = 0.40`
+  - feature ranking uses selection frequency and mean absolute ElasticNet coefficient.
+
+### Frozen-style Ridge + residual XGBoost severity pipeline
+
+- Primary implementation: `scripts/analysis/severity/debug_multiangular_rmse_bottleneck.py`
+- Residual-model function: `fit_tuned_xgboost_residual_with_cols`
+- Frozen config: `configs/frozen/multiangular_severity_residual_xgboost_v1.yaml`
+- Frozen manifest: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/frozen_pipeline_manifest.json`
+- Output root: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/`
+- Main report: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/reports/model_bottleneck_debug_summary.md`
+- Selected 42-feature report: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/reports/selected_42_feature_severity_result.md`
+- Selected 42-feature CSV: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/selected_42_feature_severity_result.csv`
+
+Model interpretation:
+
+- The base model is `RidgeCV` with median imputation and standard scaling, trained on 2024.
+- Grouped out-of-fold Ridge predictions define 2024 residuals.
+- A shallow, regularized `XGBRegressor` predicts the residual correction.
+- Final prediction is `Ridge base prediction + XGBoost residual correction`, clipped to the 2024 training severity range.
+- The selected frozen model is `residual_reliability_filtered_xgboost`.
+- Matched feature sets are `compact_anomaly_multiangular` versus `compact_anomaly_nadir`.
+- Covariates are `spectral_plus_week_horizon`.
+
+Current selected result:
+
+- Selected compact multiangular model: 42 compact reflectance features plus 2 timing covariates.
+- External 2025 test rows: 72.
+- Selected model RMSE: about `8.089`.
+- Matched nadir residual reference RMSE: about `9.320`.
+- RMSE reduction versus nadir: about `1.231` severity units.
+- Treat this as exploratory external-year evidence because 2025 informed model development and feature-reliability screening.
+
+Important diagnostic outputs:
+
+- Candidate model ladder: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/candidate_model_comparison.csv`
+- Paired CI table: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/candidate_model_comparison_with_paired_ci.csv`
+- Residual rows by week/plot: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/residual_debug_by_week_plot.csv`
+- Stability-selection frequencies: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/candidate_stability_selection_feature_frequencies.csv`
+- Feature shift/reliability diagnostics: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/feature_shift_selected_features.csv`
+- XGBoost tuning audit: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/xgboost_tuning_audit.csv`
+- Prediction files: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/predictions/`
+
+### Feature-count and selected-feature diagnostics
+
+- Frozen-style feature-count script: `scripts/plotting/plot_frozen_severity_residual_feature_count_curve.py`
+- Extra compact feature diagnostic: `scripts/analysis/severity/test_extra_compact_features_residual_pipeline.py`
+- Feature-count report: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/reports/frozen_style_residual_feature_count_curve_summary.md`
+- Extra compact inclusion report: `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/reports/exploratory_extra_compact_feature_inclusion_summary.md`
+- Feature-count results:
+  - `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_rmse_by_compact_feature_count.csv`
+  - `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/exploratory_extra_compact_forced_topk_results.csv`
+  - `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/exploratory_extra_compact_feature_acceptance.csv`
+
+Do not confuse the frozen-style residual severity pipeline with the simpler direct Ridge/XGBoost severity models under `outputs/runs/analysis/severity/cross_year/generalization_2024_to_2025/`. The RMSE near 8 comes from the compact anomaly feature family plus the two-stage residual architecture, not from the first-pass direct severity model comparison.
 
 ## Expected Analysis Outputs
 

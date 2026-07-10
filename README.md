@@ -204,7 +204,7 @@ proj_on_uav/
 │   ├── e2e/                    # End-to-end tests
 │   ├── test_*.py               # Unit tests
 │   └── test_smoke.py           # CLI smoke tests
-├── Documentation/              # Documentation
+├── docs/                       # Canonical documentation root
 ├── requirements.txt            # Python dependencies
 ├── pyproject.toml              # Project configuration
 ├── Makefile                    # Development commands
@@ -247,7 +247,7 @@ python -m pytest
 
 ### Getting Help
 
-- Check the [Documentation](Documentation/) folder
+- Check the [docs](docs/) folder
 - Review existing [Issues](https://github.com/ReneHeim/proj_on_uav/issues)
 - Create a new issue with detailed error information
 

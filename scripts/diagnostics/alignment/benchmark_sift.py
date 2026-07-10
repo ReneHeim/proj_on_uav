@@ -11,7 +11,7 @@ Each method is run on a single capture and timed end-to-end.
 The script also runs on two captures (fast + slow) to show the difference.
 
 Outputs:
-  - Per-method timing log to outputs/logs/sift_benchmark_*.log
+  - Per-method timing log to outputs/archive/legacy_unscoped/logs/sift_benchmark_*.log
   - results/sift_benchmark_results.json
   - reports/sift_benchmark_summary.md
 """
@@ -29,9 +29,9 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Logging setup (AGENTS.md rule 1: function-level profiling and log files)
 # ---------------------------------------------------------------------------
-ROOT = Path(__file__).resolve().parents[1]  # proj_on_uav/
+ROOT = Path(__file__).resolve().parents[3]  # proj_on_uav/
 TS = datetime.now().strftime("%Y%m%d_%H%M%S")
-LOG_DIR = ROOT / "outputs/logs"
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = LOG_DIR / f"sift_benchmark_{TS}.log"
 
@@ -44,9 +44,9 @@ logging.basicConfig(
 log = logging.getLogger("sift_benchmark")
 log.info("Log file: %s", LOG_FILE)
 
-RESULTS_DIR = ROOT / "outputs/results"
+RESULTS_DIR = ROOT / "outputs/archive/legacy_unscoped/results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-REPORTS_DIR = ROOT / "outputs/reports"
+REPORTS_DIR = ROOT / "outputs/archive/legacy_unscoped/reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_JSON = RESULTS_DIR / "sift_benchmark_results.json"
 RESULTS_MD = REPORTS_DIR / "sift_benchmark_summary.md"

@@ -301,7 +301,7 @@ For feature requests, please include:
 
 ## Getting Help
 
-- **Documentation**: Check the [README](README.md) and [Documentation](Documentation/) folder
+- **Documentation**: Check the [README](README.md) and [docs](docs/) folder
 - **Issues**: Search existing [issues](https://github.com/ReneHeim/proj_on_uav/issues)
 - **Discussions**: Use GitHub Discussions for questions and ideas
 - **Email**: Contact maintainers directly if needed

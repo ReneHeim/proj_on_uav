@@ -11,7 +11,7 @@ from scipy.stats import f as f_dist
 from scipy.stats import f_oneway
 
 
-def setup_logging(script_name, log_dir="outputs/logs"):
+def setup_logging(script_name, log_dir="outputs/archive/legacy_unscoped/logs"):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -15,7 +15,7 @@ from pathlib import Path
 
 def setup_logging() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = Path("outputs/logs") / f"evaluate_global_metashape_correction_loo_{timestamp}.log"
+    path = Path("outputs/archive/legacy_unscoped/logs") / f"evaluate_global_metashape_correction_loo_{timestamp}.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -155,7 +155,7 @@ def main() -> int:
     parser.add_argument(
         "--input-detail-csv",
         type=Path,
-        default=Path("outputs/results/micasense_radiometry_mode_transferability_detail.csv"),
+        default=Path("outputs/archive/legacy_unscoped/results/micasense_radiometry_mode_transferability_detail.csv"),
     )
     parser.add_argument(
         "--modes", nargs="+", default=["micasense_dls", "micasense_panel", "panel_dls_tie"]
@@ -163,7 +163,7 @@ def main() -> int:
     parser.add_argument(
         "--out-prefix",
         type=Path,
-        default=Path("outputs/results/global_metashape_correction_loo"),
+        default=Path("outputs/archive/legacy_unscoped/results/global_metashape_correction_loo"),
     )
     args = parser.parse_args()
     log_path = setup_logging()
@@ -175,7 +175,7 @@ def main() -> int:
     logging.info("[PHASE] evaluate LOO corrections: %.1fs", time.perf_counter() - t0)
     detail_csv = args.out_prefix.with_name(args.out_prefix.name + "_detail.csv")
     summary_csv = args.out_prefix.with_name(args.out_prefix.name + "_summary.csv")
-    report_path = Path("outputs/reports") / f"{args.out_prefix.name}_summary.md"
+    report_path = Path("outputs/archive/legacy_unscoped/reports") / f"{args.out_prefix.name}_summary.md"
     write_csv(detail_csv, detail)
     write_csv(summary_csv, summary)
     write_report(report_path, summary, [detail_csv, summary_csv, report_path], args, log_path)

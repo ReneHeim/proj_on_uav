@@ -35,7 +35,7 @@ PAIRS = (
 
 def setup_logging() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = Path("outputs/logs") / f"create_metashape_custom_visual_diagnostics_{timestamp}.log"
+    path = Path("outputs/archive/legacy_unscoped/logs") / f"create_metashape_custom_visual_diagnostics_{timestamp}.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -131,7 +131,7 @@ def make_figure(
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--out-dir", type=Path, default=Path("outputs/figures/metashape_custom_visual_diagnostics")
+        "--out-dir", type=Path, default=Path("outputs/archive/legacy_unscoped/figures/metashape_custom_visual_diagnostics")
     )
     args = parser.parse_args()
     log_path = setup_logging()

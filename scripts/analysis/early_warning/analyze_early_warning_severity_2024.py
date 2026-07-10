@@ -38,24 +38,24 @@ from sklearn.model_selection import GroupKFold
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-ROOT = Path(__file__).resolve().parents[1]
-DISEASE_ROOT = ROOT / "outputs/backup_metadata/csv/data/processed/2024/rating"
+ROOT = Path(__file__).resolve().parents[3]
+DISEASE_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/csv/data/processed/2024/rating"
 POLYGON_PATH = Path("/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg")
 VZA_FEATURES = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
 )
 RAA_FEATURES = (
     ROOT
-    / "outputs/result_01_raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/raa_sun_geometry/2024/ground_filtered/results/plot_week_vza_raa_features_2024.parquet"
 )
 
-OUTPUT_ROOT = ROOT / "outputs/early_warning_severity_2024"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/early_warning/severity_2024"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-DISEASE_OUT_DIR = ROOT / "outputs/disease"
-LOGS_DIR = ROOT / "outputs/logs"
+DISEASE_OUT_DIR = ROOT / "outputs/shared/disease"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 SEED = 42
 N_SPLITS = 5

@@ -36,7 +36,7 @@ DEFAULT_WEEKS = ("week0", "week3", "week5", "week7")
 
 def setup_logging() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = Path("outputs/logs") / f"test_metashape_correction_transferability_{timestamp}.log"
+    path = Path("outputs/archive/legacy_unscoped/logs") / f"test_metashape_correction_transferability_{timestamp}.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -360,7 +360,7 @@ def main() -> int:
     parser.add_argument(
         "--out-prefix",
         type=Path,
-        default=Path("outputs/results/metashape_correction_transferability"),
+        default=Path("outputs/archive/legacy_unscoped/results/metashape_correction_transferability"),
     )
     args = parser.parse_args()
 
@@ -408,7 +408,7 @@ def main() -> int:
     summary = summarize(rows)
     detail_csv = args.out_prefix.with_name(args.out_prefix.name + "_detail.csv")
     summary_csv = args.out_prefix.with_name(args.out_prefix.name + "_summary.csv")
-    report_path = Path("outputs/reports") / f"{args.out_prefix.name}_summary.md"
+    report_path = Path("outputs/archive/legacy_unscoped/reports") / f"{args.out_prefix.name}_summary.md"
     write_csv(detail_csv, rows)
     write_csv(summary_csv, summary)
     t0 = phase("write CSV outputs", t0)

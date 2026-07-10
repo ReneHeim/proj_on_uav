@@ -25,9 +25,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import polars as pl
-from scipy.stats import spearmanr
-from sklearn.compose import ColumnTransformer
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import (
@@ -36,26 +33,22 @@ from sklearn.linear_model import (
     LogisticRegressionCV,
     RidgeCV,
 )
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 from sklearn.model_selection import GroupKFold, GroupShuffleSplit
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import StandardScaler
 from xgboost import XGBRegressor
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 import (
     ALPHAS,
-    MIN_NON_NULL_FRACTION,
     SEED,
     TARGET,
-    TARGET_LOG,
-    WARNING_TARGET,
     add_known_covariates,
     build_model_table,
-    feature_columns,
     load_2024_disease_with_fallback,
     load_2025_disease_with_fallback,
     safe_filename,
@@ -68,19 +61,19 @@ from scripts.analysis.severity.analyze_multiangular_distribution_feature_family 
     STABILITY_REPEATS,
     STABILITY_TEST_SIZE,
     align_train_test,
-    bootstrap_delta_vs_nadir,
     build_feature_sets,
     markdown_table,
     regression_metric_values,
 )
+from src.research.common import configure_logging, log_phase
 
-INPUT_RESULTS_DIR = ROOT / "outputs/multiangular_distribution_feature_family/results"
-OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
+INPUT_RESULTS_DIR = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/results"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = OUTPUT_ROOT / "logs"
 FROZEN_CONFIG_DIR = ROOT / "configs/frozen"
 FROZEN_PIPELINE_ID = "multiangular_severity_residual_xgboost_v1"
 FROZEN_CONFIG_PATH = FROZEN_CONFIG_DIR / f"{FROZEN_PIPELINE_ID}.yaml"
@@ -175,28 +168,7 @@ XGBOOST_TUNING_GRID = [
 
 
 def setup_logging() -> Path:
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = LOGS_DIR / f"debug_multiangular_rmse_bottleneck_{timestamp}.log"
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-        handlers=[logging.FileHandler(log_path), logging.StreamHandler()],
-        force=True,
-    )
-    logging.info("Log file: %s", log_path)
-    return log_path
-
-
-def log_phase(name: str, started: float) -> None:
-    logging.info("[PHASE] %s: %.1fs", name, time.perf_counter() - started)
-
-
-def safe_spearman(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    if len(np.unique(y_true)) < 2 or len(np.unique(y_pred)) < 2:
-        return math.nan
-    value = spearmanr(y_true, y_pred, nan_policy="omit").correlation
-    return float(value) if value is not None else math.nan
+    return configure_logging(LOGS_DIR, "debug_multiangular_rmse_bottleneck")
 
 
 def prediction_path(model: str, feature_set: str, covariates: str) -> Path:

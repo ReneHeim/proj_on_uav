@@ -23,26 +23,26 @@ import pandas as pd
 import polars as pl
 import statsmodels.formula.api as smf
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 FEATURE_SOURCE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
 )
 CONTRAST_SOURCE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
 )
 LIA_SOURCE = (
     ROOT
-    / "outputs/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
+    / "outputs/runs/metadata/backup_metadata/csv/data/interim/2024/lia/20240912_lia_concatenated_average/Sheet1.csv"
 )
 LAI_SOURCE = (
     ROOT
-    / "outputs/backup_metadata/csv/data/processed/2024/quaratiello_giuseppe/LAI_DATA2/LAI_DATA_-_Copia.csv"
+    / "outputs/runs/metadata/backup_metadata/csv/data/processed/2024/quaratiello_giuseppe/LAI_DATA2/LAI_DATA_-_Copia.csv"
 )
-OUT_ROOT = ROOT / "outputs/backup_metadata/eda_lia_vza"
-REPORTS_ROOT = ROOT / "outputs/reports"
-LOG_ROOT = ROOT / "outputs/logs"
+OUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/eda_lia_vza"
+REPORTS_ROOT = ROOT / "outputs/archive/legacy_unscoped/reports"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 DATE_TO_WEEK = {
     "2024-06-17": 2,

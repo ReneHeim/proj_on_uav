@@ -146,6 +146,7 @@ outputs/*
 !outputs/provenance/
 outputs/provenance/*
 !outputs/provenance/script_output_index.csv
+!outputs/provenance/output_layout_migration_*.csv
 polygon_filtering_rect*.png
 
 # Local agent state and large geospatial/Metashape artifacts

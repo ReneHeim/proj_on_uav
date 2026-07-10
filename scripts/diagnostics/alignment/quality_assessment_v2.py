@@ -12,8 +12,8 @@ Pipeline:
 Usage:
     python -m scripts.diagnostics.alignment.quality_assessment_v2 \\
         --capture /mnt/data/ONCERCO/.../0000SET/IMG_0002_1.tif \\
-        --cpu-stack outputs/quality/multispec_stacks/0000SET_IMG_0002.tif \\
-        --out outputs/quality/0000SET_IMG_0002_v2 \\
+        --cpu-stack outputs/runs/diagnostics/quality/multispec_stacks/0000SET_IMG_0002.tif \\
+        --out outputs/runs/diagnostics/quality/0000SET_IMG_0002_v2 \\
         --label "0000SET / IMG_0002"
 """
 from __future__ import annotations
@@ -36,12 +36,12 @@ from PIL import Image
 from skimage.transform import ProjectiveTransform, resize
 from skimage.transform import warp as _sk_warp
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def setup_logging(script_name: str) -> Path:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = ROOT / "outputs/logs"
+    log_dir = ROOT / "outputs/archive/legacy_unscoped/logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{script_name}_{ts}.log"
     logging.basicConfig(

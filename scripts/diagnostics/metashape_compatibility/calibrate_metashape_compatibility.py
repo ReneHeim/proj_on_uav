@@ -28,7 +28,7 @@ REFLECTANCE_SCALE = 32767.0
 
 def setup_logging(script_name: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = Path("outputs/logs") / f"{script_name}_{timestamp}.log"
+    log_path = Path("outputs/archive/legacy_unscoped/logs") / f"{script_name}_{timestamp}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -322,7 +322,7 @@ def main() -> int:
     parser.add_argument(
         "--out-prefix",
         type=Path,
-        default=Path("outputs/results/metashape_compatibility"),
+        default=Path("outputs/archive/legacy_unscoped/results/metashape_compatibility"),
         help="Output prefix without extension.",
     )
     parser.add_argument(
@@ -384,7 +384,7 @@ def main() -> int:
 
     detail_csv = args.out_prefix.with_name(args.out_prefix.name + "_detail.csv")
     summary_csv = args.out_prefix.with_name(args.out_prefix.name + "_summary.csv")
-    report_md = Path("outputs/reports") / f"{args.out_prefix.name}_summary.md"
+    report_md = Path("outputs/archive/legacy_unscoped/reports") / f"{args.out_prefix.name}_summary.md"
     write_csv(detail_csv, rows)
     write_csv(summary_csv, summary_rows)
     t0 = phase("write CSV outputs", t0)

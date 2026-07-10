@@ -66,10 +66,10 @@ deploy:  ## Deploy to PyPI (requires TWINE_USERNAME and TWINE_PASSWORD)
 
 
 docs:  ## Build documentation
-	cd Documentation && jupyter-book build . || echo "Documentation build failed - check if jupyter-book is installed"
+	cd docs/book && jupyter-book build . || echo "Documentation build failed - check if jupyter-book is installed"
 
 docs-serve:  ## Serve documentation locally
-	cd Documentation/_build/html && python -m http.server 8000
+	cd docs/book/_build/html && python -m http.server 8000
 
 extract:  ## Run data extraction
 	$(PY) -m src.pipeline_extract_data --config src/config_file_example.yml

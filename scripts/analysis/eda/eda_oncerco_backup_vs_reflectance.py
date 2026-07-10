@@ -13,15 +13,15 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[1]
-BACKUP_EXPORTS = ROOT / "outputs/backup_metadata/csv"
-BACKUP_INVENTORY = ROOT / "outputs/backup_metadata/manifests/backup_metadata_inventory.csv"
+ROOT = Path(__file__).resolve().parents[3]
+BACKUP_EXPORTS = ROOT / "outputs/runs/metadata/backup_metadata/csv"
+BACKUP_INVENTORY = ROOT / "outputs/runs/metadata/backup_metadata/manifests/backup_metadata_inventory.csv"
 REFLECTANCE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/plot_week_angle_features_2024.parquet"
 )
-OUT_ROOT = ROOT / "outputs/backup_metadata/eda"
-LOG_ROOT = ROOT / "outputs/logs"
+OUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/eda"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 
 def parse_args() -> argparse.Namespace:

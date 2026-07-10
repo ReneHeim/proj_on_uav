@@ -24,16 +24,16 @@ import pandas as pd
 import polars as pl
 import statsmodels.formula.api as smf
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]
 LAI_RAW_ROOT = Path("/run/media/davidem/heim_data/Backup/proj_on_cerco/data/processed/2024")
 POLYGON_PATH = Path("/run/media/davidem/Heim/2024_oncerco_plot_polygons.gpkg")
 CONTRAST_SOURCE = (
     ROOT
-    / "outputs/result_01_reflectance_distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
+    / "outputs/runs/analysis/reflectance/distributions/2024/ground_filtered/results/matched_plot_contrasts_preliminary.parquet"
 )
-OUT_ROOT = ROOT / "outputs/backup_metadata/eda_lai_canopy_vza"
-REPORTS_ROOT = ROOT / "outputs/reports"
-LOG_ROOT = ROOT / "outputs/logs"
+OUT_ROOT = ROOT / "outputs/runs/metadata/backup_metadata/eda_lai_canopy_vza"
+REPORTS_ROOT = ROOT / "outputs/archive/legacy_unscoped/reports"
+LOG_ROOT = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 BANDS_FOR_PAPER = ["Red edge", "NIR"]
 ANGLE_RINGS = [7, 23, 38, 53, 68]

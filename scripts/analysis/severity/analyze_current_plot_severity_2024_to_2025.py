@@ -41,13 +41,13 @@ from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 im
     WARNING_THRESHOLD,
 )
 
-OUTPUT_ROOT = ROOT / "outputs/current_severity_2024_to_2025"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/current/2024_to_2025"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
-LOGS_DIR = ROOT / "outputs/logs"
-DISEASE_2024_CLEAN = ROOT / "outputs/disease/clean_disease_scores_2024.csv"
-DISEASE_2025_CLEAN = ROOT / "outputs/disease/clean_disease_scores_2025.csv"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
+DISEASE_2024_CLEAN = ROOT / "outputs/shared/disease/clean_disease_scores_2024.csv"
+DISEASE_2025_CLEAN = ROOT / "outputs/shared/disease/clean_disease_scores_2025.csv"
 
 MODEL_FUNCTIONS = [
     residual_pipeline.fit_direct_stability_ridge,
@@ -89,7 +89,7 @@ def log_phase(name: str, started: float) -> None:
 def configure_reused_pipeline_paths() -> None:
     residual_pipeline.ROOT = ROOT
     residual_pipeline.INPUT_RESULTS_DIR = (
-        ROOT / "outputs/multiangular_distribution_feature_family/results"
+        ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/results"
     )
     residual_pipeline.FEATURE_SETS = [
         "compact_anomaly_nadir",

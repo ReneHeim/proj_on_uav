@@ -38,7 +38,7 @@ DEFAULT_PAIRS = (
 
 def setup_logging() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = Path("outputs/logs") / f"analyze_red_band_discrepancy_{timestamp}.log"
+    path = Path("outputs/archive/legacy_unscoped/logs") / f"analyze_red_band_discrepancy_{timestamp}.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -343,7 +343,7 @@ def main() -> int:
     parser.add_argument("--min-reflectance", type=float, default=1e-6)
     parser.add_argument("--max-reflectance", type=float, default=1.5)
     parser.add_argument(
-        "--out-prefix", type=Path, default=Path("outputs/results/red_band_discrepancy")
+        "--out-prefix", type=Path, default=Path("outputs/archive/legacy_unscoped/results/red_band_discrepancy")
     )
     args = parser.parse_args()
     log_path = setup_logging()
@@ -372,7 +372,7 @@ def main() -> int:
         )
         all_rows.extend(rows)
         profiles[f"{week}_{capture}"] = meta
-        fig_path = Path("outputs/figures") / f"red_band_discrepancy_{week}_{capture}.png"
+        fig_path = Path("outputs/archive/legacy_unscoped/figures") / f"red_band_discrepancy_{week}_{capture}.png"
         plot_pair(fig_path, week, capture, arrays)
         figures.append(fig_path)
     t0 = phase("analyze pairs", t0)
@@ -385,7 +385,7 @@ def main() -> int:
     profile_path = args.out_prefix.with_name(args.out_prefix.name + "_profiles.json")
     profile_path.write_text(json.dumps(profiles, indent=2))
     t0 = phase("write CSV/profile outputs", t0)
-    report_path = Path("outputs/reports") / f"{args.out_prefix.name}_summary.md"
+    report_path = Path("outputs/archive/legacy_unscoped/reports") / f"{args.out_prefix.name}_summary.md"
     write_report(report_path, all_rows, figures, args, log_path)
     phase("write markdown report", t0)
     logging.info("[DONE] outputs=%s", [csv_path, profile_path, report_path, *figures, log_path])

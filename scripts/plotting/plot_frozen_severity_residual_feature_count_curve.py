@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -44,11 +44,11 @@ from scripts.analysis.severity.debug_multiangular_rmse_bottleneck import (  # no
     select_stable_features,
 )
 
-OUTPUT_ROOT = ROOT / "outputs/multiangular_distribution_feature_family/model_bottleneck_debug"
+OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug"
 RESULTS_DIR = OUTPUT_ROOT / "results"
 FIGURES_DIR = OUTPUT_ROOT / "figures"
 REPORTS_DIR = OUTPUT_ROOT / "reports"
-LOGS_DIR = ROOT / "outputs/logs"
+LOGS_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 
 MULTIANGULAR_SET = "compact_anomaly_multiangular"
 NADIR_SET = "compact_anomaly_nadir"
@@ -338,9 +338,9 @@ def write_report(
 
 **Outputs**:
 
-- `outputs/multiangular_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_rmse_by_compact_feature_count.csv`
-- `outputs/multiangular_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_multiangular_feature_count_ranking.csv`
-- `outputs/multiangular_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_multiangular_reliability_filter.csv`
+- `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_rmse_by_compact_feature_count.csv`
+- `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_multiangular_feature_count_ranking.csv`
+- `outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug/results/frozen_style_residual_multiangular_reliability_filter.csv`
 - `{figure_path.relative_to(ROOT)}`
 - `{log_path.relative_to(ROOT)}`
 

@@ -34,7 +34,7 @@ RADIOMETRY_MODES = ("micasense_panel", "micasense_dls", "panel_dls_tie")
 
 def setup_logging() -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    path = Path("outputs/logs") / f"evaluate_micasense_radiometry_modes_{timestamp}.log"
+    path = Path("outputs/archive/legacy_unscoped/logs") / f"evaluate_micasense_radiometry_modes_{timestamp}.log"
     path.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -365,7 +365,7 @@ def main() -> int:
     parser.add_argument(
         "--out-prefix",
         type=Path,
-        default=Path("outputs/results/micasense_radiometry_mode_transferability"),
+        default=Path("outputs/archive/legacy_unscoped/results/micasense_radiometry_mode_transferability"),
     )
     args = parser.parse_args()
 
@@ -410,7 +410,7 @@ def main() -> int:
     summary = summarize(rows)
     detail_csv = args.out_prefix.with_name(args.out_prefix.name + "_detail.csv")
     summary_csv = args.out_prefix.with_name(args.out_prefix.name + "_summary.csv")
-    report_path = Path("outputs/reports") / f"{args.out_prefix.name}_summary.md"
+    report_path = Path("outputs/archive/legacy_unscoped/reports") / f"{args.out_prefix.name}_summary.md"
     write_csv(detail_csv, rows)
     write_csv(summary_csv, summary)
     started = log_phase("write CSV outputs", started)

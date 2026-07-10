@@ -61,8 +61,8 @@ np.mat = np.asmatrix
 # GPU worker (in torch-cuda env)
 TORCH_CUDA_PYTHON = "/home/davidem/miniforge3/envs/torch-cuda/bin/python"
 GPU_WORKER = Path(__file__).parent / "_gpu_sift_worker_v2.py"
-ROOT = Path(__file__).resolve().parents[1]
-LOG_DIR = ROOT / "outputs/logs"
+ROOT = Path(__file__).resolve().parents[3]
+LOG_DIR = ROOT / "outputs/archive/legacy_unscoped/logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 RAW_MS_BAND_NAMES = ("Blue", "Green", "Red", "NIR", "Red edge")
 METASHAPE_MS_BAND_NAMES = ("Blue", "Green", "Red", "Red edge", "NIR")
