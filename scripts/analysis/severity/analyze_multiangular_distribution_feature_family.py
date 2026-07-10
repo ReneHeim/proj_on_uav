@@ -51,7 +51,13 @@ from scripts.analysis.severity.analyze_cross_year_generalization_2024_to_2025 im
     load_2025_disease_with_fallback,
     safe_filename,
 )
-from src.research.common import configure_logging, log_phase, markdown_table, safe_spearman
+from src.research.common import (
+    configure_logging,
+    log_phase,
+    markdown_table,
+    safe_spearman,
+    write_report as persist_report,
+)
 from src.analysis.result_01_reflectance_distributions import (
     BANDS,
     FINE_VZA_MAX,
@@ -1052,7 +1058,7 @@ def bootstrap_delta_vs_nadir(deltas: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
-def write_report(
+def build_report(
     outputs: dict[str, Path],
     results: pd.DataFrame,
     deltas: pd.DataFrame,
@@ -1119,7 +1125,7 @@ def write_report(
     ]
     for label, path in outputs.items():
         report.append(f"- {label}: `{path}`")
-    outputs["report"].write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(outputs["report"], report)
 
 
 def main() -> None:
@@ -1239,7 +1245,7 @@ def main() -> None:
         "predictions": PREDICTIONS_DIR,
         "report": REPORTS_DIR / "multiangular_distribution_feature_family_summary.md",
     }
-    write_report(outputs, results, deltas, delta_ci, audit_summary, log_path)
+    build_report(outputs, results, deltas, delta_ci, audit_summary, log_path)
     logging.info("[PHASE] total: %.1fs", time.perf_counter() - total_t0)
 
 

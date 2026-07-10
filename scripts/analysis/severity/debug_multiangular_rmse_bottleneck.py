@@ -65,7 +65,7 @@ from scripts.analysis.severity.analyze_multiangular_distribution_feature_family 
     markdown_table,
     regression_metric_values,
 )
-from src.research.common import configure_logging, log_phase
+from src.research.common import configure_logging, log_phase, write_report as persist_report
 
 INPUT_RESULTS_DIR = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/results"
 OUTPUT_ROOT = ROOT / "outputs/runs/analysis/severity/future/compact_distribution_feature_family/model_bottleneck_debug"
@@ -1339,7 +1339,7 @@ def write_frozen_pipeline_config(
     return FROZEN_CONFIG_PATH, FROZEN_MANIFEST_PATH
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     ci: pd.DataFrame,
     by_week: pd.DataFrame,
@@ -1532,7 +1532,7 @@ def write_report(
     report.extend(["", "### Outputs", ""])
     report.extend([f"- {label}: `{path}`" for label, path in output_paths.items()])
     report_path = REPORTS_DIR / "model_bottleneck_debug_summary.md"
-    report_path.write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(report_path, report)
 
 
 def main() -> None:
@@ -1652,7 +1652,7 @@ def main() -> None:
     selections.to_csv(paths["stability_selection"], index=False)
     xgboost_tuning.to_csv(paths["xgboost_tuning"], index=False)
 
-    write_report(
+    build_report(
         results_df,
         ci_df,
         by_week,

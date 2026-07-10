@@ -9,6 +9,8 @@ predictors are used.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import os
 import sys
@@ -175,7 +177,7 @@ def fit_vza_raa_residual_models(
     return results, predictions, tuning
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     predictions_paths: dict[str, Path],
     tuning_path: Path,
@@ -212,7 +214,7 @@ def write_report(
         f"- Log: `{log_path.relative_to(ROOT)}`",
     ]
     path = REPORTS_DIR / "future_severity_raa_residual_comparison_summary.md"
-    path.write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(path, report)
     logging.info("Wrote report: %s", path)
     log_phase("write markdown report", started)
     return path
@@ -249,7 +251,7 @@ def main() -> None:
     logging.info("Wrote tuning audit: %s", tuning_path)
     log_phase("write result tables", write_started)
 
-    write_report(results, prediction_paths, tuning_path, result_path, log_path)
+    build_report(results, prediction_paths, tuning_path, result_path, log_path)
     log_phase("total", total_started)
 
 

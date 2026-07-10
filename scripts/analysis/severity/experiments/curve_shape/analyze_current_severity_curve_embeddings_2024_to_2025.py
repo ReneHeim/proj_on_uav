@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -380,7 +382,7 @@ def paired_bootstrap_against_nadir(results: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows).sort_values("rmse_reduction_observed", ascending=False)
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     delta: pd.DataFrame,
     audit: pd.DataFrame,
@@ -428,7 +430,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -481,7 +483,7 @@ def main() -> None:
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
     audit.to_csv(paths["curve_embedding_audit"], index=False)
     selection_df.to_csv(paths["selected_features"], index=False)
-    report_path = write_report(combined, delta, audit, paths, log_path)
+    report_path = build_report(combined, delta, audit, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_t0)
 

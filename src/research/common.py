@@ -165,10 +165,13 @@ def markdown_table(rows: Any, *, float_digits: int = 3, max_rows: int | None = N
     return "\n".join([header, divider, *body])
 
 
-def write_report(path: Path, content: str) -> Path:
-    """Write a UTF-8 Markdown report and log its exact location."""
+def write_report(path: Path, content: str | list[str]) -> Path:
+    """Persist Markdown text or lines with a normalized trailing newline."""
+    text = content if isinstance(content, str) else "\n".join(content)
+    if not text.endswith("\n"):
+        text += "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
     logging.info("Wrote report: %s", path)
     return path
 

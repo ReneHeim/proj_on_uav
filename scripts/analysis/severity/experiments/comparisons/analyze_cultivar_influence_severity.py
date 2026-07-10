@@ -7,6 +7,8 @@ multiangular improvement by cultivar, treatment, and target week.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import time
@@ -272,7 +274,7 @@ def write_outputs(df: pl.DataFrame, log_path: Path) -> None:
         influence_path,
         log_path,
     )
-    report_path.write_text(report, encoding="utf-8")
+    persist_report(report_path, report)
     logging.info("Report: %s", report_path)
     log_phase("write outputs", t0)
 

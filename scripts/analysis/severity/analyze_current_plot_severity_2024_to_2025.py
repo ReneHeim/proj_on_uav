@@ -7,6 +7,8 @@ target is same-week `ds_plot` rather than the next later disease observation.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -537,7 +539,7 @@ def prediction_week_summary(predictions: dict[tuple[str, str], pd.DataFrame]) ->
     return pd.DataFrame(rows).sort_values(["model", "target_week", "feature_set"])
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     ci: pd.DataFrame,
     progression: pd.DataFrame,
@@ -586,7 +588,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -684,7 +686,7 @@ def main() -> None:
     week_summary.to_csv(paths["week_summary"], index=False)
     selections.to_csv(paths["selected_features"], index=False)
     tuning.to_csv(paths["xgboost_tuning"], index=False)
-    report_path = write_report(results_df, ci_df, progression, week_summary, paths, log_path)
+    report_path = build_report(results_df, ci_df, progression, week_summary, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_t0)
 

@@ -8,6 +8,8 @@ week, treatment, and the model prediction itself.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import time
@@ -256,7 +258,8 @@ def main() -> None:
     pred_all.write_csv(predictions_path)
 
     report_path = REPORTS_DIR / "cultivar_metadata_correction_summary.md"
-    report_path.write_text(
+    persist_report(
+        report_path,
         build_report(
             summary,
             by_group,
@@ -267,7 +270,6 @@ def main() -> None:
             predictions_path,
             log_path,
         ),
-        encoding="utf-8",
     )
     logging.info("Report: %s", report_path)
     log_phase("total runtime", started)

@@ -15,6 +15,8 @@ shape directions inside each fold to diagnose overfitting.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -487,7 +489,7 @@ def evaluate_variant(
     return result, external_pred, oof_pred, audit
 
 
-def write_report(
+def build_report(
     comparison: pd.DataFrame,
     delta: pd.DataFrame,
     audit: pd.DataFrame,
@@ -550,7 +552,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -612,7 +614,7 @@ def main() -> None:
     comparison.to_csv(paths["model_comparison"], index=False)
     delta.to_csv(paths["paired_delta_vs_nadir"], index=False)
     audit_df.to_csv(paths["sparse_direction_audit"], index=False)
-    report_path = write_report(comparison, delta, audit_df, paths, log_path)
+    report_path = build_report(comparison, delta, audit_df, paths, log_path)
     logging.info("Report: %s", report_path)
     log_phase("total", total_started)
 

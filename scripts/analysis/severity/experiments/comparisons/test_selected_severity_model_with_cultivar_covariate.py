@@ -7,6 +7,8 @@ covariate. This is not a post-hoc recalibration of saved predictions.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import sys
 import time
@@ -161,9 +163,9 @@ def main() -> None:
     pl.from_pandas(predictions).write_csv(prediction_path)
 
     report_path = REPORTS_DIR / "selected42_plus_cultivar_covariate_summary.md"
-    report_path.write_text(
+    persist_report(
+        report_path,
         build_report(result_row, result_path, tuning_path, prediction_path, log_path),
-        encoding="utf-8",
     )
     logging.info("Result: %s", result_path)
     logging.info("Report: %s", report_path)

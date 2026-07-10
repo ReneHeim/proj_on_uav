@@ -9,6 +9,8 @@ metadata as predictors.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import os
@@ -628,7 +630,7 @@ def selected_feature_family_counts(selections: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def write_report(
+def build_report(
     geometry_results: pd.DataFrame,
     context_scores: pd.DataFrame,
     fusion_results: pd.DataFrame,
@@ -708,7 +710,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -767,7 +769,7 @@ def main() -> None:
     selections.to_csv(paths["selected_features"], index=False)
     selected_feature_family_counts(selections).to_csv(paths["selected_family_counts"], index=False)
 
-    report_path = write_report(
+    report_path = build_report(
         geometry_results,
         context_scores,
         fusion_results,

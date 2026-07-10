@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import math
 import sys
@@ -297,7 +299,7 @@ def baseline_rows() -> tuple[pd.DataFrame, pd.DataFrame]:
     return model, plot
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     plot_results: pd.DataFrame,
     context: pd.DataFrame,
@@ -346,7 +348,7 @@ def write_report(
         "",
     ]
     lines.extend([f"- {label}: `{path}`" for label, path in paths.items()])
-    report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    persist_report(report_path, lines)
     return report_path
 
 
@@ -403,7 +405,7 @@ def main() -> None:
     audit.to_csv(paths["curve_embedding_audit"], index=False)
     context.to_csv(paths["context_model_comparison"], index=False)
     plot_context.to_csv(paths["context_plot_level_comparison"], index=False)
-    report = write_report(
+    report = build_report(
         results_df, plot_results, baseline_model, baseline_plot, audit, paths, log_path
     )
     logging.info("Report: %s", report)

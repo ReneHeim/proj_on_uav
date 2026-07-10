@@ -8,6 +8,8 @@ target used by the early-warning severity analysis.
 
 from __future__ import annotations
 
+from src.research.common import write_report as persist_report
+
 import logging
 import os
 import sys
@@ -296,7 +298,7 @@ def pairwise_comparison_table() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def write_report(
+def build_report(
     results: pd.DataFrame,
     references: pd.DataFrame,
     selection_path: Path,
@@ -354,7 +356,7 @@ def write_report(
         f"- Log: `{log_path.relative_to(ROOT)}`",
     ]
     path = REPORTS_DIR / "future_severity_current_hurdle_vza_raa_summary.md"
-    path.write_text("\n".join(report) + "\n", encoding="utf-8")
+    persist_report(path, report)
     logging.info("Wrote report: %s", path)
     log_phase("write markdown report", started)
     return path
@@ -383,7 +385,7 @@ def main() -> None:
     selections.to_csv(selection_path, index=False)
     log_phase("write CSV outputs", write_started)
 
-    write_report(
+    build_report(
         results,
         references,
         selection_path,
