@@ -20,16 +20,17 @@ class TestDataLoader:
     def create_test_parquet(self, path):
         """Helper function to create test parquet file with plot_id column."""
         data = []
+        rng = np.random.default_rng(0)
 
         for i in range(10):
             data.append(
                 {
-                    "Xw": 5.0 + np.random.randn() * 2,
-                    "Yw": 5.0 + np.random.randn() * 2,
-                    "band1": np.random.rand(),
-                    "band2": np.random.rand(),
-                    "band3": np.random.rand(),
-                    "elev": 100.0 + np.random.randn() * 5,
+                    "Xw": 5.0 + rng.uniform(-1.0, 1.0),
+                    "Yw": 5.0 + rng.uniform(-1.0, 1.0),
+                    "band1": rng.random(),
+                    "band2": rng.random(),
+                    "band3": rng.random(),
+                    "elev": 100.0 + rng.uniform(-5.0, 5.0),
                     "plot_id": "plot_1",
                 }
             )
@@ -37,12 +38,12 @@ class TestDataLoader:
         for i in range(8):
             data.append(
                 {
-                    "Xw": 15.0 + np.random.randn() * 2,
-                    "Yw": 5.0 + np.random.randn() * 2,
-                    "band1": np.random.rand(),
-                    "band2": np.random.rand(),
-                    "band3": np.random.rand(),
-                    "elev": 100.0 + np.random.randn() * 5,
+                    "Xw": 15.0 + rng.uniform(-1.0, 1.0),
+                    "Yw": 5.0 + rng.uniform(-1.0, 1.0),
+                    "band1": rng.random(),
+                    "band2": rng.random(),
+                    "band3": rng.random(),
+                    "elev": 100.0 + rng.uniform(-5.0, 5.0),
                     "plot_id": "plot_2",
                 }
             )
@@ -50,12 +51,12 @@ class TestDataLoader:
         for i in range(12):
             data.append(
                 {
-                    "Xw": 5.0 + np.random.randn() * 2,
-                    "Yw": 15.0 + np.random.randn() * 2,
-                    "band1": np.random.rand(),
-                    "band2": np.random.rand(),
-                    "band3": np.random.rand(),
-                    "elev": 100.0 + np.random.randn() * 5,
+                    "Xw": 5.0 + rng.uniform(-1.0, 1.0),
+                    "Yw": 15.0 + rng.uniform(-1.0, 1.0),
+                    "band1": rng.random(),
+                    "band2": rng.random(),
+                    "band3": rng.random(),
+                    "elev": 100.0 + rng.uniform(-5.0, 5.0),
                     "plot_id": "plot_3",
                 }
             )
@@ -63,12 +64,12 @@ class TestDataLoader:
         for i in range(5):
             data.append(
                 {
-                    "Xw": 25.0 + np.random.randn() * 2,
-                    "Yw": 25.0 + np.random.randn() * 2,
-                    "band1": np.random.rand(),
-                    "band2": np.random.rand(),
-                    "band3": np.random.rand(),
-                    "elev": 100.0 + np.random.randn() * 5,
+                    "Xw": 25.0 + rng.uniform(-1.0, 1.0),
+                    "Yw": 25.0 + rng.uniform(-1.0, 1.0),
+                    "band1": rng.random(),
+                    "band2": rng.random(),
+                    "band3": rng.random(),
+                    "elev": 100.0 + rng.uniform(-5.0, 5.0),
                     "plot_id": "outside",
                 }
             )

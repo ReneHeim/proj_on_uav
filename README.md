@@ -1,5 +1,8 @@
 # ONCERCO UAV reflectance tools
 
+[![CI](https://github.com/ReneHeim/proj_on_uav/actions/workflows/ci.yml/badge.svg)](https://github.com/ReneHeim/proj_on_uav/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/ReneHeim/proj_on_uav/branch/main/graph/badge.svg)](https://codecov.io/gh/ReneHeim/proj_on_uav)
+
 `oncerco-uav` is a public Python package for extracting and modeling
 multi-angular multispectral UAV reflectance. It provides polygon-aware pixel
 extraction, spectral filtering, and RPV modeling for MicaSense-compatible
@@ -45,8 +48,13 @@ Reflectance stacks use `uint16` values with `reflectance = pixel / 32767`.
 ```bash
 make test
 make test-e2e
+make coverage
 make build
 ```
+
+CI enforces at least **95% line coverage** for the public `oncerco_uav`
+package. The current local baseline is **95.06%** (220 non-e2e tests passed;
+the six e2e tests are run separately).
 
 Use synthetic or user-provided data paths in tests. Do not commit raw imagery,
 large derived products, parquets, TIFFs, or local mount paths.
