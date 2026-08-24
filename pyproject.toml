@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "oncerco-uav"
 version = "1.0.0"
 description = "Multi-angular UAV reflectance extraction, filtering, and RPV modeling"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
