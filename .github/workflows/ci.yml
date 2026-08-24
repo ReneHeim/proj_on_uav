@@ -31,6 +31,9 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: read
+      id-token: write
     env:
       MPLBACKEND: Agg
       MPLCONFIGDIR: /tmp/matplotlib
@@ -52,9 +55,9 @@ jobs:
           --cov=oncerco_uav --cov-report=xml --cov-report=term-missing
           --cov-fail-under=95
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
           flags: unittests
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          use_oidc: true
