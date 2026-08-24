@@ -197,7 +197,10 @@ def plot_spectrogram(df, n_bands, bands_wavelength_list, sample_size=100000, out
 
         # Sample the dataframe if needed
         if sample_size and len(df) > sample_size:
-            df = df.sample(n=sample_size, replace=True)
+            # Polars calls this option ``with_replacement``; using the
+            # pandas spelling made the public plotting helper fail whenever
+            # a caller requested a smaller sample than the input table.
+            df = df.sample(n=sample_size, with_replacement=True)
 
         # Convert to pandas if it's a polars dataframe
         if isinstance(df, pl.DataFrame):

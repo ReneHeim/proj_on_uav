@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: install lint test test-unit test-e2e build check extract filter rpv pipeline clean
+.PHONY: install lint test test-unit test-e2e coverage coverage-xml build check extract filter rpv pipeline clean
 
 install:
 	$(PYTHON) -m pip install -r requirements.txt
@@ -17,6 +17,12 @@ test-unit:
 
 test-e2e:
 	$(PYTHON) -m pytest tests/e2e/ -q
+
+coverage:
+	$(PYTHON) -m pytest tests/ -q --cov=oncerco_uav --cov-report=html --cov-report=term-missing --cov-fail-under=95
+
+coverage-xml:
+	$(PYTHON) -m pytest tests/ -q --cov=oncerco_uav --cov-report=xml --cov-fail-under=95
 
 build:
 	$(PYTHON) -m build
