@@ -1,0 +1,26 @@
+# Copy this file and set base_path to your own Metashape product directory.
+base_path: "/path/to/orthophoto_products"
+
+inputs:
+  date_time:
+    start: "2024-06-24 12:00:00"
+    time_zone: "Europe/Berlin"
+  paths:
+    cam_path: "{base_path}/cameras.txt"
+    dem_path: "{base_path}/dem.tif"
+    orthophoto_path: "{base_path}/orthophotos/*.tif"
+    ori: ["{base_path}/orthophotos"]
+    mosaic_path: "{base_path}/orthomosaic.tif"
+    ground_truth_coordinates: "/path/to/ground_truth_coordinates.csv"
+    polygon_file_path: "/path/to/plot_polygons.gpkg"
+  settings:
+    number_of_processor: -1
+    filter_radius: 1
+    file_name: "uav_project"
+    bands: 5
+    target_crs: "EPSG:32632"
+
+outputs:
+  paths:
+    main_out: "{base_path}/output"
+    plot_out: "{base_path}/output/plots"

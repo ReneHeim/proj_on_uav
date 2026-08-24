@@ -1,0 +1,45 @@
+# Python and packaging
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+build/
+dist/
+.coverage
+htmlcov/
+.venv/
+venv/
+.env
+
+# Local and generated data
+outputs/
+artifacts/
+data/
+*.parquet
+*.tif
+*.tiff
+*.raw
+*.img
+*.psx
+*.psz
+*.las
+*.laz
+*.ply
+*.log
+process.log
+
+# Documentation builds and notebook state
+docs/_build/
+docs/book/_build/
+.ipynb_checkpoints/
+
+# Editor and local agent state
+.idea/
+.vscode/
+.serena/
+.code/
+*.swp
+*.swo
+.~lock.*#

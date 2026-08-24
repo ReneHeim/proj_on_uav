@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oncerco-uav"
+version = "1.0.0"
+description = "Multi-angular UAV reflectance extraction, filtering, and RPV modeling"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+uav-extract = "oncerco_uav.pipelines.extract_data:main"
+uav-filter = "oncerco_uav.pipelines.filtering:main"
+uav-rpv = "oncerco_uav.pipelines.modelling:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"oncerco_uav.modelling" = ["*.csv"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = ["E203", "W503"]
+
+[tool.coverage.run]
+source = ["src/oncerco_uav"]

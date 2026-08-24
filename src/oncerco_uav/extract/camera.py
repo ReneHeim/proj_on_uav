@@ -1,0 +1,300 @@
+import logging
+import os
+import traceback
+from timeit import default_timer as timer
+
+import matplotlib
+import numpy as np
+import polars as pl
+import rasterio
+
+matplotlib.use("Agg")
+
+from matplotlib import pyplot as plt
+from rasterio.warp import transform
+
+
+# ------------------------------
+# Calculate Viewing Angles
+# ------------------------------
+def calculate_angles(df_merged, xcam, ycam, zcam, sunelev, saa):
+    """
+    Calculate view zenith and azimuth angles for each point in a point cloud
+    relative to a camera (e.g., drone) position.
+
+    Args:
+        df_merged (pl.DataFrame): Point cloud, must contain columns: 'elev', 'Xw', 'Yw', 'band1'.
+        xcam, ycam, zcam (float): Camera coordinates (projected).
+        sunelev (float): Sun elevation (deg), stashed in output for reference.
+        saa (float): Solar azimuth angle (deg), used for relative azimuth calculation.
+
+    Returns:
+        pl.DataFrame: Original DataFrame with new columns:
+            - delta_x, delta_y, delta_z: Vector from ground point to camera (meters)
+            - distance_xy: Horizontal distance ground↔camera
+            - angle_rad, vza: View zenith angle (rad, deg)
+            - vaa_rad, vaa_temp, vaa: View azimuth angles (deg, radians), relative to solar azimuth
+            - xcam, ycam, sunelev, saa: Repeated as constants for reference
+
+    Notes:
+        - Sets vza/vaa to None where band1==65535 (masked).
+        - Masks out points outside 2nd-98th elev percentile.
+        - If input columns missing, will raise; not validated.
+        - No file IO; no data is removed.
+    """
+    start_angles = timer()
+    try:
+        # ------------------------------------------------------------------
+        # 1. components of the view vector (camera  minus  ground point)
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
+            [
+                (pl.lit(zcam, dtype=pl.Float32) - pl.col("elev")).alias("delta_z"),
+                (pl.lit(xcam, dtype=pl.Float32) - pl.col("Xw")).alias("delta_x"),
+                (pl.lit(ycam, dtype=pl.Float32) - pl.col("Yw")).alias("delta_y"),
+            ]
+        )
+
+        # horizontal distance
+        df_merged = df_merged.with_columns(
+            ((pl.col("delta_x") ** 2 + pl.col("delta_y") ** 2).sqrt()).alias("distance_xy")
+        )
+
+        # ------------------------------------------------------------------
+        # 2. View-Zenith Angle  (0° at nadir, 90° at horizon)
+        #    angle_rad kept for backward compatibility
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
+            pl.arctan2(
+                pl.col("distance_xy"), pl.col("delta_z")  # NOTE: distance first,
+            ).alias(  #       height second
+                "angle_rad"
+            )
+        ).with_columns(
+            (pl.col("angle_rad") * 180 / np.pi).round(2).alias("vza")  # radians → degrees
+        )
+
+        # ------------------------------------------------------------------
+        # 3. View-Azimuth Angle  (absolute, radians)
+        #    Note the argument order (east, north)
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
+            pl.arctan2(pl.col("delta_x"), pl.col("delta_y")).alias("vaa_rad")
+        )
+
+        # same relative-azimuth logic, preserving vaa_temp → vaa
+        df_merged = df_merged.with_columns(
+            ((pl.col("vaa_rad") * 180 / np.pi) - saa).alias("vaa_temp")
+        )
+        df_merged = df_merged.with_columns((((pl.col("vaa_temp") + 360) % 360)).alias("vaa"))
+
+        # ------------------------------------------------------------------
+        # 4. masking logic (unchanged)
+        # ------------------------------------------------------------------
+        p05 = df_merged.select(pl.col("elev").quantile(0.02, interpolation="nearest")).item()
+        p95 = df_merged.select(pl.col("elev").quantile(0.98, interpolation="nearest")).item()
+
+        df_merged = df_merged.with_columns(
+            [
+                pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vza")).alias("vza"),
+                pl.when(pl.col("band1") == 65535).then(None).otherwise(pl.col("vaa")).alias("vaa"),
+                pl.when((pl.col("elev") < p05) | (pl.col("elev") > p95))
+                .then(None)
+                .otherwise(pl.col("elev"))
+                .alias("elev"),
+            ]
+        )
+
+        # ------------------------------------------------------------------
+        # 5. Stash constants (unchanged)
+        # ------------------------------------------------------------------
+        df_merged = df_merged.with_columns(
+            [
+                pl.lit(xcam, dtype=pl.Float32).alias("xcam"),
+                pl.lit(ycam, dtype=pl.Float32).alias("ycam"),
+                pl.lit(sunelev, dtype=pl.Float32).alias("sunelev"),
+                pl.lit(saa, dtype=pl.Float32).alias("saa"),
+            ]
+        )
+
+        end_angles = timer()
+        logging.info(f"Calculated angles in {end_angles - start_angles:.2f} seconds")
+        return df_merged
+
+    except Exception as e:
+        logging.error(f"Error calculating angles: {e}")
+        logging.error(traceback.format_exc())
+        raise
+
+
+def get_camera_position(
+    cam_path, name, target_crs=None, orthophoto_path=None, return_geographic=False
+):
+    """
+    Extract the 3D position of a specific camera/image from a text file.
+
+    Args:
+        cam_path (str or Path): Path to camera position file (tab-separated, no header, skip 2 rows).
+        name (str): Exact 'PhotoID' of the image/camera.
+        target_crs (str, optional): EPSG code (e.g., 'EPSG:32632'). If set, position is reprojected.
+        orthophoto_path (str or Path, optional): Orthophoto used to disambiguate duplicate PhotoIDs.
+
+    Returns:
+        tuple (float, float, float): (x, y, z) camera coordinates. May be lon/lat or projected.
+
+    Raises:
+        - Any file or parsing errors will be logged and re-raised.
+        - If name is not found, raises ValueError.
+
+    Notes:
+        - Assumes file structure and delimiters are correct.
+        - Duplicate PhotoIDs are resolved using the camera position nearest the
+          orthophoto footprint center.
+        - Uses rasterio.transform for CRS change (if needed).
+    """
+    start = timer()
+    try:
+        campos = pl.read_csv(cam_path, separator="\t", skip_rows=2, has_header=False)
+        campos.columns = [
+            "PhotoID",
+            "X",
+            "Y",
+            "Z",
+            "Omega",
+            "Phi",
+            "Kappa",
+            "r11",
+            "r12",
+            "r13",
+            "r21",
+            "r22",
+            "r23",
+            "r31",
+            "r32",
+            "r33",
+        ]
+        campos = campos.with_columns(
+            [
+                pl.col("X").cast(pl.Float32),
+                pl.col("Y").cast(pl.Float32),
+                pl.col("Z").cast(pl.Float32),
+            ]
+        )
+        matches = campos.filter(pl.col("PhotoID") == name)
+        if matches.is_empty():
+            raise ValueError(f"Camera {name!r} not found in {cam_path}")
+
+        selected_index = 0
+        if matches.height > 1 and orthophoto_path is not None:
+            with rasterio.open(orthophoto_path) as src:
+                center_x = (src.bounds.left + src.bounds.right) / 2
+                center_y = (src.bounds.bottom + src.bounds.top) / 2
+                raster_crs = str(src.crs)
+
+            camera_x, camera_y = transform(
+                "EPSG:4326",
+                raster_crs,
+                matches["X"].to_list(),
+                matches["Y"].to_list(),
+            )
+            distances = [
+                (x - center_x) ** 2 + (y - center_y) ** 2 for x, y in zip(camera_x, camera_y)
+            ]
+            selected_index = int(np.argmin(distances))
+            logging.info(
+                f"Resolved {matches.height} camera rows for {name} using "
+                f"orthophoto footprint proximity (selected row {selected_index})"
+            )
+        elif matches.height > 1:
+            logging.warning(
+                f"Found {matches.height} camera rows for {name}; using the first "
+                "because no orthophoto path was provided"
+            )
+
+        geo_lon = float(matches["X"][selected_index])
+        geo_lat = float(matches["Y"][selected_index])
+        lon = geo_lon
+        lat = geo_lat
+        zcam = matches["Z"][selected_index]
+
+        if target_crs is not None:
+            lon, lat = transform("EPSG:4326", target_crs, [lon], [lat])
+            lon, lat = lon[0], lat[0]
+
+        end = timer()
+        logging.info(f"Retrieved camera position for {name} in {end - start:.2f} seconds")
+        if return_geographic:
+            return float(lon), float(lat), float(zcam), geo_lon, geo_lat
+        return float(lon), float(lat), float(zcam)
+    except Exception as e:
+        logging.error(f"Error retrieving camera position for {name}: {e}")
+        raise
+
+
+def plot_angles(df_merged, lon, lat, zcam, path, file_name):
+    """
+    Plot viewing angles for the merged data.
+
+    Args:
+        df_merged: Polars DataFrame with angle data
+        lon: Camera longitude
+        lat: Camera latitude
+        zcam: Camera altitude
+        path: Output path for plots
+        file_name: Name of the file being processed
+    """
+    import os
+
+    import matplotlib.pyplot as plt
+
+    # Create necessary directories
+    top_down_dir = os.path.join(path, "top_down")
+    side_view_dir = os.path.join(path, "side_view")
+    view_3d_dir = os.path.join(path, "3d_view")
+
+    for dir_path in [top_down_dir, side_view_dir, view_3d_dir]:
+        os.makedirs(dir_path, exist_ok=True)
+
+    # Sample before
+    if df_merged.shape[0] > 10000:
+        df_sample = df_merged.sample(n=10000, with_replacement=False)
+    else:
+        df_sample = df_merged
+
+    # Top-down view
+    plt.figure(figsize=(10, 8))
+    plt.scatter(df_sample["Xw"], df_sample["Yw"], c=df_sample["vza"], cmap="viridis", s=1)
+    plt.scatter([lon], [lat], c="red", label="Drone")
+    plt.colorbar(label="View Zenith Angle (degrees)")
+    plt.xlabel("X (m)")
+    plt.ylabel("Y (m)")
+    plt.title(f"View Zenith Angle - {file_name}")
+    plt.savefig(os.path.join(top_down_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
+
+    # Side view
+    plt.figure(figsize=(10, 8))
+    plt.scatter(df_sample["Xw"], df_sample["elev"], c=df_sample["vza"], cmap="viridis", s=1)
+    plt.scatter([lon], [zcam], c="red", label="Drone")
+    plt.colorbar(label="View Zenith Angle (degrees)")
+    plt.xlabel("X (m)")
+    plt.ylabel("Elevation (m)")
+    plt.title(f"View Zenith Angle vs Elevation - {file_name}")
+    plt.savefig(os.path.join(side_view_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
+
+    # 3D view
+    fig = plt.figure(figsize=(12, 8))
+    ax = fig.add_subplot(111, projection="3d")
+    scatter = ax.scatter(
+        df_sample["Xw"], df_sample["Yw"], df_sample["elev"], c=df_sample["vza"], cmap="viridis", s=1
+    )
+    plt.colorbar(scatter, label="View Zenith Angle (degrees)")
+    ax.scatter([lon], [lat], [zcam], c="red", label="Drone")
+
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
+    ax.set_zlabel("Elevation (m)")
+    ax.set_title(f"3D View Zenith Angle - {file_name}")
+    plt.savefig(os.path.join(view_3d_dir, f"angle_data_{file_name}.png"), dpi=200)
+    plt.close()
